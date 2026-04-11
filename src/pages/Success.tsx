@@ -96,12 +96,25 @@ export default function Success() {
                   flexDirection={{ base: "column", desktop: "row" }}
                 >
                   <Box flexGrow={1} minWidth={0} width="100%">
-                    <Button as={Link} to="/" block>
+                    <Button
+                      as={Link}
+                      to="/"
+                      block
+                      height="auto"
+                      minHeight={56}
+                    >
                       Create another QR
                     </Button>
                   </Box>
                   <Box flexGrow={1} minWidth={0} width="100%">
-                    <Button as={Link} to={payHref} variant="secondary" block>
+                    <Button
+                      as={Link}
+                      to={payHref}
+                      variant="secondary"
+                      block
+                      height="auto"
+                      minHeight={56}
+                    >
                       Back to payment
                     </Button>
                   </Box>
