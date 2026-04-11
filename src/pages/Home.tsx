@@ -20,13 +20,10 @@ export default function Home() {
   const [slug, setSlug] = useState("demo-001")
 
   const paymentUrl = useMemo(() => {
-    const params = new URLSearchParams({
-      amount,
-      label,
-    })
-
-    return `${window.location.origin}/pay/${slug}?${params.toString()}`
-  }, [amount, label, slug])
+    const origin = window.location.origin
+    const path = `/pay/${encodeURIComponent(slug)}`
+    return `${origin}${path}`
+  }, [slug])
 
   return (
     <Box
@@ -62,8 +59,9 @@ export default function Home() {
                 </TextTitle1>
                 <Box maxWidth="42rem" width="100%">
                   <TextBody as="p" color="fgMuted">
-                    Generate a branded payment QR in seconds. Built for instant
-                    digital payments today and the x402 future tomorrow.
+                    QR opens the x402-native pay page for your slug. Amount and
+                    label here are preview-only; pricing comes from the worker
+                    resource catalog.
                   </TextBody>
                 </Box>
               </VStack>

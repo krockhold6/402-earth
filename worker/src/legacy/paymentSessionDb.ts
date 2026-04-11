@@ -1,7 +1,12 @@
-import type { PaymentSession } from './session'
+/**
+ * D1 access for legacy `payment_sessions`, status transitions, and Coinbase webhook inbox.
+ * Not used by x402-native payment attempts (`payment_attempts`).
+ */
+import type { PaymentSession } from './paymentSessionTypes'
 
 export type PaymentStatus = PaymentSession['status']
 export type PaymentMethod = PaymentSession['paymentMethod']
+
 export function newDbId(prefix: string): string {
   const hex = crypto.randomUUID().replace(/-/g, '')
   return `${prefix}_${hex.slice(0, 24)}`

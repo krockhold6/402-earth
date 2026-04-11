@@ -9,11 +9,11 @@ import {
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
 import { TextBody, TextCaption, TextTitle3 } from "@coinbase/cds-web/typography"
 import {
-  apiUrl,
   fetchPaymentAttempt,
   type PaymentAttemptPayload,
   type PaymentAttemptStatus,
 } from "@/lib/api"
+import { LegacyCheckoutSessionPanel } from "@/legacy/LegacyCheckoutSessionPanel"
 
 const pagePaddingX = { base: 2, desktop: 4 } as const
 const pagePaddingY = { base: 3, desktop: 6 } as const
@@ -128,143 +128,11 @@ function NavButtons({ payHref }: { payHref: string }) {
   )
 }
 
-// --- Legacy checkout session (isolated; not x402 attempt truth) ---
-
-type LegacySessionPayload = {
-  sessionId: string
-  slug: string
-  label: string
-  amount: string
-  currency: string
-  paymentMethod: string
-  status: string
-  provider: string | null
-  providerRef: string | null
-  successUrl: string
-  cancelUrl: string
-  createdAt: string
-  paidAt: string | null
-  expiresAt: string
-}
-
-function LegacySessionCard({
-  sessionId,
-  routeSlug,
-}: {
-  sessionId: string
-  routeSlug: string | undefined
-}) {
-  const [session, setSession] = useState<LegacySessionPayload | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    let timer: number | undefined
-    const terminal = new Set(["paid", "failed", "expired", "cancelled"])
-
-    const load = async () => {
-      try {
-        const res = await fetch(apiUrl(`/api/payment-session/${sessionId}`))
-        const data = (await res.json().catch(() => null)) as {
-          ok?: boolean
-          error?: string
-          session?: LegacySessionPayload
-        } | null
-        if (cancelled) return
-        if (!res.ok || !data?.ok || !data.session) {
-          setError(data?.error || "Could not load session")
-          setSession(null)
-          return
-        }
-        setError(null)
-        setSession(data.session)
-        if (terminal.has(data.session.status) && timer !== undefined) {
-          window.clearInterval(timer)
-          timer = undefined
-        }
-      } catch {
-        if (!cancelled) setError("Could not load session")
-      }
-    }
-
-    timer = window.setInterval(load, POLL_MS)
-    void load()
-    return () => {
-      cancelled = true
-      if (timer !== undefined) window.clearInterval(timer)
-    }
-  }, [sessionId])
-
-  const paySlug = session?.slug ?? routeSlug ?? ""
-  const payHref =
-    paySlug !== "" ? `/pay/${encodeURIComponent(paySlug)}` : "/"
-
-  return (
-    <ContentCard
-      width="100%"
-      bordered
-      background="bgElevation1"
-      padding={cardPadding}
-      gap={cardGap}
-    >
-      <ContentCardHeader
-        title={
-          <TextTitle3 color="fg">Legacy checkout session</TextTitle3>
-        }
-        subtitle={
-          <TextBody color="fgMuted" textAlign="center">
-            Non-authoritative: older Coinbase checkout flow using{" "}
-            <TextBody as="span" mono color="fgMuted">
-              payment_sessions
-            </TextBody>
-            . Do not use this panel as x402 payment truth.
-          </TextBody>
-        }
-      />
-      <ContentCardBody>
-        <VStack gap={sectionGap} alignItems="stretch">
-          <Box
-            bordered
-            borderRadius={400}
-            background="bgSecondary"
-            padding={{ base: 3, desktop: 4 }}
-          >
-            <VStack gap={2} alignItems="stretch">
-              <DetailRow label="Session ID" value={sessionId} />
-              {error ? (
-                <TextBody color="fgNegative">{error}</TextBody>
-              ) : session ? (
-                <>
-                  <DetailRow label="Label" value={session.label} />
-                  <DetailRow
-                    label="Amount"
-                    value={`${session.amount} ${session.currency}`}
-                  />
-                  <DetailRow label="Status" value={session.status} />
-                  <DetailRow label="Paid at" value={formatTs(session.paidAt)} />
-                </>
-              ) : (
-                <TextBody color="fgMuted">Loading session…</TextBody>
-              )}
-            </VStack>
-          </Box>
-          <NavButtons payHref={payHref} />
-        </VStack>
-      </ContentCardBody>
-    </ContentCard>
-  )
-}
-
 export default function Success() {
   const { slug: routeSlug } = useParams()
   const [searchParams] = useSearchParams()
   const attemptId = searchParams.get("attemptId")?.trim() || null
   const sessionId = searchParams.get("sessionId")?.trim() || null
-
-  const legacyDemoParams =
-    searchParams.get("receipt") !== null ||
-    searchParams.get("paidAt") !== null ||
-    searchParams.get("status") !== null
 
   const [attempt, setAttempt] = useState<PaymentAttemptPayload | null>(null)
   const [attemptError, setAttemptError] = useState<string | null>(null)
@@ -511,27 +379,6 @@ export default function Success() {
             />
             <ContentCardBody>
               <VStack gap={sectionGap} alignItems="stretch">
-                {legacyDemoParams ? (
-                  <Box
-                    bordered
-                    borderRadius={400}
-                    background="bgWarningWash"
-                    padding={3}
-                  >
-                    <TextCaption color="fg" fontWeight="label1" as="p">
-                      Legacy URL parameters detected
-                    </TextCaption>
-                    <TextBody color="fgMuted">
-                      Receipt/status fields in the URL are not authoritative
-                      and are ignored. Use Pay to create an attempt, then open
-                      the success URL with{" "}
-                      <TextBody as="span" mono color="fgMuted">
-                        attemptId
-                      </TextBody>
-                      .
-                    </TextBody>
-                  </Box>
-                ) : null}
                 <NavButtons
                   payHref={
                     routeSlug && routeSlug !== ""
@@ -544,7 +391,10 @@ export default function Success() {
           </ContentCard>
 
           {sessionId ? (
-            <LegacySessionCard sessionId={sessionId} routeSlug={routeSlug} />
+            <LegacyCheckoutSessionPanel
+              sessionId={sessionId}
+              routeSlug={routeSlug}
+            />
           ) : null}
         </VStack>
       </Box>

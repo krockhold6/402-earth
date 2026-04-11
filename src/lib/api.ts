@@ -141,3 +141,40 @@ export async function verifyX402Payment(input: {
   const data = (await res.json().catch(() => null)) as X402VerifyResponse | null
   return { response: res, data }
 }
+
+/** Legacy Coinbase checkout session (`GET /api/payment-session/:id`). */
+export type LegacyPaymentSessionPayload = {
+  sessionId: string
+  slug: string
+  label: string
+  amount: string
+  currency: string
+  paymentMethod: string
+  status: string
+  provider: string | null
+  providerRef: string | null
+  successUrl: string
+  cancelUrl: string
+  createdAt: string
+  paidAt: string | null
+  expiresAt: string
+}
+
+export type LegacyPaymentSessionResponse = {
+  ok: boolean
+  session?: LegacyPaymentSessionPayload
+  error?: string
+}
+
+export async function fetchLegacyPaymentSession(
+  sessionId: string,
+): Promise<LegacyPaymentSessionResponse> {
+  const res = await fetch(
+    apiUrl(`/api/payment-session/${encodeURIComponent(sessionId)}`),
+  )
+  const data = (await res.json().catch(() => null)) as
+    | LegacyPaymentSessionResponse
+    | null
+  if (!data) return { ok: false, error: "Invalid response" }
+  return data
+}

@@ -49,7 +49,6 @@ export async function generateCdpBearerJwt(options: {
       .setExpirationTime(now + exp)
       .sign(ecKey)
   } catch {
-    // Ed25519: Coinbase sometimes issues 64-byte base64 (seed || pub)
     let raw: Uint8Array
     try {
       raw = Uint8Array.from(atob(secret), (c) => c.charCodeAt(0))

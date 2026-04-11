@@ -1,3 +1,7 @@
+/**
+ * Legacy Coinbase checkout + v2 x402 session model (`payment_sessions` D1 table).
+ * Worker v3 uses payment attempts; keep these types for backwards-compatible routes only.
+ */
 export type PaymentStatus =
   | 'created'
   | 'payment_required'
