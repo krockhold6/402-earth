@@ -35,14 +35,14 @@ export default function Home() {
         <Box
           width="100%"
           maxWidth="80rem"
-          paddingX={6}
-          paddingBottom={10}
-          paddingTop={4}
+          paddingX={{ base: 3, desktop: 6 }}
+          paddingBottom={{ base: 6, desktop: 10 }}
+          paddingTop={{ base: 2, desktop: 4 }}
           display="flex"
           flexDirection="column"
-          gap={10}
+          gap={{ base: 6, desktop: 10 }}
         >
-          <VStack gap={6} alignItems="stretch">
+          <VStack gap={{ base: 4, desktop: 6 }} alignItems="stretch">
             <Box maxWidth="56rem" width="100%">
               <VStack gap={4} alignItems="stretch">
                 <TextDisplay2 as="h1" color="fg">
@@ -61,7 +61,7 @@ export default function Home() {
           <Box
             display="flex"
             flexDirection={{ base: "column", desktop: "row" }}
-            gap={6}
+            gap={{ base: 4, desktop: 6 }}
             alignItems={{ base: "stretch", desktop: "flex-start" }}
           >
             <Box flexGrow={1} flexBasis={0} minWidth={0} width="100%">
@@ -70,8 +70,8 @@ export default function Home() {
                 bordered
                 borderRadius={500}
                 background="bgElevation1"
-                padding={6}
-                gap={6}
+                padding={{ base: 4, desktop: 6 }}
+                gap={{ base: 4, desktop: 6 }}
               >
                 <ContentCardHeader
                   title={<TextTitle3 color="fg">Create a QR</TextTitle3>}
@@ -104,7 +104,7 @@ export default function Home() {
                       bordered
                       borderRadius={400}
                       background="bgSecondary"
-                      padding={4}
+                      padding={{ base: 3, desktop: 4 }}
                     >
                       <VStack gap={2} alignItems="stretch">
                         <TextCaption
@@ -130,19 +130,19 @@ export default function Home() {
                 bordered
                 borderRadius={500}
                 background="bgElevation1"
-                padding={6}
-                gap={6}
+                padding={{ base: 4, desktop: 6 }}
+                gap={{ base: 4, desktop: 6 }}
               >
                 <ContentCardHeader
                   title={<TextTitle3 color="fg">QR Preview</TextTitle3>}
                 />
                 <ContentCardBody>
-                  <VStack gap={6} alignItems="center">
+                  <VStack gap={{ base: 4, desktop: 6 }} alignItems="center">
                     <Box
                       bordered
                       borderRadius={600}
                       background="bgInverse"
-                      padding={5}
+                      padding={{ base: 3, desktop: 5 }}
                     >
                       <QRCodeSVG value={paymentUrl} size={220} />
                     </Box>

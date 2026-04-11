@@ -82,15 +82,20 @@ export default function Pay() {
       background="bg"
       color="fg"
     >
-      <Box width="100%" maxWidth="28rem" paddingX={6} paddingY={10}>
+      <Box
+        width="100%"
+        maxWidth="28rem"
+        paddingX={{ base: 3, desktop: 6 }}
+        paddingY={{ base: 5, desktop: 10 }}
+      >
         <VStack gap={4} alignItems="stretch">
           <ContentCard
             width="100%"
             bordered
             borderRadius={500}
             background="bgElevation1"
-            padding={6}
-            gap={6}
+            padding={{ base: 4, desktop: 6 }}
+            gap={{ base: 4, desktop: 6 }}
           >
             <ContentCardHeader
               title={<TextTitle1 color="fg">Payment</TextTitle1>}
@@ -101,12 +106,12 @@ export default function Pay() {
               }
             />
             <ContentCardBody>
-              <VStack gap={6} alignItems="stretch">
+              <VStack gap={{ base: 4, desktop: 6 }} alignItems="stretch">
                 <Box
                   bordered
                   borderRadius={400}
                   background="bgSecondary"
-                  padding={5}
+                  padding={{ base: 4, desktop: 5 }}
                 >
                   <VStack gap={2} alignItems="center">
                     <TextTitle3 color="fg">{label}</TextTitle3>
