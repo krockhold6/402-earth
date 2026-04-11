@@ -1,0 +1,3 @@
+# Copy to `.dev.vars` for `wrangler dev` (not committed).
+# Enables mock x402 verification on POST /x402/verify.
+X402_MOCK_VERIFY=true

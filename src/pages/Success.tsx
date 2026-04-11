@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import {
@@ -7,7 +7,13 @@ import {
   ContentCardHeader,
 } from "@coinbase/cds-web/cards/ContentCard"
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
-import { TextBody, TextTitle3 } from "@coinbase/cds-web/typography"
+import { TextBody, TextCaption, TextTitle3 } from "@coinbase/cds-web/typography"
+import {
+  apiUrl,
+  fetchPaymentAttempt,
+  type PaymentAttemptPayload,
+  type PaymentAttemptStatus,
+} from "@/lib/api"
 
 const pagePaddingX = { base: 2, desktop: 4 } as const
 const pagePaddingY = { base: 3, desktop: 6 } as const
@@ -15,10 +21,19 @@ const cardPadding = { base: 3, desktop: 4 } as const
 const cardGap = { base: 3, desktop: 4 } as const
 const sectionGap = { base: 3, desktop: 4 } as const
 
-function formatPaidAt(value: string | null) {
-  if (!value) return "Unknown"
+const POLL_MS = 2500
+
+const TERMINAL_ATTEMPT: Set<string> = new Set([
+  "paid",
+  "failed",
+  "expired",
+  "cancelled",
+])
+
+function formatTs(value: string | null) {
+  if (!value) return "—"
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
+  if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString()
 }
 
@@ -46,22 +61,411 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+function attemptHeadline(status: string): string {
+  switch (status as PaymentAttemptStatus) {
+    case "paid":
+      return "Payment complete"
+    case "payment_required":
+      return "Awaiting payment"
+    case "pending":
+      return "Payment pending"
+    case "failed":
+      return "Payment failed"
+    case "expired":
+      return "Attempt expired"
+    case "cancelled":
+      return "Payment cancelled"
+    case "created":
+      return "Attempt created"
+    default:
+      return "Payment status"
+  }
+}
+
+function attemptSubtitle(status: string): string {
+  switch (status as PaymentAttemptStatus) {
+    case "paid":
+      return "The server marks this attempt as paid. This reflects worker state, not redirect parameters."
+    case "payment_required":
+      return "This payment attempt exists, but x402 verification and settlement are not complete yet. This page polls the worker until the status changes."
+    case "pending":
+      return "The attempt is in a pending state on the server. Keep this page open or return later."
+    case "failed":
+      return "This attempt did not complete successfully. Start a new payment from the pay page if you still need access."
+    case "expired":
+      return "This attempt is no longer valid. Create a new attempt from the pay page."
+    case "cancelled":
+      return "This attempt was cancelled."
+    case "created":
+      return "The attempt was just created and is not ready for payment yet."
+    default:
+      return "Status is reported by the worker. If this looks wrong, refresh or contact support."
+  }
+}
+
+function statusPillLabel(status: string): string {
+  if (status === "payment_required") return "Payment required"
+  return status.replace(/_/g, " ")
+}
+
+function NavButtons({ payHref }: { payHref: string }) {
+  return (
+    <VStack gap={2} width="100%" alignItems="stretch">
+      <Button as={Link} to="/" block height="auto" minHeight={44}>
+        Home
+      </Button>
+      <Button
+        as={Link}
+        to={payHref}
+        variant="secondary"
+        block
+        height="auto"
+        minHeight={44}
+      >
+        Back to payment
+      </Button>
+    </VStack>
+  )
+}
+
+// --- Legacy checkout session (isolated; not x402 attempt truth) ---
+
+type LegacySessionPayload = {
+  sessionId: string
+  slug: string
+  label: string
+  amount: string
+  currency: string
+  paymentMethod: string
+  status: string
+  provider: string | null
+  providerRef: string | null
+  successUrl: string
+  cancelUrl: string
+  createdAt: string
+  paidAt: string | null
+  expiresAt: string
+}
+
+function LegacySessionCard({
+  sessionId,
+  routeSlug,
+}: {
+  sessionId: string
+  routeSlug: string | undefined
+}) {
+  const [session, setSession] = useState<LegacySessionPayload | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    let timer: number | undefined
+    const terminal = new Set(["paid", "failed", "expired", "cancelled"])
+
+    const load = async () => {
+      try {
+        const res = await fetch(apiUrl(`/api/payment-session/${sessionId}`))
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean
+          error?: string
+          session?: LegacySessionPayload
+        } | null
+        if (cancelled) return
+        if (!res.ok || !data?.ok || !data.session) {
+          setError(data?.error || "Could not load session")
+          setSession(null)
+          return
+        }
+        setError(null)
+        setSession(data.session)
+        if (terminal.has(data.session.status) && timer !== undefined) {
+          window.clearInterval(timer)
+          timer = undefined
+        }
+      } catch {
+        if (!cancelled) setError("Could not load session")
+      }
+    }
+
+    timer = window.setInterval(load, POLL_MS)
+    void load()
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearInterval(timer)
+    }
+  }, [sessionId])
+
+  const paySlug = session?.slug ?? routeSlug ?? ""
+  const payHref =
+    paySlug !== "" ? `/pay/${encodeURIComponent(paySlug)}` : "/"
+
+  return (
+    <ContentCard
+      width="100%"
+      bordered
+      background="bgElevation1"
+      padding={cardPadding}
+      gap={cardGap}
+    >
+      <ContentCardHeader
+        title={
+          <TextTitle3 color="fg">Legacy checkout session</TextTitle3>
+        }
+        subtitle={
+          <TextBody color="fgMuted" textAlign="center">
+            Non-authoritative: older Coinbase checkout flow using{" "}
+            <TextBody as="span" mono color="fgMuted">
+              payment_sessions
+            </TextBody>
+            . Do not use this panel as x402 payment truth.
+          </TextBody>
+        }
+      />
+      <ContentCardBody>
+        <VStack gap={sectionGap} alignItems="stretch">
+          <Box
+            bordered
+            borderRadius={400}
+            background="bgSecondary"
+            padding={{ base: 3, desktop: 4 }}
+          >
+            <VStack gap={2} alignItems="stretch">
+              <DetailRow label="Session ID" value={sessionId} />
+              {error ? (
+                <TextBody color="fgNegative">{error}</TextBody>
+              ) : session ? (
+                <>
+                  <DetailRow label="Label" value={session.label} />
+                  <DetailRow
+                    label="Amount"
+                    value={`${session.amount} ${session.currency}`}
+                  />
+                  <DetailRow label="Status" value={session.status} />
+                  <DetailRow label="Paid at" value={formatTs(session.paidAt)} />
+                </>
+              ) : (
+                <TextBody color="fgMuted">Loading session…</TextBody>
+              )}
+            </VStack>
+          </Box>
+          <NavButtons payHref={payHref} />
+        </VStack>
+      </ContentCardBody>
+    </ContentCard>
+  )
+}
+
 export default function Success() {
-  const { slug } = useParams()
+  const { slug: routeSlug } = useParams()
   const [searchParams] = useSearchParams()
+  const attemptId = searchParams.get("attemptId")?.trim() || null
+  const sessionId = searchParams.get("sessionId")?.trim() || null
 
-  const label = searchParams.get("label") || "Payment"
-  const amount = searchParams.get("amount") || "0.00"
-  const receipt = searchParams.get("receipt") || "Unavailable"
-  const status = searchParams.get("status") || "unknown"
-  const paidAt = formatPaidAt(searchParams.get("paidAt"))
+  const legacyDemoParams =
+    searchParams.get("receipt") !== null ||
+    searchParams.get("paidAt") !== null ||
+    searchParams.get("status") !== null
 
-  const statusLabel = useMemo(() => {
-    return status === "paid" ? "Paid" : status
-  }, [status])
+  const [attempt, setAttempt] = useState<PaymentAttemptPayload | null>(null)
+  const [attemptError, setAttemptError] = useState<string | null>(null)
+  const [attemptInitialLoad, setAttemptInitialLoad] = useState(true)
 
-  const payHref = `/pay/${slug}?amount=${encodeURIComponent(amount)}&label=${encodeURIComponent(label)}`
+  useEffect(() => {
+    if (!attemptId) return
 
+    setAttempt(null)
+    setAttemptError(null)
+    setAttemptInitialLoad(true)
+
+    let cancelled = false
+    let timer: number | undefined
+    let first = true
+
+    const load = async () => {
+      try {
+        const data = await fetchPaymentAttempt(attemptId)
+        if (cancelled) return
+        if (!data.ok || !data.attempt) {
+          setAttemptError(data.error || "Could not load payment attempt")
+          return
+        }
+        setAttemptError(null)
+        setAttempt(data.attempt)
+        if (TERMINAL_ATTEMPT.has(data.attempt.status) && timer !== undefined) {
+          window.clearInterval(timer)
+          timer = undefined
+        }
+      } catch {
+        if (!cancelled) {
+          setAttemptError("Could not load payment attempt")
+        }
+      } finally {
+        if (first) {
+          first = false
+          if (!cancelled) setAttemptInitialLoad(false)
+        }
+      }
+    }
+
+    timer = window.setInterval(load, POLL_MS)
+    void load()
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearInterval(timer)
+    }
+  }, [attemptId])
+
+  const slugMismatch = useMemo(() => {
+    if (!routeSlug || !attempt) return false
+    return attempt.slug !== routeSlug
+  }, [routeSlug, attempt])
+
+  const payHref = useMemo(() => {
+    const s = attempt?.slug ?? routeSlug
+    if (s && s !== "") return `/pay/${encodeURIComponent(s)}`
+    return "/"
+  }, [attempt?.slug, routeSlug])
+
+  // --- Primary: x402 attempt (authoritative) ---
+  if (attemptId) {
+    const headline = (() => {
+      if (attemptError && !attempt) return "Payment attempt unavailable"
+      if (!attempt && attemptInitialLoad) return "Loading payment attempt"
+      if (!attempt) return "Payment attempt unavailable"
+      return attemptHeadline(attempt.status)
+    })()
+    const subtitle = (() => {
+      if (attemptError && !attempt) return attemptError
+      if (!attempt && attemptInitialLoad) return "Fetching status from the worker…"
+      if (!attempt)
+        return "We could not read this attempt from the worker. Check the link or try again."
+      return attemptSubtitle(attempt.status)
+    })()
+
+    const paid = attempt?.status === "paid"
+    const headerBg = paid ? "bgPositiveWash" : "bgElevation1"
+
+    return (
+      <Box
+        as="main"
+        width="100%"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        background="bg"
+        color="fg"
+        style={{ flex: 1, minHeight: 0 }}
+      >
+        <Box
+          width="100%"
+          maxWidth="28rem"
+          paddingX={pagePaddingX}
+          paddingY={pagePaddingY}
+        >
+          <VStack gap={2} alignItems="stretch">
+            <ContentCard
+              width="100%"
+              bordered
+              background={headerBg}
+              padding={cardPadding}
+              gap={cardGap}
+            >
+              <ContentCardHeader
+                title={<TextTitle3 color="fg">{headline}</TextTitle3>}
+                subtitle={
+                  <TextBody color="fgMuted" textAlign="center">
+                    {subtitle}
+                  </TextBody>
+                }
+              />
+              <ContentCardBody>
+                <VStack gap={sectionGap} alignItems="stretch">
+                  {attemptError && !attempt ? (
+                    <Box
+                      bordered
+                      borderRadius={400}
+                      background="bgNegativeWash"
+                      padding={3}
+                    >
+                      <TextBody color="fgNegative">{attemptError}</TextBody>
+                    </Box>
+                  ) : null}
+
+                  {attempt ? (
+                    <>
+                      {slugMismatch ? (
+                        <Box
+                          bordered
+                          borderRadius={400}
+                          background="bgWarningWash"
+                          padding={3}
+                        >
+                          <TextBody color="fg">
+                            Route slug{" "}
+                            <TextBody as="span" fontWeight="label1">
+                              {routeSlug}
+                            </TextBody>{" "}
+                            does not match attempt slug{" "}
+                            <TextBody as="span" fontWeight="label1">
+                              {attempt.slug}
+                            </TextBody>
+                            . Trust the attempt row below.
+                          </TextBody>
+                        </Box>
+                      ) : null}
+                      <Box
+                        bordered
+                        borderRadius={400}
+                        background="bgSecondary"
+                        padding={{ base: 3, desktop: 4 }}
+                      >
+                        <VStack gap={2} alignItems="stretch">
+                          <DetailRow
+                            label="Status"
+                            value={statusPillLabel(attempt.status)}
+                          />
+                          <DetailRow label="Label" value={attempt.label} />
+                          <DetailRow
+                            label="Amount"
+                            value={`${attempt.amount} ${attempt.currency}`}
+                          />
+                          <DetailRow label="Network" value={attempt.network} />
+                          <DetailRow label="Slug" value={attempt.slug} />
+                          <DetailRow label="Attempt ID" value={attempt.id} />
+                          <DetailRow
+                            label="Paid at"
+                            value={formatTs(attempt.paidAt)}
+                          />
+                          <DetailRow
+                            label="Updated"
+                            value={formatTs(attempt.updatedAt)}
+                          />
+                        </VStack>
+                      </Box>
+                    </>
+                  ) : attemptInitialLoad && !attemptError ? (
+                    <TextBody color="fgMuted">Loading attempt…</TextBody>
+                  ) : null}
+
+                  <NavButtons payHref={payHref} />
+
+                  <TextCaption color="fgMuted" textAlign="center" as="p">
+                    Truth comes from{" "}
+                    <TextBody as="span" mono color="fgMuted">
+                      GET /api/payment-attempt/:id
+                    </TextBody>{" "}
+                    only. Query-string flags are not used as payment proof.
+                  </TextCaption>
+                </VStack>
+              </ContentCardBody>
+            </ContentCard>
+          </VStack>
+        </Box>
+      </Box>
+    )
+  }
+
+  // --- Missing attemptId: no success pretense ---
   return (
     <Box
       as="main"
@@ -88,55 +492,60 @@ export default function Success() {
             gap={cardGap}
           >
             <ContentCardHeader
-              title={<TextTitle3 color="fg">Payment received</TextTitle3>}
+              title={
+                <TextTitle3 color="fg">Missing payment attempt</TextTitle3>
+              }
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
-                  Your 402.earth payment flow is working.
+                  This page needs an{" "}
+                  <TextBody as="span" mono color="fgMuted">
+                    attemptId
+                  </TextBody>{" "}
+                  from the x402 flow (e.g.{" "}
+                  <TextBody as="span" mono color="fgMuted">
+                    /success/demo-001?attemptId=…
+                  </TextBody>
+                  ). Without it, we cannot show verified payment status.
                 </TextBody>
               }
             />
             <ContentCardBody>
               <VStack gap={sectionGap} alignItems="stretch">
-                <Box
-                  bordered
-                  borderRadius={400}
-                  background="bgSecondary"
-                  padding={{ base: 3, desktop: 4 }}
-                >
-                  <VStack gap={2} alignItems="stretch">
-                    <DetailRow label="Label" value={label} />
-                    <DetailRow label="Amount" value={`$${amount}`} />
-                    <DetailRow label="Slug" value={slug ?? "—"} />
-                    <DetailRow label="Status" value={statusLabel} />
-                    <DetailRow label="Receipt" value={receipt} />
-                    <DetailRow label="Paid at" value={paidAt} />
-                  </VStack>
-                </Box>
-
-                <VStack gap={2} width="100%" alignItems="stretch">
-                  <Button
-                    as={Link}
-                    to="/"
-                    block
-                    height="auto"
-                    minHeight={44}
+                {legacyDemoParams ? (
+                  <Box
+                    bordered
+                    borderRadius={400}
+                    background="bgWarningWash"
+                    padding={3}
                   >
-                    Create another QR
-                  </Button>
-                  <Button
-                    as={Link}
-                    to={payHref}
-                    variant="secondary"
-                    block
-                    height="auto"
-                    minHeight={44}
-                  >
-                    Back to payment
-                  </Button>
-                </VStack>
+                    <TextCaption color="fg" fontWeight="label1" as="p">
+                      Legacy URL parameters detected
+                    </TextCaption>
+                    <TextBody color="fgMuted">
+                      Receipt/status fields in the URL are not authoritative
+                      and are ignored. Use Pay to create an attempt, then open
+                      the success URL with{" "}
+                      <TextBody as="span" mono color="fgMuted">
+                        attemptId
+                      </TextBody>
+                      .
+                    </TextBody>
+                  </Box>
+                ) : null}
+                <NavButtons
+                  payHref={
+                    routeSlug && routeSlug !== ""
+                      ? `/pay/${encodeURIComponent(routeSlug)}`
+                      : "/"
+                  }
+                />
               </VStack>
             </ContentCardBody>
           </ContentCard>
+
+          {sessionId ? (
+            <LegacySessionCard sessionId={sessionId} routeSlug={routeSlug} />
+          ) : null}
         </VStack>
       </Box>
     </Box>

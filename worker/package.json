@@ -3,7 +3,12 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "db:seed:local": "wrangler d1 execute 402-earth-payments --local --file=./seeds/demo_resource.sql",
+    "db:seed:remote": "wrangler d1 execute 402-earth-payments --remote --yes --file=./seeds/demo_resource.sql"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
   },
   "devDependencies": {
     "wrangler": "^4.54.0"
