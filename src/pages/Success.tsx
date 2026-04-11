@@ -52,64 +52,65 @@ export default function Success() {
       justifyContent="center"
       background="bg"
       color="fg"
-      paddingX={6}
-      paddingY={10}
     >
-      <ContentCard
-        width="100%"
-        bordered
-        borderRadius={500}
-        background="bgElevation1"
-        padding={6}
-        gap={6}
-        style={{ maxWidth: "32rem" }}
-      >
-        <ContentCardHeader
-          title={<TextTitle1 color="fg">Payment received</TextTitle1>}
-          subtitle={
-            <TextBody color="fgMuted" textAlign="center">
-              Your 402.earth payment flow is working.
-            </TextBody>
-          }
-        />
-        <ContentCardBody>
-          <VStack gap={6} alignItems="stretch">
-            <Box
-              bordered
-              borderRadius={400}
-              background="bgSecondary"
-              padding={5}
-            >
-              <VStack gap={3} alignItems="stretch">
-                <DetailRow label="Label" value={label} />
-                <DetailRow label="Amount" value={`$${amount}`} />
-                <DetailRow label="Slug" value={slug ?? "—"} />
-                <DetailRow label="Status" value={statusLabel} />
-                <DetailRow label="Receipt" value={receipt} />
-                <DetailRow label="Paid at" value={paidAt} />
-              </VStack>
-            </Box>
+      <Box width="100%" maxWidth="32rem" paddingX={6} paddingY={10}>
+        <VStack gap={4} alignItems="stretch">
+          <ContentCard
+            width="100%"
+            bordered
+            borderRadius={500}
+            background="bgElevation1"
+            padding={6}
+            gap={6}
+          >
+            <ContentCardHeader
+              title={<TextTitle1 color="fg">Payment received</TextTitle1>}
+              subtitle={
+                <TextBody color="fgMuted" textAlign="center">
+                  Your 402.earth payment flow is working.
+                </TextBody>
+              }
+            />
+            <ContentCardBody>
+              <VStack gap={6} alignItems="stretch">
+                <Box
+                  bordered
+                  borderRadius={400}
+                  background="bgSecondary"
+                  padding={5}
+                >
+                  <VStack gap={3} alignItems="stretch">
+                    <DetailRow label="Label" value={label} />
+                    <DetailRow label="Amount" value={`$${amount}`} />
+                    <DetailRow label="Slug" value={slug ?? "—"} />
+                    <DetailRow label="Status" value={statusLabel} />
+                    <DetailRow label="Receipt" value={receipt} />
+                    <DetailRow label="Paid at" value={paidAt} />
+                  </VStack>
+                </Box>
 
-            <Box
-              display="flex"
-              flexDirection={{ base: "column", desktop: "row" }}
-              gap={4}
-              width="100%"
-            >
-              <Box flexGrow={1} minWidth={0} width="100%">
-                <Button as={Link} to="/" block>
-                  Create another QR
-                </Button>
-              </Box>
-              <Box flexGrow={1} minWidth={0} width="100%">
-                <Button as={Link} to={payHref} variant="secondary" block>
-                  Back to payment
-                </Button>
-              </Box>
-            </Box>
-          </VStack>
-        </ContentCardBody>
-      </ContentCard>
+                <HStack
+                  gap={4}
+                  width="100%"
+                  alignItems="stretch"
+                  flexDirection={{ base: "column", desktop: "row" }}
+                >
+                  <Box flexGrow={1} minWidth={0} width="100%">
+                    <Button as={Link} to="/" block>
+                      Create another QR
+                    </Button>
+                  </Box>
+                  <Box flexGrow={1} minWidth={0} width="100%">
+                    <Button as={Link} to={payHref} variant="secondary" block>
+                      Back to payment
+                    </Button>
+                  </Box>
+                </HStack>
+              </VStack>
+            </ContentCardBody>
+          </ContentCard>
+        </VStack>
+      </Box>
     </Box>
   )
 }

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { IconButton } from "@coinbase/cds-web/buttons"
-import { Box, HStack } from "@coinbase/cds-web/layout"
+import { Box } from "@coinbase/cds-web/layout"
+import { PageHeader } from "@coinbase/cds-web/page/PageHeader"
 import { useCdsColorScheme } from "@/providers/CdsAppShell"
 
 function EarthLogo() {
@@ -25,49 +26,36 @@ export function AppNavbar() {
   const { colorScheme, toggleColorScheme } = useCdsColorScheme()
 
   return (
-    <Box
-      as="nav"
-      role="navigation"
-      aria-label="Main"
+    <PageHeader
+      background="bg"
+      borderedBottom
       position="sticky"
       top={0}
       zIndex={100}
       width="100%"
-      background="bg"
-      borderedBottom
-    >
-      <Box
-        width="100%"
-        paddingX={6}
-        paddingY={4}
-        style={{ maxWidth: "80rem", marginInline: "auto" }}
-      >
-        <HStack
-          justifyContent="space-between"
-          alignItems="center"
-          width="100%"
+      start={
+        <Box
+          as={Link}
+          to="/"
+          display="inline-flex"
+          color="fg"
+          accessibilityLabel="402.earth home"
         >
-          <Box
-            as={Link}
-            to="/"
-            display="inline-flex"
-            color="fg"
-            accessibilityLabel="402.earth home"
-          >
-            <EarthLogo />
-          </Box>
-          <IconButton
-            name={colorScheme === "light" ? "moon" : "sun"}
-            variant="secondary"
-            onClick={toggleColorScheme}
-            accessibilityLabel={
-              colorScheme === "light"
-                ? "Switch to dark theme"
-                : "Switch to light theme"
-            }
-          />
-        </HStack>
-      </Box>
-    </Box>
+          <EarthLogo />
+        </Box>
+      }
+      end={
+        <IconButton
+          name={colorScheme === "light" ? "moon" : "sun"}
+          variant="secondary"
+          onClick={toggleColorScheme}
+          accessibilityLabel={
+            colorScheme === "light"
+              ? "Switch to dark theme"
+              : "Switch to light theme"
+          }
+        />
+      }
+    />
   )
 }

@@ -1,5 +1,5 @@
 import { Button } from "@coinbase/cds-web/buttons"
-import { Box } from "@coinbase/cds-web/layout"
+import { Box, VStack } from "@coinbase/cds-web/layout"
 import { Text } from "@coinbase/cds-web/typography"
 
 export default function CdsCheck() {
@@ -12,18 +12,18 @@ export default function CdsCheck() {
       padding={4}
     >
       <Box
-        display="flex"
-        flexDirection="column"
-        gap={4}
-        alignItems="center"
-        padding={4}
         borderRadius={500}
         background="bgAlternate"
+        padding={4}
+        maxWidth="28rem"
+        width="100%"
       >
-        <Text textAlign="center" fontSize="body" fontWeight="body">
-          CDS system check
-        </Text>
-        <Button>CDS Button Working</Button>
+        <VStack gap={4} alignItems="center">
+          <Text textAlign="center" fontSize="body" fontWeight="body">
+            CDS system check
+          </Text>
+          <Button>CDS Button Working</Button>
+        </VStack>
       </Box>
     </Box>
   )

@@ -3,8 +3,8 @@ import ReactDOM from "react-dom/client"
 import { BrowserRouter } from "react-router-dom"
 
 import "@coinbase/cds-icons/fonts/web/icon-font.css"
-import "@coinbase/cds-web/defaultFontStyles"
 import "@coinbase/cds-web/globalStyles"
+import "@coinbase/cds-web/defaultFontStyles"
 
 import { CdsAppShell } from "./providers/CdsAppShell"
 
