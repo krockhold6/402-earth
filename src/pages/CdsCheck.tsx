@@ -9,16 +9,16 @@ export default function CdsCheck() {
       display="flex"
       alignItems="center"
       justifyContent="center"
-      padding={4}
+      padding={3}
     >
       <Box
         borderRadius={500}
         background="bgAlternate"
-        padding={4}
-        maxWidth="28rem"
+        padding={3}
+        maxWidth="26rem"
         width="100%"
       >
-        <VStack gap={4} alignItems="center">
+        <VStack gap={2} alignItems="center">
           <Text textAlign="center" fontSize="body" fontWeight="body">
             CDS system check
           </Text>

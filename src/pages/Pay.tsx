@@ -75,30 +75,30 @@ export default function Pay() {
   return (
     <Box
       as="main"
-      minHeight="100vh"
+      width="100%"
       display="flex"
       alignItems="center"
       justifyContent="center"
       background="bg"
       color="fg"
+      style={{ flex: 1, minHeight: 0 }}
     >
       <Box
         width="100%"
-        maxWidth="28rem"
-        paddingX={{ base: 3, desktop: 6 }}
-        paddingY={{ base: 5, desktop: 10 }}
+        maxWidth="26rem"
+        paddingX={{ base: 2, desktop: 4 }}
+        paddingY={{ base: 3, desktop: 6 }}
       >
-        <VStack gap={4} alignItems="stretch">
+        <VStack gap={2} alignItems="stretch">
           <ContentCard
             width="100%"
             bordered
-            borderRadius={500}
             background="bgElevation1"
-            padding={{ base: 4, desktop: 6 }}
-            gap={{ base: 4, desktop: 6 }}
+            padding={{ base: 3, desktop: 4 }}
+            gap={{ base: 3, desktop: 4 }}
           >
             <ContentCardHeader
-              title={<TextTitle1 color="fg">Payment</TextTitle1>}
+              title={<TextTitle3 color="fg">Payment</TextTitle3>}
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
                   Complete this payment for 402.earth
@@ -106,14 +106,14 @@ export default function Pay() {
               }
             />
             <ContentCardBody>
-              <VStack gap={{ base: 4, desktop: 6 }} alignItems="stretch">
+              <VStack gap={{ base: 3, desktop: 4 }} alignItems="stretch">
                 <Box
                   bordered
                   borderRadius={400}
                   background="bgSecondary"
-                  padding={{ base: 4, desktop: 5 }}
+                  padding={{ base: 3, desktop: 4 }}
                 >
-                  <VStack gap={2} alignItems="center">
+                  <VStack gap={1} alignItems="center">
                     <TextTitle3 color="fg">{label}</TextTitle3>
                     <TextTitle1 color="fg">
                       {amount ? `$${amount}` : "Invalid amount"}
@@ -136,7 +136,7 @@ export default function Pay() {
                     bordered
                     borderRadius={400}
                     background="bgNegativeWash"
-                    padding={4}
+                    padding={3}
                   >
                     <TextBody color="fgNegative">
                       This payment link is missing required information.
@@ -149,7 +149,7 @@ export default function Pay() {
                     bordered
                     borderRadius={400}
                     background="bgNegativeWash"
-                    padding={4}
+                    padding={3}
                   >
                     <TextBody color="fgNegative">{error}</TextBody>
                   </Box>

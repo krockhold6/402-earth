@@ -2,10 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react"
+import { Box } from "@coinbase/cds-web/layout"
 import { MediaQueryProvider, ThemeProvider } from "@coinbase/cds-web/system"
 import { defaultTheme } from "@coinbase/cds-web/themes/defaultTheme"
 
@@ -54,11 +56,36 @@ export function CdsAppShell({ children }: { children: ReactNode }) {
     [activeColorScheme, toggleColorScheme],
   )
 
+  useEffect(() => {
+    const bg =
+      activeColorScheme === "dark"
+        ? defaultTheme.darkColor.bg
+        : defaultTheme.lightColor.bg
+    document.documentElement.style.backgroundColor = bg
+    document.body.style.backgroundColor = bg
+  }, [activeColorScheme])
+
   return (
     <MediaQueryProvider>
-      <ThemeProvider theme={defaultTheme} activeColorScheme={activeColorScheme}>
+      <ThemeProvider
+        theme={defaultTheme}
+        activeColorScheme={activeColorScheme}
+        display="flex"
+        style={{
+          flexDirection: "column",
+          minHeight: "100dvh",
+          backgroundColor: "var(--color-bg)",
+        }}
+      >
         <CdsColorSchemeContext.Provider value={value}>
-          {children}
+          <Box
+            display="flex"
+            flexDirection="column"
+            width="100%"
+            style={{ flex: 1, minHeight: 0 }}
+          >
+            {children}
+          </Box>
         </CdsColorSchemeContext.Provider>
       </ThemeProvider>
     </MediaQueryProvider>

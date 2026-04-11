@@ -10,8 +10,8 @@ function EarthLogo() {
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 91 36"
       fill="none"
-      width={91}
-      height={36}
+      width={74}
+      height={29}
       aria-hidden
     >
       <path

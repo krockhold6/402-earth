@@ -7,13 +7,13 @@ import {
   ContentCardHeader,
 } from "@coinbase/cds-web/cards/ContentCard"
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
+import { TextBody, TextTitle3 } from "@coinbase/cds-web/typography"
 
-const pagePaddingX = { base: 3, desktop: 6 } as const
-const pagePaddingY = { base: 5, desktop: 10 } as const
-const cardPadding = { base: 4, desktop: 6 } as const
-const cardGap = { base: 4, desktop: 6 } as const
-const sectionGap = { base: 4, desktop: 6 } as const
-import { TextBody, TextTitle1 } from "@coinbase/cds-web/typography"
+const pagePaddingX = { base: 2, desktop: 4 } as const
+const pagePaddingY = { base: 3, desktop: 6 } as const
+const cardPadding = { base: 3, desktop: 4 } as const
+const cardGap = { base: 3, desktop: 4 } as const
+const sectionGap = { base: 3, desktop: 4 } as const
 
 function formatPaidAt(value: string | null) {
   if (!value) return "Unknown"
@@ -27,7 +27,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     <HStack
       justifyContent="space-between"
       alignItems="flex-start"
-      gap={3}
+      gap={2}
       width="100%"
     >
       <TextBody color="fgMuted" flexShrink={0}>
@@ -65,30 +65,30 @@ export default function Success() {
   return (
     <Box
       as="main"
-      minHeight="100vh"
+      width="100%"
       display="flex"
       alignItems="center"
       justifyContent="center"
       background="bg"
       color="fg"
+      style={{ flex: 1, minHeight: 0 }}
     >
       <Box
         width="100%"
-        maxWidth="32rem"
+        maxWidth="28rem"
         paddingX={pagePaddingX}
         paddingY={pagePaddingY}
       >
-        <VStack gap={4} alignItems="stretch">
+        <VStack gap={2} alignItems="stretch">
           <ContentCard
             width="100%"
             bordered
-            borderRadius={500}
             background="bgElevation1"
             padding={cardPadding}
             gap={cardGap}
           >
             <ContentCardHeader
-              title={<TextTitle1 color="fg">Payment received</TextTitle1>}
+              title={<TextTitle3 color="fg">Payment received</TextTitle3>}
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
                   Your 402.earth payment flow is working.
@@ -101,9 +101,9 @@ export default function Success() {
                   bordered
                   borderRadius={400}
                   background="bgSecondary"
-                  padding={{ base: 4, desktop: 5 }}
+                  padding={{ base: 3, desktop: 4 }}
                 >
-                  <VStack gap={3} alignItems="stretch">
+                  <VStack gap={2} alignItems="stretch">
                     <DetailRow label="Label" value={label} />
                     <DetailRow label="Amount" value={`$${amount}`} />
                     <DetailRow label="Slug" value={slug ?? "—"} />
@@ -113,13 +113,13 @@ export default function Success() {
                   </VStack>
                 </Box>
 
-                <VStack gap={3} width="100%" alignItems="stretch">
+                <VStack gap={2} width="100%" alignItems="stretch">
                   <Button
                     as={Link}
                     to="/"
                     block
                     height="auto"
-                    minHeight={56}
+                    minHeight={44}
                   >
                     Create another QR
                   </Button>
@@ -129,7 +129,7 @@ export default function Success() {
                     variant="secondary"
                     block
                     height="auto"
-                    minHeight={56}
+                    minHeight={44}
                   >
                     Back to payment
                   </Button>
