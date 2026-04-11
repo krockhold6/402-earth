@@ -1,6 +1,6 @@
 import { getAttemptById, markAttemptPaid, updateAttemptStatus } from '../db/attempts'
 import { insertPaymentEvent } from '../db/events'
-import { verifyWithFacilitator } from '../lib/facilitator'
+import { mockVerifyEnabled, verifyWithFacilitator } from '../lib/facilitator'
 import { sha256HexUtf8 } from '../lib/hash'
 import { createEventId } from '../lib/ids'
 import { badRequest, json, notFound } from '../lib/response'
@@ -31,11 +31,16 @@ export async function handleX402Verify(
   const slug = typeof o.slug === 'string' ? o.slug.trim() : ''
   const paymentSignature =
     typeof o.paymentSignature === 'string' ? o.paymentSignature : ''
+  const txHashRaw = typeof o.txHash === 'string' ? o.txHash.trim() : ''
+  const useMock = mockVerifyEnabled(env)
 
   if (!attemptId) return badRequest('attemptId is required')
   if (!slug) return badRequest('slug is required')
-  if (!paymentSignature.trim()) {
+  if (useMock && !paymentSignature.trim()) {
     return badRequest('paymentSignature is required (use a placeholder string in mock mode)')
+  }
+  if (!useMock && !txHashRaw) {
+    return badRequest('txHash is required for on-chain verification')
   }
 
   const attempt = await getAttemptById(env.DB, attemptId)
@@ -78,12 +83,14 @@ export async function handleX402Verify(
     )
   }
 
-  const paymentSignatureHash = await sha256HexUtf8(paymentSignature)
+  const sigForHash = paymentSignature.trim() || txHashRaw
+  const paymentSignatureHash = await sha256HexUtf8(sigForHash)
   const verifyResult = await verifyWithFacilitator(env, {
     attempt,
     slug,
     paymentSignature,
     paymentSignatureHash,
+    txHash: txHashRaw || undefined,
   })
 
   const t = nowIso()
@@ -126,7 +133,8 @@ export async function handleX402Verify(
       payerAddress: verifyResult.payerAddress,
       txHash: verifyResult.txHash,
       paymentSignatureHash,
-      mock: true,
+      mock: useMock,
+      network: verifyResult.network,
     }),
     createdAt: t,
   })

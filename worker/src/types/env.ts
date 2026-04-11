@@ -12,6 +12,10 @@ export interface Env {
   COINBASE_WEBHOOK_SHARED_SECRET?: string
   SITE_URL?: string
   API_PUBLIC_URL?: string
+  /** Base (or compatible) JSON-RPC URL for `eth_getTransactionReceipt` (e.g. https://mainnet.base.org). */
+  BASE_RPC_URL?: string
+  /** USDC payee address on Base; must match the `to` of the verified Transfer log. */
+  PAYMENT_RECEIVER_ADDRESS?: string
   /**
    * When truthy (`true`, `1`, `yes`), `POST /x402/verify` uses mock facilitator success.
    * Use only in local/dev via `.dev.vars` — do not enable in production.
