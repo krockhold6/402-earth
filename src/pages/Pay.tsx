@@ -1,7 +1,18 @@
 import { useMemo, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button } from "@coinbase/cds-web/buttons"
+import {
+  ContentCard,
+  ContentCardBody,
+  ContentCardHeader,
+} from "@coinbase/cds-web/cards/ContentCard"
+import { Box, VStack } from "@coinbase/cds-web/layout"
+import {
+  TextBody,
+  TextCaption,
+  TextTitle1,
+  TextTitle3,
+} from "@coinbase/cds-web/typography"
 
 function formatAmount(rawAmount: string | null) {
   const parsed = Number(rawAmount)
@@ -9,17 +20,12 @@ function formatAmount(rawAmount: string | null) {
   return parsed.toFixed(2)
 }
 
-function buildReceiptId() {
-  const partA = Math.random().toString(36).slice(2, 8).toUpperCase()
-  const partB = Date.now().toString(36).slice(-6).toUpperCase()
-  return `402-${partA}-${partB}`
-}
-
 export default function Pay() {
   const navigate = useNavigate()
   const { slug } = useParams()
   const [searchParams] = useSearchParams()
   const [isProcessing, setIsProcessing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const label = searchParams.get("label")?.trim() || "Payment"
   const amount = formatAmount(searchParams.get("amount"))
@@ -32,67 +38,127 @@ export default function Pay() {
     if (!slug || !amount || isProcessing) return
 
     setIsProcessing(true)
+    setError(null)
 
-    const receiptId = buildReceiptId()
-    const paidAt = new Date().toISOString()
+    try {
+      const response = await fetch("/api/payment-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          slug,
+          amount,
+          label,
+        }),
+      })
 
-    await new Promise((resolve) => setTimeout(resolve, 1200))
+      const data = await response.json().catch(() => null)
 
-    const nextParams = new URLSearchParams({
-      amount,
-      label,
-      receipt: receiptId,
-      paidAt,
-      status: "paid",
-    })
+      if (!response.ok || !data?.ok || !data?.checkoutUrl) {
+        throw new Error(data?.error || "Failed to create payment session")
+      }
 
-    navigate(`/success/${slug}?${nextParams.toString()}`)
+      navigate(data.checkoutUrl)
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unexpected payment error"
+      setError(message)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10">
-      <Card className="w-full max-w-md rounded-3xl">
-        <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-3xl font-semibold tracking-tight">
-            Payment
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Complete this payment for 402.earth
-          </p>
-        </CardHeader>
+    <Box
+      as="main"
+      minHeight="100vh"
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      background="bg"
+      color="fg"
+      paddingX={6}
+      paddingY={10}
+    >
+      <ContentCard
+        width="100%"
+        bordered
+        borderRadius={500}
+        background="bgElevation1"
+        padding={6}
+        gap={6}
+        style={{ maxWidth: "28rem" }}
+      >
+        <ContentCardHeader
+          title={<TextTitle1 color="fg">Payment</TextTitle1>}
+          subtitle={
+            <TextBody color="fgMuted" textAlign="center">
+              Complete this payment for 402.earth
+            </TextBody>
+          }
+        />
+        <ContentCardBody>
+          <VStack gap={6} alignItems="stretch">
+            <Box
+              bordered
+              borderRadius={400}
+              background="bgSecondary"
+              padding={5}
+            >
+              <VStack gap={2} alignItems="center">
+                <TextTitle3 color="fg">{label}</TextTitle3>
+                <TextTitle1 color="fg">
+                  {amount ? `$${amount}` : "Invalid amount"}
+                </TextTitle1>
+                <TextCaption
+                  color="fgMuted"
+                  textAlign="center"
+                  style={{ letterSpacing: "0.18em", textTransform: "uppercase" }}
+                >
+                  Slug: {slug ?? "missing"}
+                </TextCaption>
+              </VStack>
+            </Box>
 
-        <CardContent className="space-y-6">
-          <div className="rounded-2xl border bg-muted/40 p-5 text-center">
-            <p className="text-base font-medium">{label}</p>
-            <p className="mt-2 text-4xl font-semibold tracking-tight">
-              {amount ? `$${amount}` : "Invalid amount"}
-            </p>
-            <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Slug: {slug ?? "missing"}
-            </p>
-          </div>
+            {!isValid ? (
+              <Box
+                bordered
+                borderRadius={400}
+                background="bgNegativeWash"
+                padding={4}
+              >
+                <TextBody color="fgNegative">
+                  This payment link is missing required information.
+                </TextBody>
+              </Box>
+            ) : null}
 
-          {!isValid ? (
-            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-              This payment link is missing required information.
-            </div>
-          ) : null}
+            {error ? (
+              <Box
+                bordered
+                borderRadius={400}
+                background="bgNegativeWash"
+                padding={4}
+              >
+                <TextBody color="fgNegative">{error}</TextBody>
+              </Box>
+            ) : null}
 
-          <Button
-            type="button"
-            className="h-12 w-full rounded-2xl"
-            disabled={!isValid || isProcessing}
-            onClick={handlePayNow}
-          >
-            {isProcessing ? "Processing..." : "Pay Now"}
-          </Button>
+            <Button
+              onClick={handlePayNow}
+              disabled={!isValid || isProcessing}
+              block
+            >
+              {isProcessing ? "Processing..." : "Pay Now"}
+            </Button>
 
-          <p className="text-center text-xs text-muted-foreground">
-            This is the current payment stub flow. Real wallet or x402 execution
-            can replace the handler next.
-          </p>
-        </CardContent>
-      </Card>
-    </main>
+            <TextCaption color="fgMuted" textAlign="center">
+              This button calls the worker seam to create the payment session.
+            </TextCaption>
+          </VStack>
+        </ContentCardBody>
+      </ContentCard>
+    </Box>
   )
 }

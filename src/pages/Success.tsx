@@ -1,13 +1,30 @@
 import { useMemo } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button } from "@coinbase/cds-web/buttons"
+import {
+  ContentCard,
+  ContentCardBody,
+  ContentCardHeader,
+} from "@coinbase/cds-web/cards/ContentCard"
+import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
+import { TextBody, TextTitle1 } from "@coinbase/cds-web/typography"
 
 function formatPaidAt(value: string | null) {
   if (!value) return "Unknown"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "Unknown"
   return date.toLocaleString()
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <HStack justifyContent="space-between" alignItems="center" width="100%">
+      <TextBody color="fgMuted">{label}</TextBody>
+      <TextBody color="fg" fontWeight="label1">
+        {value}
+      </TextBody>
+    </HStack>
+  )
 }
 
 export default function Success() {
@@ -24,66 +41,75 @@ export default function Success() {
     return status === "paid" ? "Paid" : status
   }, [status])
 
+  const payHref = `/pay/${slug}?amount=${encodeURIComponent(amount)}&label=${encodeURIComponent(label)}`
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10">
-      <Card className="w-full max-w-lg rounded-3xl">
-        <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-3xl font-semibold tracking-tight">
-            Payment received
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Your 402.earth payment flow is working.
-          </p>
-        </CardHeader>
+    <Box
+      as="main"
+      minHeight="100vh"
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      background="bg"
+      color="fg"
+      paddingX={6}
+      paddingY={10}
+    >
+      <ContentCard
+        width="100%"
+        bordered
+        borderRadius={500}
+        background="bgElevation1"
+        padding={6}
+        gap={6}
+        style={{ maxWidth: "32rem" }}
+      >
+        <ContentCardHeader
+          title={<TextTitle1 color="fg">Payment received</TextTitle1>}
+          subtitle={
+            <TextBody color="fgMuted" textAlign="center">
+              Your 402.earth payment flow is working.
+            </TextBody>
+          }
+        />
+        <ContentCardBody>
+          <VStack gap={6} alignItems="stretch">
+            <Box
+              bordered
+              borderRadius={400}
+              background="bgSecondary"
+              padding={5}
+            >
+              <VStack gap={3} alignItems="stretch">
+                <DetailRow label="Label" value={label} />
+                <DetailRow label="Amount" value={`$${amount}`} />
+                <DetailRow label="Slug" value={slug ?? "—"} />
+                <DetailRow label="Status" value={statusLabel} />
+                <DetailRow label="Receipt" value={receipt} />
+                <DetailRow label="Paid at" value={paidAt} />
+              </VStack>
+            </Box>
 
-        <CardContent className="space-y-6">
-          <div className="rounded-2xl border bg-muted/40 p-5">
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Label</span>
-              <span className="text-sm font-medium">{label}</span>
-            </div>
-
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Amount</span>
-              <span className="text-sm font-medium">${amount}</span>
-            </div>
-
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Slug</span>
-              <span className="text-sm font-medium">{slug}</span>
-            </div>
-
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Status</span>
-              <span className="text-sm font-medium">{statusLabel}</span>
-            </div>
-
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Receipt</span>
-              <span className="text-sm font-medium">{receipt}</span>
-            </div>
-
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Paid at</span>
-              <span className="text-sm font-medium">{paidAt}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild className="h-12 flex-1 rounded-2xl">
-              <Link to="/">Create another QR</Link>
-            </Button>
-
-            <Button asChild variant="outline" className="h-12 flex-1 rounded-2xl">
-              <Link
-                to={`/pay/${slug}?amount=${encodeURIComponent(amount)}&label=${encodeURIComponent(label)}`}
-              >
-                Back to payment
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </main>
+            <Box
+              display="flex"
+              flexDirection={{ base: "column", desktop: "row" }}
+              gap={4}
+              width="100%"
+            >
+              <Box flexGrow={1} minWidth={0} width="100%">
+                <Button as={Link} to="/" block>
+                  Create another QR
+                </Button>
+              </Box>
+              <Box flexGrow={1} minWidth={0} width="100%">
+                <Button as={Link} to={payHref} variant="secondary" block>
+                  Back to payment
+                </Button>
+              </Box>
+            </Box>
+          </VStack>
+        </ContentCardBody>
+      </ContentCard>
+    </Box>
   )
 }
