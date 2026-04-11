@@ -114,7 +114,7 @@ export async function fetchPaymentAttempt(
   return data
 }
 
-/** Worker `POST /x402/verify` (mock facilitator when `X402_MOCK_VERIFY` is set). */
+/** Worker `POST /x402/verify` — production uses `txHash`; mock worker uses `paymentSignature`. */
 export type X402VerifyResponse = {
   ok: boolean
   status?: string
@@ -124,19 +124,31 @@ export type X402VerifyResponse = {
   code?: string | null
 }
 
-export async function verifyX402Payment(input: {
+export type VerifyX402Input = {
   attemptId: string
   slug: string
-  paymentSignature: string
-}): Promise<{ response: Response; data: X402VerifyResponse | null }> {
+  /** Base USDC transaction hash after the user sends payment (production path). */
+  txHash?: string
+  /** Local/dev when the worker has `X402_MOCK_VERIFY` enabled. */
+  paymentSignature?: string
+}
+
+export async function verifyX402Payment(
+  input: VerifyX402Input,
+): Promise<{ response: Response; data: X402VerifyResponse | null }> {
+  const body: Record<string, string> = {
+    attemptId: input.attemptId,
+    slug: input.slug,
+  }
+  const tx = input.txHash?.trim()
+  if (tx) body.txHash = tx
+  const sig = input.paymentSignature
+  if (sig !== undefined && sig !== "") body.paymentSignature = sig
+
   const res = await fetch(apiUrl("/x402/verify"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      attemptId: input.attemptId,
-      slug: input.slug,
-      paymentSignature: input.paymentSignature,
-    }),
+    body: JSON.stringify(body),
   })
   const data = (await res.json().catch(() => null)) as X402VerifyResponse | null
   return { response: res, data }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
+import { TextInput } from "@coinbase/cds-web/controls"
 import {
   createPaymentAttempt,
   fetchResource,
@@ -20,6 +21,12 @@ import {
   TextTitle3,
 } from "@coinbase/cds-web/typography"
 
+const DEV_MOCK_SIGNATURE = "browser-mock-signature"
+
+function isLikelyTxHash(value: string): boolean {
+  return /^0x[a-fA-F0-9]{64}$/.test(value.trim())
+}
+
 export default function Pay() {
   const navigate = useNavigate()
   const { slug } = useParams()
@@ -28,8 +35,16 @@ export default function Pay() {
   const [loadState, setLoadState] = useState<"idle" | "loading" | "done">(
     "idle",
   )
-  const [isProcessing, setIsProcessing] = useState(false)
+
+  /** After creating an attempt, user sends USDC and pastes tx hash. */
+  const [phase, setPhase] = useState<"ready" | "awaiting_tx">("ready")
+  const [attemptId, setAttemptId] = useState<string | null>(null)
+  const [txHash, setTxHash] = useState("")
+
+  const [isCreatingAttempt, setIsCreatingAttempt] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
   const [attemptError, setAttemptError] = useState<string | null>(null)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!slug) {
@@ -51,7 +66,9 @@ export default function Pay() {
       setLoadError(null)
     } catch {
       setResource(null)
-      setLoadError("Could not load this payment. Check your connection and try again.")
+      setLoadError(
+        "Could not load this payment. Check your connection and try again.",
+      )
     } finally {
       setLoadState("done")
     }
@@ -61,13 +78,30 @@ export default function Pay() {
     void load()
   }, [load])
 
-  const MOCK_SIGNATURE = "browser-mock-signature"
-
-  const handlePayNow = async () => {
-    if (!slug || !resource || isProcessing) return
-
-    setIsProcessing(true)
+  useEffect(() => {
+    setPhase("ready")
+    setAttemptId(null)
+    setTxHash("")
     setAttemptError(null)
+    setVerifyError(null)
+  }, [slug])
+
+  const goToSuccess = useCallback(
+    (id: string) => {
+      if (!slug) return
+      navigate(
+        `/success/${encodeURIComponent(slug)}?attemptId=${encodeURIComponent(id)}`,
+      )
+    },
+    [navigate, slug],
+  )
+
+  const handleCreateAttempt = async () => {
+    if (!slug || !resource || isCreatingAttempt) return
+
+    setIsCreatingAttempt(true)
+    setAttemptError(null)
+    setVerifyError(null)
 
     try {
       const { response: attemptRes, data: attemptData } =
@@ -82,13 +116,41 @@ export default function Pay() {
         )
       }
 
-      const attemptId = attemptData.attemptId
+      setAttemptId(attemptData.attemptId)
+      setPhase("awaiting_tx")
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unexpected error creating attempt"
+      setAttemptError(message)
+    } finally {
+      setIsCreatingAttempt(false)
+    }
+  }
 
+  const handleVerifyWithTxHash = async () => {
+    if (!slug || !attemptId || isVerifying) return
+
+    const trimmed = txHash.trim()
+    if (!trimmed) {
+      setVerifyError("Paste the transaction hash from your wallet or block explorer.")
+      return
+    }
+    if (!isLikelyTxHash(trimmed)) {
+      setVerifyError(
+        "That does not look like a valid transaction hash (expected 0x followed by 64 hex characters).",
+      )
+      return
+    }
+
+    setIsVerifying(true)
+    setVerifyError(null)
+
+    try {
       const { response: verifyRes, data: verifyData } = await verifyX402Payment(
         {
           attemptId,
           slug,
-          paymentSignature: MOCK_SIGNATURE,
+          txHash: trimmed,
         },
       )
 
@@ -108,24 +170,66 @@ export default function Pay() {
         throw new Error(`${detail}${code}`.trim())
       }
 
-      navigate(
-        `/success/${encodeURIComponent(slug)}?attemptId=${encodeURIComponent(attemptId)}`,
-      )
+      goToSuccess(attemptId)
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Unexpected payment error"
-      setAttemptError(message)
+        err instanceof Error ? err.message : "Unexpected verification error"
+      setVerifyError(message)
     } finally {
-      setIsProcessing(false)
+      setIsVerifying(false)
+    }
+  }
+
+  /** Local dev only: worker with `X402_MOCK_VERIFY` accepts a placeholder signature. */
+  const handleDevMockVerify = async () => {
+    if (!slug || !attemptId || isVerifying) return
+
+    setIsVerifying(true)
+    setVerifyError(null)
+
+    try {
+      const { response: verifyRes, data: verifyData } = await verifyX402Payment(
+        {
+          attemptId,
+          slug,
+          paymentSignature: DEV_MOCK_SIGNATURE,
+        },
+      )
+
+      const verifyOk =
+        verifyRes.ok &&
+        verifyData?.ok === true &&
+        verifyData.status === "paid"
+
+      if (!verifyOk) {
+        const detail =
+          (verifyData?.error && verifyData.error.trim()) ||
+          `Mock verify failed (HTTP ${verifyRes.status}).`
+        const code =
+          verifyData?.code != null && String(verifyData.code).trim() !== ""
+            ? ` (${String(verifyData.code).trim()})`
+            : ""
+        throw new Error(`${detail}${code}`.trim())
+      }
+
+      goToSuccess(attemptId)
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unexpected verification error"
+      setVerifyError(message)
+    } finally {
+      setIsVerifying(false)
     }
   }
 
   const showResourceSkeleton = loadState === "loading"
   const showResourceError = loadState === "done" && loadError
-  const canPay =
+  const canStart =
     Boolean(slug && resource && resource.active) &&
     loadState === "done" &&
     !loadError
+
+  const isDev = import.meta.env.DEV
 
   return (
     <Box
@@ -158,12 +262,13 @@ export default function Pay() {
               }
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
-                  This page is a human wrapper around the x402-native worker.
-                  Pay creates an attempt, then calls a{" "}
+                  This page talks to the x402 worker. Payment is{" "}
                   <TextBody as="span" fontWeight="label1" color="fgMuted">
-                    mock
+                    not
                   </TextBody>{" "}
-                  verification bridge—no real on-chain payment is implied.
+                  automatic: you send USDC on Base yourself, then we verify the
+                  transaction hash. Nothing is marked paid until verification
+                  succeeds.
                 </TextBody>
               }
             />
@@ -220,71 +325,185 @@ export default function Pay() {
                   </VStack>
                 </Box>
 
-                {attemptError ? (
+                {phase === "awaiting_tx" && attemptId && resource ? (
+                  <Box
+                    bordered
+                    borderRadius={400}
+                    background="bgSecondary"
+                    padding={{ base: 3, desktop: 4 }}
+                  >
+                    <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
+                      <TextCaption color="fgMuted" fontWeight="label1" as="p">
+                        Step 2 — Send payment, then verify
+                      </TextCaption>
+                      <TextBody color="fgMuted" as="p">
+                        Send{" "}
+                        <TextBody as="span" color="fg" fontWeight="label1">
+                          at least {resource.amount} {resource.currency}
+                        </TextBody>{" "}
+                        on{" "}
+                        <TextBody as="span" color="fg" fontWeight="label1">
+                          Base
+                        </TextBody>{" "}
+                        to the recipient address configured for this site (this
+                        page does not connect your wallet). After the transfer
+                        is submitted, copy the transaction hash and paste it
+                        below. We only mark this attempt paid after on-chain
+                        verification succeeds.
+                      </TextBody>
+                      <Box
+                        bordered
+                        borderRadius={400}
+                        background="bgElevation1"
+                        padding={3}
+                      >
+                        <VStack gap={1} alignItems="stretch">
+                          <TextCaption color="fgMuted" fontWeight="label1">
+                            Payment details
+                          </TextCaption>
+                          <TextBody color="fg">
+                            Amount (minimum): {resource.amount}{" "}
+                            {resource.currency}
+                          </TextBody>
+                          <TextBody color="fg">Network: {resource.network}</TextBody>
+                          <TextBody color="fg">Slug: {resource.slug}</TextBody>
+                          <TextBody mono as="code" color="fg" overflow="wrap">
+                            attemptId: {attemptId}
+                          </TextBody>
+                        </VStack>
+                      </Box>
+                      <TextInput
+                        compact
+                        label="Transaction hash"
+                        value={txHash}
+                        onChange={(e) => setTxHash(e.target.value)}
+                        placeholder="0x…"
+                      />
+                      <Button
+                        onClick={handleVerifyWithTxHash}
+                        disabled={isVerifying}
+                        block
+                      >
+                        {isVerifying ? "Verifying…" : "Verify payment"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setPhase("ready")
+                          setAttemptId(null)
+                          setTxHash("")
+                          setVerifyError(null)
+                        }}
+                        disabled={isVerifying}
+                        block
+                      >
+                        Start over
+                      </Button>
+                    </VStack>
+                  </Box>
+                ) : null}
+
+                {(attemptError || verifyError) && (
                   <Box
                     bordered
                     borderRadius={400}
                     background="bgNegativeWash"
                     padding={3}
                   >
-                    <TextBody color="fgNegative">{attemptError}</TextBody>
+                    <TextBody color="fgNegative">
+                      {verifyError ?? attemptError}
+                    </TextBody>
+                  </Box>
+                )}
+
+                {phase === "ready" ? (
+                  <>
+                    <Box
+                      bordered
+                      borderRadius={400}
+                      background="bgSecondary"
+                      padding={3}
+                    >
+                      <VStack gap={1} alignItems="stretch">
+                        <TextCaption color="fgMuted" fontWeight="label1" as="p">
+                          Step 1 — Create an attempt
+                        </TextCaption>
+                        <TextBody color="fgMuted">
+                          Tap below to call{" "}
+                          <TextBody as="span" color="fg" fontWeight="label1">
+                            POST /api/payment-attempt
+                          </TextBody>{" "}
+                          (
+                          <TextBody as="span" color="fg" fontWeight="label1">
+                            clientType: browser
+                          </TextBody>
+                          ). You will then see what to pay and where to paste
+                          your tx hash. We do{" "}
+                          <TextBody as="span" fontWeight="label1" color="fgMuted">
+                            not
+                          </TextBody>{" "}
+                          call{" "}
+                          <TextBody as="span" color="fg" fontWeight="label1">
+                            /x402/verify
+                          </TextBody>{" "}
+                          until you submit a real hash.
+                        </TextBody>
+                      </VStack>
+                    </Box>
+
+                    <Button
+                      onClick={handleCreateAttempt}
+                      disabled={!canStart || isCreatingAttempt}
+                      block
+                    >
+                      {isCreatingAttempt
+                        ? "Creating attempt…"
+                        : "Create payment attempt"}
+                    </Button>
+                  </>
+                ) : null}
+
+                {isDev && phase === "awaiting_tx" && attemptId ? (
+                  <Box
+                    bordered
+                    borderRadius={400}
+                    background="bgSecondary"
+                    padding={3}
+                  >
+                    <VStack gap={2} alignItems="stretch">
+                      <TextCaption color="fgMuted" fontWeight="label1" as="p">
+                        Developer shortcut
+                      </TextCaption>
+                      <TextBody color="fgMuted">
+                        If the worker has{" "}
+                        <TextBody as="span" mono color="fgMuted">
+                          X402_MOCK_VERIFY=true
+                        </TextBody>{" "}
+                        in{" "}
+                        <TextBody as="span" mono color="fgMuted">
+                          .dev.vars
+                        </TextBody>
+                        , you can skip the blockchain and run a mock verify (not
+                        for production).
+                      </TextBody>
+                      <Button
+                        variant="secondary"
+                        onClick={handleDevMockVerify}
+                        disabled={isVerifying}
+                        block
+                      >
+                        Dev: mock verify (no tx hash)
+                      </Button>
+                    </VStack>
                   </Box>
                 ) : null}
 
-                <Box
-                  bordered
-                  borderRadius={400}
-                  background="bgSecondary"
-                  padding={3}
-                >
-                  <VStack gap={1} alignItems="stretch">
-                    <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                      What happens when you tap Pay
-                    </TextCaption>
-                    <TextBody color="fgMuted">
-                      Step 1:{" "}
-                      <TextBody as="span" color="fg" fontWeight="label1">
-                        POST /api/payment-attempt
-                      </TextBody>{" "}
-                      (
-                      <TextBody as="span" color="fg" fontWeight="label1">
-                        clientType: browser
-                      </TextBody>
-                      ). Step 2:{" "}
-                      <TextBody as="span" color="fg" fontWeight="label1">
-                        POST /x402/verify
-                      </TextBody>{" "}
-                      with a placeholder signature (
-                      <TextBody as="span" mono color="fgMuted">
-                        browser-mock-signature
-                      </TextBody>
-                      ) so dev can exercise the seam when the worker has mock
-                      verify enabled. Then we open the success page to poll
-                      attempt status—still not proof of a real chain transfer.
-                    </TextBody>
-                  </VStack>
-                </Box>
-
-                <Button
-                  onClick={handlePayNow}
-                  disabled={!canPay || isProcessing}
-                  block
-                >
-                  {isProcessing
-                    ? "Creating attempt & mock verify…"
-                    : "Pay"}
-                </Button>
-
                 <TextCaption color="fgMuted" textAlign="center" as="p">
-                  If verify returns 503, set{" "}
+                  Production requires a real Base USDC transfer and a valid{" "}
                   <TextBody as="span" mono color="fgMuted">
-                    X402_MOCK_VERIFY=true
-                  </TextBody>{" "}
-                  in the worker{" "}
-                  <TextBody as="span" mono color="fgMuted">
-                    .dev.vars
-                  </TextBody>{" "}
-                  for local dev.
+                    txHash
+                  </TextBody>
+                  .
                 </TextCaption>
               </VStack>
             </ContentCardBody>
