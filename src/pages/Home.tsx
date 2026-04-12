@@ -76,103 +76,109 @@ export default function Home() {
   const contentPadStart = edgePad
   const contentPadEnd = isWide ? ruleGap : edgePad
 
-  const leftPane = (
-    <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
+  const homeHero = (
+    <Box
+      width="100%"
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+    >
       <Box
-        width="100%"
-        paddingStart={contentPadStart}
-        paddingEnd={contentPadEnd}
+        as="h1"
+        color="fg"
+        font="headline"
+        style={{
+          fontSize: "85px",
+          fontWeight: 700,
+          lineHeight: 1.05,
+          letterSpacing: "-0.03em",
+          margin: 0,
+        }}
       >
+        Scan
+        <br />
+        Pay
+        <br />
+        Get Paid
+      </Box>
+    </Box>
+  )
+
+  const homeForm = (
+    <Box
+      width="100%"
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+    >
+      <VStack gap={3} alignItems="stretch" width="100%">
+        <TextInput
+          compact
+          label="Amount"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          inputMode="decimal"
+          autoComplete="off"
+          suffix="USD"
+        />
+        <TextInput
+          compact
+          label="Label"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          autoComplete="off"
+        />
+        <TextInput
+          compact
+          label="Slug"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+        />
         <Box
-          as="h1"
-          color="fg"
-          font="headline"
-          style={{
-            fontSize: "85px",
-            fontWeight: 700,
-            lineHeight: 1.05,
-            letterSpacing: "-0.03em",
-            margin: 0,
-          }}
+          bordered
+          borderRadius={400}
+          borderColor="bgLine"
+          background="bgSecondary"
+          padding={3}
         >
-          Scan
-          <br />
-          Pay
-          <br />
-          Get Paid
+          <VStack gap={1} alignItems="stretch">
+            <TextTitle3 color="fg" as="p">
+              Payment URL
+            </TextTitle3>
+            <TextBody mono as="p" color="fg" overflow="wrap">
+              {paymentUrl}
+            </TextBody>
+          </VStack>
         </Box>
-      </Box>
+      </VStack>
+    </Box>
+  )
 
+  const homeHowItWorks = (
+    <Box
+      width="100%"
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+    >
+      <VStack gap={2} alignItems="stretch" width="100%">
+        <TextTitle3 color="fg" as="h2">
+          How it works
+        </TextTitle3>
+        <TextBody color="fgMuted" as="p">
+          {label}
+        </TextBody>
+      </VStack>
+    </Box>
+  )
+
+  /** Wide: hero → form → how it works (QR stays in the right column). */
+  const leftPaneDesktop = (
+    <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
+      {homeHero}
       <HomeHorizontalRule />
-
-      <Box
-        width="100%"
-        paddingStart={contentPadStart}
-        paddingEnd={contentPadEnd}
-      >
-        <VStack gap={3} alignItems="stretch" width="100%">
-          <TextInput
-            compact
-            label="Amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            inputMode="decimal"
-            autoComplete="off"
-            suffix="USD"
-            borderRadius={400}
-          />
-          <TextInput
-            compact
-            label="Label"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            autoComplete="off"
-            borderRadius={400}
-          />
-          <TextInput
-            compact
-            label="Slug"
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-            borderRadius={400}
-          />
-          <Box
-            bordered
-            borderRadius={400}
-            borderColor="bgLine"
-            background="bgSecondary"
-            padding={3}
-          >
-            <VStack gap={1} alignItems="stretch">
-              <TextTitle3 color="fg" as="p">
-                Payment URL
-              </TextTitle3>
-              <TextBody mono as="p" color="fg" overflow="wrap">
-                {paymentUrl}
-              </TextBody>
-            </VStack>
-          </Box>
-        </VStack>
-      </Box>
-
+      {homeForm}
       <HomeHorizontalRule />
-
-      <Box
-        width="100%"
-        paddingStart={contentPadStart}
-        paddingEnd={contentPadEnd}
-      >
-        <VStack gap={2} alignItems="stretch" width="100%">
-          <TextTitle3 color="fg" as="h2">
-            How it works
-          </TextTitle3>
-          <TextBody color="fgMuted" as="p">
-            {label}
-          </TextBody>
-        </VStack>
-      </Box>
+      {homeHowItWorks}
     </VStack>
   )
 
@@ -243,7 +249,7 @@ export default function Home() {
               paddingTop={padTop}
               paddingBottom={padBottom}
             >
-              {leftPane}
+              {leftPaneDesktop}
             </Box>
           </GridColumn>
 
@@ -291,18 +297,10 @@ export default function Home() {
           paddingBottom={padBottom}
         >
           <VStack gap={0} alignItems="stretch" width="100%">
-            {leftPane}
-            <Box width="100%" flexShrink={0} paddingY={3} display="flex" flexDirection="column">
-              <Divider
-                background="bgLine"
-                style={{
-                  flexShrink: 0,
-                  minHeight: 1,
-                  width: "100%",
-                  display: "block",
-                }}
-              />
-            </Box>
+            {homeHero}
+            <HomeHorizontalRule />
+            {homeForm}
+            <HomeHorizontalRule />
             <Box
               width="100%"
               paddingStart={contentPadStart}
@@ -310,6 +308,8 @@ export default function Home() {
             >
               {rightPane}
             </Box>
+            <HomeHorizontalRule />
+            {homeHowItWorks}
           </VStack>
         </Box>
       )}
