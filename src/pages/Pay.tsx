@@ -388,9 +388,10 @@ export default function Pay() {
         <TextBody as="span" color="fg" fontWeight="label1">
           at least {resource!.amount} {resource!.currency}
         </TextBody>{" "}
-        on Base to this site’s configured recipient. The worker detects USDC
-        transfers automatically when you open the status page; use this form
-        only if you need to force verification with a known transaction hash.
+        on Base to the recipient for this link. The server detects USDC on Base
+        automatically when you open the status page; use this form only if you
+        need to force verification with a known transaction hash (e.g. from
+        MetaMask or a block explorer).
       </TextBody>
 
       {!attemptId ? (
@@ -482,9 +483,10 @@ export default function Pay() {
               title={<TextTitle3 color="fg">Pay</TextTitle3>}
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
-                  Choose how to pay. Crypto uses automatic on-chain detection—no
-                  transaction hash required unless you use Advanced. Nothing is
-                  marked paid until the backend confirms it.
+                  Choose how to pay. On Base, USDC payments are detected
+                  automatically—MetaMask or any Base-compatible wallet works; no
+                  transaction hash unless you use Advanced. Nothing is marked paid
+                  until the backend confirms it.
                 </TextBody>
               }
             />
@@ -650,7 +652,9 @@ export default function Pay() {
                       disabled={!canInteract || isCreatingAttempt}
                       block
                     >
-                      {isCreatingAttempt ? "Working…" : "Pay with crypto"}
+                      {isCreatingAttempt
+                        ? "Working…"
+                        : "Pay on Base (USDC)"}
                     </Button>
                   </VStack>
                 ) : null}
@@ -664,13 +668,13 @@ export default function Pay() {
                   >
                     <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
                       <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                        Crypto on Base (USDC)
+                        MetaMask or wallet · Base (USDC)
                       </TextCaption>
                       <TextBody color="fgMuted" as="p">
-                        Open your wallet to send the payment. When you continue
-                        to the status page, the server scans Base for your
-                        transfer and marks this attempt paid automatically—no
-                        hash required.
+                        Open MetaMask or your preferred wallet on Base to send
+                        USDC. When you continue to the status page, the server
+                        scans Base for your transfer and marks this attempt paid
+                        automatically—no hash required.
                       </TextBody>
                       {attemptId ? (
                         <TextBody mono as="code" color="fgMuted" overflow="wrap">
@@ -683,13 +687,13 @@ export default function Pay() {
                         disabled={!walletDeepLink}
                         block
                       >
-                        Pay with wallet
+                        Open in MetaMask / wallet
                       </Button>
                       {!walletDeepLink ? (
                         <TextCaption color="fgMuted" as="p">
-                          Wallet link is unavailable (receiver not configured on
-                          the API). Use Advanced to verify with a transaction
-                          hash, or contact support.
+                          Wallet link is unavailable (no payout address on Base
+                          for this resource). Use Advanced to verify with a
+                          transaction hash, or contact support.
                         </TextCaption>
                       ) : null}
 
