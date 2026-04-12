@@ -31,3 +31,10 @@ export function badRequest(
 ): Response {
   return json({ ok: false, error: message }, { ...init, status: 400 })
 }
+
+export function conflict(
+  message = 'Conflict',
+  init: ResponseInit = {},
+): Response {
+  return json({ ok: false, error: message }, { ...init, status: 409 })
+}

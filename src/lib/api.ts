@@ -43,6 +43,36 @@ export async function fetchResource(
   return data
 }
 
+export type CreateResourceResponse = {
+  ok: boolean
+  resource?: ApiResource
+  paymentUrl?: string
+  error?: string
+}
+
+export async function createResource(input: {
+  label: string
+  amount: string
+  slug?: string
+}): Promise<{ response: Response; data: CreateResourceResponse | null }> {
+  const body: Record<string, string> = {
+    label: input.label.trim(),
+    amount: input.amount.trim(),
+  }
+  const s = input.slug?.trim()
+  if (s) body.slug = s
+
+  const res = await fetch(apiUrl("/api/resource"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const data = (await res.json().catch(() => null)) as
+    | CreateResourceResponse
+    | null
+  return { response: res, data }
+}
+
 export type PaymentAttemptCreateResponse = {
   ok: boolean
   attemptId?: string

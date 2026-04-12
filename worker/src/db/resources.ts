@@ -36,3 +36,42 @@ export async function getResourceBySlug(
     .first<Record<string, unknown>>()
   return row ? rowToResource(row) : null
 }
+
+export type InsertResourceDefinitionInput = {
+  slug: string
+  label: string
+  amount: string
+  currency: string
+  network: string
+  unlockType: string
+  contentType: string | null
+  successRedirectPath: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export async function insertResourceDefinition(
+  db: D1Database,
+  input: InsertResourceDefinitionInput,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO resource_definitions (
+        slug, label, amount, currency, network, active, unlock_type,
+        content_type, success_redirect_path, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      input.slug,
+      input.label,
+      input.amount,
+      input.currency,
+      input.network,
+      input.unlockType,
+      input.contentType,
+      input.successRedirectPath,
+      input.createdAt,
+      input.updatedAt,
+    )
+    .run()
+}

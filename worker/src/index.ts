@@ -4,7 +4,7 @@ import {
 } from './legacy/coinbaseCheckoutSessionRoutes'
 import { corsAllowOrigin, withCors } from './lib/cors'
 import { json } from './lib/response'
-import { handleGetResource } from './routes/resource'
+import { handleGetResource, handlePostResource } from './routes/resource'
 import { handlePostPaymentAttempt } from './routes/paymentAttempt'
 import { handleGetPaymentAttemptById } from './routes/paymentAttemptById'
 import { handleX402Pay } from './routes/x402Pay'
@@ -30,6 +30,11 @@ export default {
     }
 
     let res: Response
+
+    if (req.method === 'POST' && url.pathname === '/api/resource') {
+      res = await handlePostResource(env, req)
+      return withCors(req, res)
+    }
 
     const resourceGet =
       req.method === 'GET' && /^\/api\/resource\/([^/]+)$/.exec(url.pathname)
