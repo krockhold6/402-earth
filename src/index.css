@@ -15,3 +15,25 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/*
+ * CDS global reset applies * { border-width: 0 }. Separators rely on background;
+ * flex/grid can also shrink <hr> to zero. Keep home separators visible.
+ */
+#root main hr[role="separator"] {
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border-style: none;
+  box-sizing: border-box;
+}
+
+#root main hr[role="separator"][aria-orientation="horizontal"] {
+  min-height: 1px;
+  width: 100%;
+  max-width: 100%;
+}
+
+#root main hr[role="separator"][aria-orientation="vertical"] {
+  min-width: 1px;
+}

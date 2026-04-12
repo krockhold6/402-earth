@@ -27,6 +27,8 @@ function isLikelyTxHash(value: string): boolean {
   return /^0x[a-fA-F0-9]{64}$/.test(value.trim())
 }
 
+type PayFlow = "select" | "stripe_pending" | "crypto_tx"
+
 export default function Pay() {
   const navigate = useNavigate()
   const { slug } = useParams()
@@ -36,8 +38,9 @@ export default function Pay() {
     "idle",
   )
 
-  /** After creating an attempt, user sends USDC and pastes tx hash. */
-  const [phase, setPhase] = useState<"ready" | "awaiting_tx">("ready")
+  const [flow, setFlow] = useState<PayFlow>("select")
+  /** Advanced path: show manual tx panel while still on selector (no attempt until user creates one). */
+  const [manualAdvancedOpen, setManualAdvancedOpen] = useState(false)
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [txHash, setTxHash] = useState("")
 
@@ -79,7 +82,8 @@ export default function Pay() {
   }, [load])
 
   useEffect(() => {
-    setPhase("ready")
+    setFlow("select")
+    setManualAdvancedOpen(false)
     setAttemptId(null)
     setTxHash("")
     setAttemptError(null)
@@ -96,8 +100,17 @@ export default function Pay() {
     [navigate, slug],
   )
 
-  const handleCreateAttempt = async () => {
-    if (!slug || !resource || isCreatingAttempt) return
+  const resetToPaymentChoice = useCallback(() => {
+    setFlow("select")
+    setManualAdvancedOpen(false)
+    setAttemptId(null)
+    setTxHash("")
+    setAttemptError(null)
+    setVerifyError(null)
+  }, [])
+
+  const createAttempt = useCallback(async (): Promise<string | null> => {
+    if (!slug || !resource) return null
 
     setIsCreatingAttempt(true)
     setAttemptError(null)
@@ -116,15 +129,44 @@ export default function Pay() {
         )
       }
 
-      setAttemptId(attemptData.attemptId)
-      setPhase("awaiting_tx")
+      const id = attemptData.attemptId
+      setAttemptId(id)
+      return id
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Unexpected error creating attempt"
       setAttemptError(message)
+      return null
     } finally {
       setIsCreatingAttempt(false)
     }
+  }, [resource, slug])
+
+  const handlePayWithCard = async () => {
+    if (!canInteract) return
+    setManualAdvancedOpen(false)
+    const id = await createAttempt()
+    if (id) setFlow("stripe_pending")
+  }
+
+  const handlePayWithCrypto = async () => {
+    if (!canInteract) return
+    setManualAdvancedOpen(false)
+    const id = await createAttempt()
+    if (id) setFlow("crypto_tx")
+  }
+
+  /** Advanced: open manual panel; user creates attempt inside panel if needed. */
+  const handleOpenAdvancedManual = () => {
+    setVerifyError(null)
+    setAttemptError(null)
+    setManualAdvancedOpen(true)
+    setFlow("select")
+  }
+
+  const handleManualPanelCreateAttempt = async () => {
+    if (!canInteract) return
+    await createAttempt()
   }
 
   const handleVerifyWithTxHash = async () => {
@@ -180,7 +222,6 @@ export default function Pay() {
     }
   }
 
-  /** Local dev only: worker with `X402_MOCK_VERIFY` accepts a placeholder signature. */
   const handleDevMockVerify = async () => {
     if (!slug || !attemptId || isVerifying) return
 
@@ -224,12 +265,22 @@ export default function Pay() {
 
   const showResourceSkeleton = loadState === "loading"
   const showResourceError = loadState === "done" && loadError
-  const canStart =
+  const canInteract =
     Boolean(slug && resource && resource.active) &&
     loadState === "done" &&
     !loadError
 
   const isDev = import.meta.env.DEV
+
+  const showManualCryptoPanel =
+    flow === "crypto_tx" ||
+    (flow === "select" && manualAdvancedOpen)
+
+  const showMethodSelector =
+    flow === "select" && !showResourceSkeleton
+
+  const showAdvancedTxToggle =
+    flow === "select" && !showResourceSkeleton
 
   return (
     <Box
@@ -257,18 +308,13 @@ export default function Pay() {
             gap={{ base: 3, desktop: 4 }}
           >
             <ContentCardHeader
-              title={
-                <TextTitle3 color="fg">x402 payment (browser)</TextTitle3>
-              }
+              title={<TextTitle3 color="fg">Pay</TextTitle3>}
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
-                  This page talks to the x402 worker. Payment is{" "}
-                  <TextBody as="span" fontWeight="label1" color="fgMuted">
-                    not
-                  </TextBody>{" "}
-                  automatic: you send USDC on Base yourself, then we verify the
-                  transaction hash. Nothing is marked paid until verification
-                  succeeds.
+                  Choose how to pay. The x402 worker still records attempts and
+                  verification—agents and integrations can use the same
+                  protocol without this page. Nothing is marked paid until the
+                  backend confirms it.
                 </TextBody>
               }
             />
@@ -325,84 +371,6 @@ export default function Pay() {
                   </VStack>
                 </Box>
 
-                {phase === "awaiting_tx" && attemptId && resource ? (
-                  <Box
-                    bordered
-                    borderRadius={400}
-                    background="bgSecondary"
-                    padding={{ base: 3, desktop: 4 }}
-                  >
-                    <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
-                      <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                        Step 2 — Send payment, then verify
-                      </TextCaption>
-                      <TextBody color="fgMuted" as="p">
-                        Send{" "}
-                        <TextBody as="span" color="fg" fontWeight="label1">
-                          at least {resource.amount} {resource.currency}
-                        </TextBody>{" "}
-                        on{" "}
-                        <TextBody as="span" color="fg" fontWeight="label1">
-                          Base
-                        </TextBody>{" "}
-                        to the recipient address configured for this site (this
-                        page does not connect your wallet). After the transfer
-                        is submitted, copy the transaction hash and paste it
-                        below. We only mark this attempt paid after on-chain
-                        verification succeeds.
-                      </TextBody>
-                      <Box
-                        bordered
-                        borderRadius={400}
-                        background="bgElevation1"
-                        padding={3}
-                      >
-                        <VStack gap={1} alignItems="stretch">
-                          <TextCaption color="fgMuted" fontWeight="label1">
-                            Payment details
-                          </TextCaption>
-                          <TextBody color="fg">
-                            Amount (minimum): {resource.amount}{" "}
-                            {resource.currency}
-                          </TextBody>
-                          <TextBody color="fg">Network: {resource.network}</TextBody>
-                          <TextBody color="fg">Slug: {resource.slug}</TextBody>
-                          <TextBody mono as="code" color="fg" overflow="wrap">
-                            attemptId: {attemptId}
-                          </TextBody>
-                        </VStack>
-                      </Box>
-                      <TextInput
-                        compact
-                        label="Transaction hash"
-                        value={txHash}
-                        onChange={(e) => setTxHash(e.target.value)}
-                        placeholder="0x…"
-                      />
-                      <Button
-                        onClick={handleVerifyWithTxHash}
-                        disabled={isVerifying}
-                        block
-                      >
-                        {isVerifying ? "Verifying…" : "Verify payment"}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setPhase("ready")
-                          setAttemptId(null)
-                          setTxHash("")
-                          setVerifyError(null)
-                        }}
-                        disabled={isVerifying}
-                        block
-                      >
-                        Start over
-                      </Button>
-                    </VStack>
-                  </Box>
-                ) : null}
-
                 {(attemptError || verifyError) && (
                   <Box
                     bordered
@@ -416,54 +384,213 @@ export default function Pay() {
                   </Box>
                 )}
 
-                {phase === "ready" ? (
-                  <>
-                    <Box
-                      bordered
-                      borderRadius={400}
-                      background="bgSecondary"
-                      padding={3}
-                    >
-                      <VStack gap={1} alignItems="stretch">
+                {flow === "stripe_pending" && attemptId && resource ? (
+                  <Box
+                    bordered
+                    borderRadius={400}
+                    background="bgSecondary"
+                    padding={{ base: 3, desktop: 4 }}
+                  >
+                    <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
+                      <TextCaption color="fgMuted" fontWeight="label1" as="p">
+                        Card payment
+                      </TextCaption>
+                      <TextBody color="fgMuted" as="p">
+                        A payment attempt is ready on the server (
+                        <TextBody as="span" mono color="fgMuted">
+                          {attemptId.slice(0, 12)}…
+                        </TextBody>
+                        ).{" "}
+                        <TextBody as="span" color="fg" fontWeight="label1">
+                          Stripe Checkout is not wired up yet
+                        </TextBody>
+                        —this panel is where we will create a Stripe checkout
+                        session and redirect you. No charge happens until that
+                        ships.
+                      </TextBody>
+                      <Box
+                        bordered
+                        borderRadius={400}
+                        background="bgElevation1"
+                        padding={3}
+                      >
                         <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                          Step 1 — Create an attempt
+                          Next implementation step
                         </TextCaption>
                         <TextBody color="fgMuted">
-                          Tap below to call{" "}
-                          <TextBody as="span" color="fg" fontWeight="label1">
-                            POST /api/payment-attempt
+                          Call Stripe (e.g. Checkout Session) with this{" "}
+                          <TextBody as="span" mono color="fgMuted">
+                            attemptId
                           </TextBody>{" "}
-                          (
-                          <TextBody as="span" color="fg" fontWeight="label1">
-                            clientType: browser
-                          </TextBody>
-                          ). You will then see what to pay and where to paste
-                          your tx hash. We do{" "}
-                          <TextBody as="span" fontWeight="label1" color="fgMuted">
-                            not
-                          </TextBody>{" "}
-                          call{" "}
-                          <TextBody as="span" color="fg" fontWeight="label1">
-                            /x402/verify
-                          </TextBody>{" "}
-                          until you submit a real hash.
+                          in metadata, then send the customer to Stripe’s hosted
+                          checkout URL.
                         </TextBody>
-                      </VStack>
-                    </Box>
-
-                    <Button
-                      onClick={handleCreateAttempt}
-                      disabled={!canStart || isCreatingAttempt}
-                      block
-                    >
-                      {isCreatingAttempt
-                        ? "Creating attempt…"
-                        : "Create payment attempt"}
-                    </Button>
-                  </>
+                      </Box>
+                      <Button
+                        variant="secondary"
+                        onClick={resetToPaymentChoice}
+                        disabled={isCreatingAttempt}
+                        block
+                      >
+                        Back to payment options
+                      </Button>
+                    </VStack>
+                  </Box>
                 ) : null}
 
-                {isDev && phase === "awaiting_tx" && attemptId ? (
+                {showMethodSelector ? (
+                  <VStack gap={2} alignItems="stretch">
+                    <TextCaption color="fgMuted" fontWeight="label1" as="p">
+                      Payment method
+                    </TextCaption>
+                    <Button
+                      onClick={handlePayWithCard}
+                      disabled={!canInteract || isCreatingAttempt}
+                      block
+                    >
+                      {isCreatingAttempt ? "Working…" : "Pay with card"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={handlePayWithCrypto}
+                      disabled={!canInteract || isCreatingAttempt}
+                      block
+                    >
+                      {isCreatingAttempt ? "Working…" : "Pay with crypto"}
+                    </Button>
+                  </VStack>
+                ) : null}
+
+                {showManualCryptoPanel && resource ? (
+                  <Box
+                    bordered
+                    borderRadius={400}
+                    background="bgSecondary"
+                    padding={{ base: 3, desktop: 4 }}
+                  >
+                    <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
+                      <TextCaption color="fgMuted" fontWeight="label1" as="p">
+                        {flow === "crypto_tx"
+                          ? "Crypto on Base — manual verification"
+                          : "Advanced — verify with transaction hash"}
+                      </TextCaption>
+                      <TextBody color="fgMuted" as="p">
+                        This path does{" "}
+                        <TextBody as="span" fontWeight="label1" color="fgMuted">
+                          not
+                        </TextBody>{" "}
+                        open your wallet here. Send{" "}
+                        <TextBody as="span" color="fg" fontWeight="label1">
+                          at least {resource.amount} {resource.currency}
+                        </TextBody>{" "}
+                        on Base to this site’s configured recipient, then paste
+                        the transaction hash. The worker runs on-chain
+                        verification; your attempt is only marked paid after
+                        that succeeds.
+                      </TextBody>
+
+                      {!attemptId ? (
+                        <Button
+                          onClick={handleManualPanelCreateAttempt}
+                          disabled={!canInteract || isCreatingAttempt}
+                          block
+                        >
+                          {isCreatingAttempt
+                            ? "Creating attempt…"
+                            : "Create payment attempt"}
+                        </Button>
+                      ) : (
+                        <>
+                          <Box
+                            bordered
+                            borderRadius={400}
+                            background="bgElevation1"
+                            padding={3}
+                          >
+                            <VStack gap={1} alignItems="stretch">
+                              <TextCaption
+                                color="fgMuted"
+                                fontWeight="label1"
+                              >
+                                Payment details
+                              </TextCaption>
+                              <TextBody color="fg">
+                                Amount (minimum): {resource.amount}{" "}
+                                {resource.currency}
+                              </TextBody>
+                              <TextBody color="fg">
+                                Network: {resource.network}
+                              </TextBody>
+                              <TextBody color="fg">Slug: {resource.slug}</TextBody>
+                              <TextBody mono as="code" color="fg" overflow="wrap">
+                                attemptId: {attemptId}
+                              </TextBody>
+                            </VStack>
+                          </Box>
+                          <TextInput
+                            compact
+                            label="Transaction hash"
+                            value={txHash}
+                            onChange={(e) => setTxHash(e.target.value)}
+                            placeholder="0x…"
+                          />
+                          <Button
+                            onClick={handleVerifyWithTxHash}
+                            disabled={isVerifying}
+                            block
+                          >
+                            {isVerifying ? "Verifying…" : "Verify payment"}
+                          </Button>
+                        </>
+                      )}
+
+                      {flow === "crypto_tx" ? (
+                        <Button
+                          variant="secondary"
+                          onClick={resetToPaymentChoice}
+                          disabled={isVerifying}
+                          block
+                        >
+                          Back to payment options
+                        </Button>
+                      ) : null}
+                    </VStack>
+                  </Box>
+                ) : null}
+
+                {showAdvancedTxToggle && canInteract ? (
+                  <Box paddingTop={1}>
+                    {manualAdvancedOpen ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setManualAdvancedOpen(false)
+                          setAttemptId(null)
+                          setTxHash("")
+                          setVerifyError(null)
+                        }}
+                        disabled={isCreatingAttempt}
+                        block
+                      >
+                        Hide advanced (tx hash)
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        onClick={handleOpenAdvancedManual}
+                        disabled={!canInteract}
+                        block
+                      >
+                        Advanced: verify with tx hash
+                      </Button>
+                    )}
+                  </Box>
+                ) : null}
+
+                {isDev &&
+                showManualCryptoPanel &&
+                attemptId &&
+                resource ? (
                   <Box
                     bordered
                     borderRadius={400}
@@ -475,16 +602,12 @@ export default function Pay() {
                         Developer shortcut
                       </TextCaption>
                       <TextBody color="fgMuted">
-                        If the worker has{" "}
+                        With{" "}
                         <TextBody as="span" mono color="fgMuted">
                           X402_MOCK_VERIFY=true
                         </TextBody>{" "}
-                        in{" "}
-                        <TextBody as="span" mono color="fgMuted">
-                          .dev.vars
-                        </TextBody>
-                        , you can skip the blockchain and run a mock verify (not
-                        for production).
+                        on the worker, mock verify skips the chain (not for
+                        production).
                       </TextBody>
                       <Button
                         variant="secondary"
@@ -499,11 +622,9 @@ export default function Pay() {
                 ) : null}
 
                 <TextCaption color="fgMuted" textAlign="center" as="p">
-                  Production requires a real Base USDC transfer and a valid{" "}
-                  <TextBody as="span" mono color="fgMuted">
-                    txHash
-                  </TextBody>
-                  .
+                  Card checkout is coming next. Crypto uses manual tx hash today.
+                  Production crypto verification still requires a real Base USDC
+                  transfer unless you use mock mode locally.
                 </TextCaption>
               </VStack>
             </ContentCardBody>

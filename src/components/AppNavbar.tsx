@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom"
-import { IconButton } from "@coinbase/cds-web/buttons"
-import { Box } from "@coinbase/cds-web/layout"
+import { Button, IconButton } from "@coinbase/cds-web/buttons"
+import { Box, HStack } from "@coinbase/cds-web/layout"
 import { PageHeader } from "@coinbase/cds-web/page/PageHeader"
 import { useCdsColorScheme } from "@/providers/CdsAppShell"
 
@@ -38,6 +38,7 @@ export function AppNavbar() {
           as={Link}
           to="/"
           display="inline-flex"
+          alignItems="center"
           color="fg"
           accessibilityLabel="402.earth home"
         >
@@ -45,16 +46,38 @@ export function AppNavbar() {
         </Box>
       }
       end={
-        <IconButton
-          name={colorScheme === "light" ? "moon" : "sun"}
-          variant="secondary"
-          onClick={toggleColorScheme}
-          accessibilityLabel={
-            colorScheme === "light"
-              ? "Switch to dark theme"
-              : "Switch to light theme"
-          }
-        />
+        <HStack gap={2} alignItems="center">
+          <Button
+            compact
+            variant="secondary"
+            background="bg"
+            borderColor="fg"
+            minWidth="auto"
+            paddingX={3}
+            type="button"
+          >
+            Sign up
+          </Button>
+          <Button
+            compact
+            variant="secondary"
+            minWidth="auto"
+            paddingX={3}
+            type="button"
+          >
+            Sign in
+          </Button>
+          <IconButton
+            name={colorScheme === "light" ? "moon" : "sun"}
+            variant="secondary"
+            onClick={toggleColorScheme}
+            accessibilityLabel={
+              colorScheme === "light"
+                ? "Switch to dark theme"
+                : "Switch to light theme"
+            }
+          />
+        </HStack>
       }
     />
   )

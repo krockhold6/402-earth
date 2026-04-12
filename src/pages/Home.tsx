@@ -1,29 +1,217 @@
-import { useMemo, useState } from "react"
-import { QRCodeSVG } from "qrcode.react"
+import { useCallback, useMemo, useRef, useState } from "react"
+import { QRCodeCanvas } from "qrcode.react"
+import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
-import {
-  ContentCard,
-  ContentCardBody,
-  ContentCardHeader,
-} from "@coinbase/cds-web/cards/ContentCard"
-import { Box, VStack } from "@coinbase/cds-web/layout"
-import {
-  TextBody,
-  TextCaption,
-  TextTitle1,
-  TextTitle3,
-} from "@coinbase/cds-web/typography"
+import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
+import { Divider } from "@coinbase/cds-web/layout/Divider"
+import { Box, Grid, GridColumn, VStack } from "@coinbase/cds-web/layout"
+import { TextBody, TextTitle3 } from "@coinbase/cds-web/typography"
+
+/** Spans the full width of the grid column (viewport edge → vertical rule on wide). */
+function HomeHorizontalRule() {
+  return (
+    <Box
+      width="100%"
+      maxWidth="100%"
+      alignSelf="stretch"
+      flexShrink={0}
+      paddingY={4}
+      display="flex"
+      flexDirection="column"
+    >
+      <Divider
+        background="bgLine"
+        style={{
+          flexShrink: 0,
+          minHeight: 1,
+          width: "100%",
+          maxWidth: "100%",
+          display: "block",
+        }}
+      />
+    </Box>
+  )
+}
 
 export default function Home() {
+  const isWide = useMediaQuery("(min-width: 960px)")
   const [amount, setAmount] = useState("5.00")
-  const [label, setLabel] = useState("Tip Jar")
+  const [label, setLabel] = useState("Exclusive video")
   const [slug, setSlug] = useState("demo-001")
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null)
 
   const paymentUrl = useMemo(() => {
     const origin = window.location.origin
-    const path = `/pay/${encodeURIComponent(slug)}`
-    return `${origin}${path}`
+    return `${origin}/pay/${encodeURIComponent(slug)}`
   }, [slug])
+
+  const sharePayment = useCallback(async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: label, text: label, url: paymentUrl })
+        return
+      }
+      await navigator.clipboard.writeText(paymentUrl)
+    } catch {
+      /* cancelled or unavailable */
+    }
+  }, [label, paymentUrl])
+
+  const downloadQr = useCallback(() => {
+    const canvas = qrCanvasRef.current
+    if (!canvas) return
+    const a = document.createElement("a")
+    a.href = canvas.toDataURL("image/png")
+    a.download = `402-${slug}.png`
+    a.click()
+  }, [slug])
+
+  /** Viewport / outer edge inset for text and controls */
+  const edgePad = { base: 3, desktop: 6 } as const
+  /** Space before the vertical rule (wide) so blocks don’t touch the line */
+  const ruleGap = 3 as const
+  const padTop = { base: 4, desktop: 6 } as const
+  const padBottom = { base: 5, desktop: 8 } as const
+
+  const contentPadStart = edgePad
+  const contentPadEnd = isWide ? ruleGap : edgePad
+
+  const leftPane = (
+    <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
+      <Box
+        width="100%"
+        paddingStart={contentPadStart}
+        paddingEnd={contentPadEnd}
+      >
+        <Box
+          as="h1"
+          color="fg"
+          font="headline"
+          style={{
+            fontSize: "85px",
+            fontWeight: 700,
+            lineHeight: 1.05,
+            letterSpacing: "-0.03em",
+            margin: 0,
+          }}
+        >
+          Scan
+          <br />
+          Pay
+          <br />
+          Get Paid
+        </Box>
+      </Box>
+
+      <HomeHorizontalRule />
+
+      <Box
+        width="100%"
+        paddingStart={contentPadStart}
+        paddingEnd={contentPadEnd}
+      >
+        <VStack gap={3} alignItems="stretch" width="100%">
+          <TextInput
+            compact
+            label="Amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            inputMode="decimal"
+            autoComplete="off"
+            suffix="USD"
+            borderRadius={400}
+          />
+          <TextInput
+            compact
+            label="Label"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            autoComplete="off"
+            borderRadius={400}
+          />
+          <TextInput
+            compact
+            label="Slug"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            borderRadius={400}
+          />
+          <Box
+            bordered
+            borderRadius={400}
+            borderColor="bgLine"
+            background="bgSecondary"
+            padding={3}
+          >
+            <VStack gap={1} alignItems="stretch">
+              <TextTitle3 color="fg" as="p">
+                Payment URL
+              </TextTitle3>
+              <TextBody mono as="p" color="fg" overflow="wrap">
+                {paymentUrl}
+              </TextBody>
+            </VStack>
+          </Box>
+        </VStack>
+      </Box>
+
+      <HomeHorizontalRule />
+
+      <Box
+        width="100%"
+        paddingStart={contentPadStart}
+        paddingEnd={contentPadEnd}
+      >
+        <VStack gap={2} alignItems="stretch" width="100%">
+          <TextTitle3 color="fg" as="h2">
+            How it works
+          </TextTitle3>
+          <TextBody color="fgMuted" as="p">
+            {label}
+          </TextBody>
+        </VStack>
+      </Box>
+    </VStack>
+  )
+
+  const rightPane = (
+    <VStack gap={3} alignItems="center" width="100%">
+      <Box display="flex" justifyContent="center" width="100%" padding={2}>
+        <QRCodeCanvas
+          ref={qrCanvasRef}
+          value={paymentUrl}
+          size={220}
+          marginSize={2}
+          bgColor="#ffffff"
+          fgColor="#000000"
+        />
+      </Box>
+      <VStack gap={2} alignItems="stretch" width="100%">
+        <Button
+          block
+          compact
+          variant="primary"
+          onClick={sharePayment}
+          minHeight={48}
+          borderRadius={500}
+        >
+          Share
+        </Button>
+        <Button
+          block
+          compact
+          variant="secondary"
+          onClick={downloadQr}
+          minHeight={48}
+          borderRadius={500}
+        >
+          Download
+        </Button>
+      </VStack>
+    </VStack>
+  )
 
   return (
     <Box
@@ -33,141 +221,98 @@ export default function Home() {
       flexDirection="column"
       background="bg"
       color="fg"
-      style={{ flex: 1, minHeight: 0 }}
+      flexGrow={1}
+      minHeight={0}
     >
-      <Box
-        display="flex"
-        justifyContent="center"
-        width="100%"
-        style={{ flex: 1, minHeight: 0 }}
-      >
+      {isWide ? (
+        <Grid
+          width="100%"
+          flexGrow={1}
+          minHeight={0}
+          templateColumns="minmax(0, 2fr) 1px minmax(0, 1fr)"
+          rows={1}
+          alignItems="stretch"
+          columnGap={0}
+          rowGap={0}
+        >
+          <GridColumn gridColumn="1 / 2" minWidth={0} minHeight={0}>
+            <Box
+              width="100%"
+              height="100%"
+              minWidth={0}
+              paddingTop={padTop}
+              paddingBottom={padBottom}
+            >
+              {leftPane}
+            </Box>
+          </GridColumn>
+
+          <GridColumn
+            gridColumn="2 / 3"
+            display="flex"
+            flexDirection="column"
+            alignItems="stretch"
+            alignSelf="stretch"
+            minHeight={0}
+            minWidth={0}
+            padding={0}
+          >
+            <Divider
+              direction="vertical"
+              flexDirection="column"
+              background="bgLine"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                width: "100%",
+                alignSelf: "stretch",
+              }}
+            />
+          </GridColumn>
+
+          <GridColumn gridColumn="3 / 4" minWidth={0} minHeight={0}>
+            <Box
+              width="100%"
+              height="100%"
+              minWidth={0}
+              paddingStart={ruleGap}
+              paddingEnd={edgePad}
+              paddingTop={padTop}
+              paddingBottom={padBottom}
+            >
+              {rightPane}
+            </Box>
+          </GridColumn>
+        </Grid>
+      ) : (
         <Box
           width="100%"
-          maxWidth="80rem"
-          paddingX={{ base: 2, desktop: 4 }}
-          paddingBottom={{ base: 4, desktop: 6 }}
-          paddingTop={{ base: 1, desktop: 2 }}
-          display="flex"
-          flexDirection="column"
-          gap={{ base: 4, desktop: 5 }}
+          paddingTop={padTop}
+          paddingBottom={padBottom}
         >
-          <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
-            <Box maxWidth="56rem" width="100%">
-              <VStack gap={2} alignItems="stretch">
-                <TextTitle1 as="h1" color="fg">
-                  Scan. Pay. Get paid.
-                </TextTitle1>
-                <Box maxWidth="42rem" width="100%">
-                  <TextBody as="p" color="fgMuted">
-                    QR opens the x402-native pay page for your slug. Amount and
-                    label here are preview-only; pricing comes from the worker
-                    resource catalog.
-                  </TextBody>
-                </Box>
-              </VStack>
+          <VStack gap={0} alignItems="stretch" width="100%">
+            {leftPane}
+            <Box width="100%" flexShrink={0} paddingY={3} display="flex" flexDirection="column">
+              <Divider
+                background="bgLine"
+                style={{
+                  flexShrink: 0,
+                  minHeight: 1,
+                  width: "100%",
+                  display: "block",
+                }}
+              />
+            </Box>
+            <Box
+              width="100%"
+              paddingStart={contentPadStart}
+              paddingEnd={contentPadEnd}
+            >
+              {rightPane}
             </Box>
           </VStack>
-
-          <Box
-            display="flex"
-            flexDirection={{ base: "column", desktop: "row" }}
-            gap={{ base: 3, desktop: 4 }}
-            alignItems={{ base: "stretch", desktop: "flex-start" }}
-          >
-            <Box flexGrow={1} flexBasis={0} minWidth={0} width="100%">
-              <ContentCard
-                width="100%"
-                bordered
-                background="bgElevation1"
-                padding={{ base: 3, desktop: 4 }}
-                gap={{ base: 3, desktop: 4 }}
-              >
-                <ContentCardHeader
-                  title={<TextTitle3 color="fg">Create a QR</TextTitle3>}
-                />
-                <ContentCardBody>
-                  <VStack gap={2} alignItems="stretch">
-                    <TextInput
-                      compact
-                      label="Amount"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="5.00"
-                    />
-                    <TextInput
-                      compact
-                      label="Label"
-                      value={label}
-                      onChange={(e) => setLabel(e.target.value)}
-                      placeholder="Tip Jar"
-                    />
-                    <TextInput
-                      compact
-                      label="Slug"
-                      value={slug}
-                      onChange={(e) => setSlug(e.target.value)}
-                      placeholder="my-link"
-                    />
-
-                    <Box
-                      bordered
-                      borderRadius={400}
-                      background="bgSecondary"
-                      padding={{ base: 2, desktop: 3 }}
-                    >
-                      <VStack gap={1} alignItems="stretch">
-                        <TextCaption
-                          color="fgMuted"
-                          fontWeight="label1"
-                          as="p"
-                        >
-                          Payment URL
-                        </TextCaption>
-                        <TextBody mono as="code" color="fg" overflow="wrap">
-                          {paymentUrl}
-                        </TextBody>
-                      </VStack>
-                    </Box>
-                  </VStack>
-                </ContentCardBody>
-              </ContentCard>
-            </Box>
-
-            <Box flexGrow={1} flexBasis={0} minWidth={0} width="100%">
-              <ContentCard
-                width="100%"
-                bordered
-                background="bgElevation1"
-                padding={{ base: 3, desktop: 4 }}
-                gap={{ base: 3, desktop: 4 }}
-              >
-                <ContentCardHeader
-                  title={<TextTitle3 color="fg">QR Preview</TextTitle3>}
-                />
-                <ContentCardBody>
-                  <VStack gap={{ base: 2, desktop: 3 }} alignItems="center">
-                    <Box
-                      bordered
-                      borderRadius={400}
-                      background="bgInverse"
-                      padding={{ base: 2, desktop: 3 }}
-                    >
-                      <QRCodeSVG value={paymentUrl} size={176} />
-                    </Box>
-
-                    <VStack gap={1} alignItems="center">
-                      <TextTitle3 color="fg">{label}</TextTitle3>
-                      <TextTitle1 as="p" color="fg">
-                        ${amount}
-                      </TextTitle1>
-                    </VStack>
-                  </VStack>
-                </ContentCardBody>
-              </ContentCard>
-            </Box>
-          </Box>
         </Box>
-      </Box>
+      )}
     </Box>
   )
 }
