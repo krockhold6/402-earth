@@ -11,14 +11,14 @@ function AppLayout() {
       display="flex"
       flexDirection="column"
       width="100%"
-      style={{ flex: 1, minHeight: 0 }}
+      style={{ flex: "1 1 0%", minHeight: 0 }}
     >
       <AppNavbar />
       <Box
         display="flex"
         flexDirection="column"
         width="100%"
-        style={{ flex: 1, minHeight: 0 }}
+        style={{ flex: "1 1 0%", minHeight: 0 }}
       >
         <Outlet />
       </Box>

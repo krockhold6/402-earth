@@ -5,13 +5,17 @@ html {
 
 body {
   margin: 0;
+  height: 100%;
   min-height: 100%;
+  overflow: hidden;
   /* Overscroll / pre-paint: approximate CDS light/dark canvas */
   background-color: light-dark(#ffffff, rgb(15 16 18));
 }
 
 #root {
+  height: 100%;
   min-height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

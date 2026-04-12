@@ -5,6 +5,8 @@ export interface ResourceDefinition {
   amount: string
   currency: string
   network: string
+  /** Lowercase `0x` + 40 hex — USDC payee on Base for Lane 1. */
+  receiverAddress: string
   active: boolean
   unlockType: string
   contentType: string | null

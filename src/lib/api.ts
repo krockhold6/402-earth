@@ -22,7 +22,9 @@ export type ApiResource = {
   unlockType: string
   contentType: string | null
   successRedirectPath: string | null
-  /** Base payee address when the worker is configured (wallet deep links). */
+  /** Lowercase Base USDC payee (`0x` + 40 hex); may be missing on very old responses. */
+  receiverAddress?: string
+  /** Same as `receiverAddress`; kept for older responses. */
   paymentReceiverAddress: string | null
   /** USDC contract on Base for EIP-681 links; null if not applicable. */
   usdcContractAddress: string | null
@@ -53,11 +55,14 @@ export type CreateResourceResponse = {
 export async function createResource(input: {
   label: string
   amount: string
+  /** Lowercase `0x` + 40 hex — required by Worker `POST /api/resource`. */
+  receiverAddress: string
   slug?: string
 }): Promise<{ response: Response; data: CreateResourceResponse | null }> {
   const body: Record<string, string> = {
     label: input.label.trim(),
     amount: input.amount.trim(),
+    receiverAddress: input.receiverAddress.trim(),
   }
   const s = input.slug?.trim()
   if (s) body.slug = s

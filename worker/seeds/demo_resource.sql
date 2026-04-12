@@ -1,5 +1,5 @@
 -- Demo resource for Worker v3 manual tests (resource_definitions).
--- Requires migration 0002 applied on the target database.
+-- Requires migrations through 0004 applied on the target database.
 --
 -- Local:  npm run db:seed:local
 -- Remote: npm run db:seed:remote
@@ -10,6 +10,7 @@ INSERT OR REPLACE INTO resource_definitions (
   amount,
   currency,
   network,
+  receiver_address,
   active,
   unlock_type,
   content_type,
@@ -22,6 +23,7 @@ INSERT OR REPLACE INTO resource_definitions (
   '5.00',
   'USDC',
   'base',
+  '0x1111111111111111111111111111111111111111',
   1,
   'json',
   NULL,

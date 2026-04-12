@@ -12,6 +12,7 @@ function rowToAttempt(row: Record<string, unknown>): PaymentAttempt {
     amount: String(row.amount),
     currency: String(row.currency),
     network: String(row.network),
+    receiverAddress: String(row.receiver_address),
     status: row.status as PaymentAttempt['status'],
     clientType: row.client_type as PaymentAttempt['clientType'],
     paymentMethod: String(row.payment_method),
@@ -37,10 +38,10 @@ export async function createAttempt(
   await db
     .prepare(
       `INSERT INTO payment_attempts (
-        id, slug, label, amount, currency, network, status, client_type,
+        id, slug, label, amount, currency, network, receiver_address, status, client_type,
         payment_method, payer_address, payment_signature_hash, tx_hash,
         created_at, updated_at, paid_at, expires_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.id,
@@ -49,6 +50,7 @@ export async function createAttempt(
       input.amount,
       input.currency,
       input.network,
+      input.receiverAddress,
       input.status,
       input.clientType,
       paymentMethod,
@@ -69,7 +71,7 @@ export async function getAttemptById(
 ): Promise<PaymentAttempt | null> {
   const row = await db
     .prepare(
-      `SELECT id, slug, label, amount, currency, network, status, client_type,
+      `SELECT id, slug, label, amount, currency, network, receiver_address, status, client_type,
               payment_method, payer_address, payment_signature_hash, tx_hash,
               created_at, updated_at, paid_at, expires_at
        FROM payment_attempts WHERE id = ?`,

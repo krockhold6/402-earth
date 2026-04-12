@@ -72,8 +72,11 @@ export function CdsAppShell({ children }: { children: ReactNode }) {
         activeColorScheme={activeColorScheme}
         display="flex"
         style={{
+          flex: "1 1 0%",
           flexDirection: "column",
-          minHeight: "100dvh",
+          minHeight: 0,
+          height: "100%",
+          overflow: "hidden",
           backgroundColor: "var(--color-bg)",
         }}
       >
@@ -82,7 +85,7 @@ export function CdsAppShell({ children }: { children: ReactNode }) {
             display="flex"
             flexDirection="column"
             width="100%"
-            style={{ flex: 1, minHeight: 0 }}
+            style={{ flex: "1 1 0%", minHeight: 0 }}
           >
             {children}
           </Box>

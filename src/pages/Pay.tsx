@@ -462,7 +462,7 @@ export default function Pay() {
       justifyContent="center"
       background="bg"
       color="fg"
-      style={{ flex: 1, minHeight: 0 }}
+      style={{ flex: "1 1 0%", minHeight: 0, overflowY: "auto" }}
     >
       <Box
         width="100%"

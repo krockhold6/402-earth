@@ -9,6 +9,7 @@ import {
   mockVerifyEnabled,
   parseUsdcMinorUnits,
 } from '../lib/facilitator'
+import { resolveExpectedReceiver } from '../lib/receiverAddress'
 import { sha256HexUtf8 } from '../lib/hash'
 import { createEventId } from '../lib/ids'
 import { json, notFound } from '../lib/response'
@@ -18,8 +19,8 @@ import type { PaymentAttempt, PaymentAttemptStatus } from '../types/payment'
 
 const AUTO_VERIFY_SOURCE = 'auto_chain_scan'
 
-function publicAttempt(attempt: PaymentAttempt, env: Env) {
-  const recv = env.PAYMENT_RECEIVER_ADDRESS?.trim() || null
+function publicAttempt(attempt: PaymentAttempt) {
+  const recv = attempt.receiverAddress
   return {
     id: attempt.id,
     slug: attempt.slug,
@@ -37,6 +38,7 @@ function publicAttempt(attempt: PaymentAttempt, env: Env) {
     updatedAt: attempt.updatedAt,
     paidAt: attempt.paidAt,
     expiresAt: attempt.expiresAt,
+    receiverAddress: recv,
     paymentReceiverAddress: recv,
   }
 }
@@ -62,18 +64,19 @@ export async function handleGetPaymentAttemptById(
     return notFound('Attempt not found')
   }
 
+  const expectedRecv = resolveExpectedReceiver(attempt, env)
   if (
     !mockVerifyEnabled(env) &&
     eligibleForAutoChainVerify(attempt) &&
     env.BASE_RPC_URL?.trim() &&
-    env.PAYMENT_RECEIVER_ADDRESS?.trim()
+    expectedRecv
   ) {
     const expectedMinor = parseUsdcMinorUnits(attempt.amount)
     if (expectedMinor !== null) {
       const attemptId = attempt.id
       try {
         const match = await findAutoUsdcTransferOnBase(env, {
-          receiverAddress: env.PAYMENT_RECEIVER_ADDRESS.trim(),
+          receiverAddress: expectedRecv,
           minimumAmountMinor: expectedMinor,
           attemptCreatedAtIso: attempt.createdAt,
           allowTxHash: async (txHash) => {
@@ -119,5 +122,5 @@ export async function handleGetPaymentAttemptById(
     attempt = (await getAttemptById(env.DB, id)) ?? attempt
   }
 
-  return json({ ok: true, attempt: publicAttempt(attempt, env) })
+  return json({ ok: true, attempt: publicAttempt(attempt) })
 }

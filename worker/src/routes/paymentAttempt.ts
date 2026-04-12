@@ -42,6 +42,7 @@ export async function handlePostPaymentAttempt(
     amount: resource.amount,
     currency: resource.currency,
     network: resource.network,
+    receiverAddress: resource.receiverAddress,
     status: 'payment_required',
     clientType,
     paymentMethod: 'x402',
@@ -57,5 +58,6 @@ export async function handlePostPaymentAttempt(
     attemptId,
     status: 'payment_required' as const,
     resourceUrl,
+    receiverAddress: resource.receiverAddress,
   })
 }

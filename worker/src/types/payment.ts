@@ -18,6 +18,8 @@ export interface PaymentAttempt {
   amount: string
   currency: string
   network: string
+  /** Lowercase `0x` + 40 hex — copied from resource at attempt creation; immutable. */
+  receiverAddress: string
   status: PaymentAttemptStatus
   clientType: PaymentClientType
   paymentMethod: string
@@ -46,6 +48,7 @@ export interface CreatePaymentAttemptInput {
   amount: string
   currency: string
   network: string
+  receiverAddress: string
   status: PaymentAttemptStatus
   clientType: PaymentClientType
   paymentMethod?: string

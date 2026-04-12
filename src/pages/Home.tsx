@@ -9,6 +9,59 @@ import { Divider } from "@coinbase/cds-web/layout/Divider"
 import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
 import { TextBody, TextCaption, TextTitle3 } from "@coinbase/cds-web/typography"
 
+/** Migration / placeholder receiver from older seeded rows — not a real payout address. */
+const DEMO_ZERO_RECEIVER = "0x0000000000000000000000000000000000000000"
+
+function validateCreatorReceiverAddress(raw: string):
+  | { ok: true; normalized: string }
+  | { ok: false; message: string } {
+  const t = raw.trim()
+  if (!t) {
+    return {
+      ok: false,
+      message: "Enter the wallet address where you want to get paid.",
+    }
+  }
+  if (!t.startsWith("0x")) {
+    return { ok: false, message: "Wallet address must start with 0x." }
+  }
+  if (t.length !== 42) {
+    return {
+      ok: false,
+      message:
+        "Wallet address must be 42 characters (0x plus 40 hexadecimal digits).",
+    }
+  }
+  if (!/^0x[a-fA-F0-9]{40}$/.test(t)) {
+    return {
+      ok: false,
+      message: "Only the digits 0–9 and letters a–f are allowed after 0x.",
+    }
+  }
+  return { ok: true, normalized: t.toLowerCase() }
+}
+
+function pickResourceReceiver(resource: {
+  receiverAddress?: string
+  paymentReceiverAddress?: string | null
+}): string {
+  const a = resource.receiverAddress?.trim()
+  if (a) return a
+  const b = resource.paymentReceiverAddress?.trim()
+  return b ?? ""
+}
+
+function receiverIsUsefulForPayout(address: string): boolean {
+  const t = address.trim().toLowerCase()
+  return t.length > 0 && t !== DEMO_ZERO_RECEIVER
+}
+
+/**
+ * Distance from viewport top for `position: sticky` on the QR column, below the
+ * sticky `PageHeader` (~56px) plus a little air.
+ */
+const DESKTOP_QR_STICKY_TOP_PX = 64
+
 /** Spans the full width of the grid column (viewport edge → vertical rule on wide). */
 function HomeHorizontalRule() {
   return (
@@ -41,6 +94,14 @@ export default function Home() {
   const [label, setLabel] = useState("Exclusive video")
   /** Optional custom slug; empty means server generates on create. */
   const [slug, setSlug] = useState("")
+  /** Creator payout wallet (USDC on Base); normalized to lowercase on submit. */
+  const [receiverAddress, setReceiverAddress] = useState("")
+  /** Inline validation for the wallet field (create flow). */
+  const [receiverAddressError, setReceiverAddressError] = useState<
+    string | null
+  >(null)
+  /** Shown after loading demo-001 when the API has no real payout address. */
+  const [demoWalletNotice, setDemoWalletNotice] = useState<string | null>(null)
   /** Set only after API confirms a resource exists (create or demo load). */
   const [paymentUrl, setPaymentUrl] = useState("")
   const [createError, setCreateError] = useState<string | null>(null)
@@ -53,10 +114,19 @@ export default function Home() {
   const invalidateQrIfFormChanged = useCallback(() => {
     setPaymentUrl("")
     setCreateError(null)
+    setDemoWalletNotice(null)
   }, [])
 
   const handleCreatePaymentLink = async () => {
     setCreateError(null)
+    setReceiverAddressError(null)
+
+    const recvResult = validateCreatorReceiverAddress(receiverAddress)
+    if (!recvResult.ok) {
+      setReceiverAddressError(recvResult.message)
+      return
+    }
+
     const labelT = label.trim()
     const amountT = amount.trim()
     if (!labelT) {
@@ -73,6 +143,7 @@ export default function Home() {
       const { response, data } = await createResource({
         label: labelT,
         amount: amountT,
+        receiverAddress: recvResult.normalized,
         slug: slugKey || undefined,
       })
 
@@ -86,8 +157,14 @@ export default function Home() {
       }
 
       setSlug(data.resource.slug)
+      setReceiverAddress(
+        pickResourceReceiver(data.resource).toLowerCase() ||
+          recvResult.normalized,
+      )
       setPaymentUrl(data.paymentUrl)
       setCreateError(null)
+      setReceiverAddressError(null)
+      setDemoWalletNotice(null)
     } catch {
       setCreateError(
         "Network error — check your connection or API configuration.",
@@ -109,16 +186,29 @@ export default function Home() {
             "demo-001 was not found. Run the worker demo seed (demo_resource.sql) for local testing.",
         )
         setPaymentUrl("")
+        setDemoWalletNotice(null)
         return
       }
+      const r = data.resource
       setSlug("demo-001")
-      setLabel(data.resource.label)
-      setAmount(data.resource.amount)
+      setLabel(r.label)
+      setAmount(r.amount)
+      const recv = pickResourceReceiver(r)
+      setReceiverAddress(recv ? recv.toLowerCase() : "")
+      if (!receiverIsUsefulForPayout(recv)) {
+        setDemoWalletNotice(
+          "This demo resource doesn’t have a real payout wallet in the API (missing or placeholder address). You can still open the pay link to try the flow; on-chain payouts need a resource with a valid wallet.",
+        )
+      } else {
+        setDemoWalletNotice(null)
+      }
+      setReceiverAddressError(null)
       setPaymentUrl(absolutePayPageUrl("demo-001"))
       setCreateError(null)
     } catch {
       setCreateError("Could not load demo-001 from the API.")
       setPaymentUrl("")
+      setDemoWalletNotice(null)
     } finally {
       setIsCreating(false)
     }
@@ -215,6 +305,42 @@ export default function Home() {
         <VStack gap={1} alignItems="stretch">
           <TextInput
             compact
+            label="Where should you get paid?"
+            value={receiverAddress}
+            onChange={(e) => {
+              setReceiverAddress(e.target.value)
+              setReceiverAddressError(null)
+              invalidateQrIfFormChanged()
+            }}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="0x…"
+          />
+          <TextCaption color="fgMuted" as="p">
+            USDC on Base will be sent here
+          </TextCaption>
+          {receiverAddressError ? (
+            <TextCaption color="fgNegative" as="p">
+              {receiverAddressError}
+            </TextCaption>
+          ) : null}
+          {demoWalletNotice ? (
+            <Box
+              bordered
+              borderRadius={400}
+              borderColor="bgLine"
+              background="bgSecondary"
+              padding={3}
+            >
+              <TextBody color="fgMuted" as="p">
+                {demoWalletNotice}
+              </TextBody>
+            </Box>
+          ) : null}
+        </VStack>
+        <VStack gap={1} alignItems="stretch">
+          <TextInput
+            compact
             label="Slug (optional)"
             value={slug}
             onChange={(e) => {
@@ -228,10 +354,10 @@ export default function Home() {
           <HStack gap={2} alignItems="flex-end" flexWrap="wrap">
             <Box flexGrow={1} minWidth={0} flexBasis="12rem">
               <TextCaption color="fgMuted" as="p">
-                Create a real pay link in the worker first, then scan the QR.
-                Leave slug empty for a random id, or choose one (letters,
-                digits, hyphens). For a quick test without creating a row, use
-                the seeded{" "}
+                Add your Base wallet above, then create a link — the QR uses the
+                saved resource from the API. Leave slug empty for a random id,
+                or choose one (letters, digits, hyphens). For a quick test
+                without creating a row, use the seeded{" "}
                 <TextBody as="span" mono color="fgMuted">
                   demo-001
                 </TextBody>{" "}
@@ -273,29 +399,6 @@ export default function Home() {
             <TextBody color="fgNegative">{createError}</TextBody>
           </Box>
         ) : null}
-
-        <Box
-          bordered
-          borderRadius={400}
-          borderColor="bgLine"
-          background="bgSecondary"
-          padding={3}
-        >
-          <VStack gap={1} alignItems="stretch">
-            <TextTitle3 color="fg" as="p">
-              Payment URL
-            </TextTitle3>
-            {!hasQr ? (
-              <TextBody color="fgMuted" as="p">
-                Create a link or load demo-001 to show the URL and QR.
-              </TextBody>
-            ) : (
-              <TextBody mono as="p" color="fg" overflow="wrap">
-                {paymentUrl}
-              </TextBody>
-            )}
-          </VStack>
-        </Box>
       </VStack>
     </Box>
   )
@@ -328,61 +431,99 @@ export default function Home() {
     </VStack>
   )
 
-  const rightPane = (
-    <VStack gap={3} alignItems="center" width="100%">
-      <Box display="flex" justifyContent="center" width="100%" padding={2}>
+  const rightPanePaymentUrl = (
+    <Box
+      bordered
+      borderRadius={400}
+      borderColor="bgLine"
+      background="bgSecondary"
+      padding={3}
+      width="100%"
+      flexShrink={0}
+    >
+      <VStack gap={1} alignItems="stretch">
+        <TextTitle3 color="fg" as="p">
+          Payment URL
+        </TextTitle3>
         {!hasQr ? (
-          <Box
-            width={220}
-            height={220}
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            bordered
-            borderRadius={400}
-            background="bgSecondary"
-            padding={3}
-          >
-            <TextBody color="fgMuted" textAlign="center">
-              Create a payment link to generate the QR code.
-            </TextBody>
-          </Box>
+          <TextBody color="fgMuted" as="p">
+            Create a link or load demo-001 to show the URL and QR.
+          </TextBody>
         ) : (
-          <QRCodeCanvas
-            ref={qrCanvasRef}
-            value={paymentUrl}
-            size={220}
-            marginSize={2}
-            bgColor="#ffffff"
-            fgColor="#000000"
-          />
+          <TextBody mono as="p" color="fg" overflow="wrap">
+            {paymentUrl}
+          </TextBody>
         )}
-      </Box>
-      <VStack gap={2} alignItems="stretch" width="100%">
-        <Button
-          block
-          compact
-          variant="primary"
-          onClick={sharePayment}
-          disabled={!hasQr}
-          minHeight={48}
-          borderRadius={500}
-        >
-          Share
-        </Button>
-        <Button
-          block
-          compact
-          variant="secondary"
-          onClick={downloadQr}
-          disabled={!hasQr}
-          minHeight={48}
-          borderRadius={500}
-        >
-          Download
-        </Button>
       </VStack>
-    </VStack>
+    </Box>
+  )
+
+  const rightPane = (
+    <Box
+      display="flex"
+      flexDirection="column"
+      width="100%"
+      height="100%"
+      minHeight={0}
+      style={{ flex: "1 1 0%", minHeight: 0 }}
+    >
+      <VStack gap={3} alignItems="center" width="100%" flexShrink={0}>
+        <Box display="flex" justifyContent="center" width="100%" padding={2}>
+          {!hasQr ? (
+            <Box
+              width={220}
+              height={220}
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              bordered
+              borderRadius={400}
+              background="bgSecondary"
+              padding={3}
+            >
+              <TextBody color="fgMuted" textAlign="center">
+                Create a payment link to generate the QR code.
+              </TextBody>
+            </Box>
+          ) : (
+            <QRCodeCanvas
+              ref={qrCanvasRef}
+              value={paymentUrl}
+              size={220}
+              marginSize={2}
+              bgColor="#ffffff"
+              fgColor="#000000"
+            />
+          )}
+        </Box>
+        <VStack gap={2} alignItems="stretch" width="100%">
+          <Button
+            block
+            compact
+            variant="primary"
+            onClick={sharePayment}
+            disabled={!hasQr}
+            minHeight={48}
+            borderRadius={500}
+          >
+            Share
+          </Button>
+          <Button
+            block
+            compact
+            variant="secondary"
+            onClick={downloadQr}
+            disabled={!hasQr}
+            minHeight={48}
+            borderRadius={500}
+          >
+            Download
+          </Button>
+        </VStack>
+      </VStack>
+      <Box style={{ flex: "1 1 auto", minHeight: 12 }} aria-hidden />
+      {rightPanePaymentUrl}
+    </Box>
   )
 
   return (
@@ -393,27 +534,37 @@ export default function Home() {
       flexDirection="column"
       background="bg"
       color="fg"
-      flexGrow={1}
       minHeight={0}
+      style={{
+        flex: "1 1 0%",
+        minHeight: 0,
+        ...(isWide ? { overflow: "hidden" } : { overflowY: "auto" }),
+      }}
     >
       {isWide ? (
         <Grid
           width="100%"
-          flexGrow={1}
           minHeight={0}
           templateColumns="minmax(0, 2fr) 1px minmax(0, 1fr)"
           rows={1}
           alignItems="stretch"
           columnGap={0}
           rowGap={0}
+          style={{
+            flex: "1 1 0%",
+            minHeight: 0,
+            gridTemplateRows: "minmax(0, 1fr)",
+          }}
         >
           <GridColumn gridColumn="1 / 2" minWidth={0} minHeight={0}>
             <Box
               width="100%"
               height="100%"
               minWidth={0}
+              minHeight={0}
               paddingTop={padTop}
               paddingBottom={padBottom}
+              style={{ overflowY: "auto" }}
             >
               {leftPaneDesktop}
             </Box>
@@ -447,10 +598,23 @@ export default function Home() {
               width="100%"
               height="100%"
               minWidth={0}
+              minHeight={0}
               paddingStart={ruleGap}
               paddingEnd={edgePad}
               paddingTop={padTop}
               paddingBottom={padBottom}
+              display="flex"
+              flexDirection="column"
+              alignItems="stretch"
+              justifyContent="flex-start"
+              style={{
+                boxSizing: "border-box",
+                position: "sticky",
+                top: DESKTOP_QR_STICKY_TOP_PX,
+                alignSelf: "start",
+                maxHeight: `calc(100dvh - ${DESKTOP_QR_STICKY_TOP_PX}px)`,
+                overflowY: "hidden",
+              }}
             >
               {rightPane}
             </Box>

@@ -37,7 +37,7 @@ export async function handleX402Pay(
     return paymentRequiredResponse({
       body: {
         ok: false,
-        resource: publicResourceDefinition(resource, env),
+        resource: publicResourceDefinition(resource),
       },
       requirements: requirementsPayload(resource, null),
     })
@@ -62,7 +62,7 @@ export async function handleX402Pay(
     body: {
       ok: false,
       attemptId: attempt.id,
-      resource: publicResourceDefinition(resource, env),
+      resource: publicResourceDefinition(resource),
     },
     requirements: requirementsPayload(resource, attempt.id),
   })

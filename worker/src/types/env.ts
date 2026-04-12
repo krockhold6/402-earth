@@ -14,7 +14,10 @@ export interface Env {
   API_PUBLIC_URL?: string
   /** Base (or compatible) JSON-RPC URL for `eth_getTransactionReceipt` (e.g. https://mainnet.base.org). */
   BASE_RPC_URL?: string
-  /** USDC payee address on Base; must match the `to` of the verified Transfer log. */
+  /**
+   * Optional legacy fallback: USDC payee when `payment_attempts.receiver_address` is still
+   * the migration placeholder (pre–per-resource receivers). Prefer per-resource `receiverAddress`.
+   */
   PAYMENT_RECEIVER_ADDRESS?: string
   /**
    * When truthy (`true`, `1`, `yes`), `POST /x402/verify` uses mock facilitator success.

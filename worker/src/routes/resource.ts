@@ -4,6 +4,7 @@ import {
 } from '../db/resources'
 import { createResourceSlug } from '../lib/ids'
 import { parseUsdcMinorUnits, USDC_BASE } from '../lib/facilitator'
+import { parseReceiverAddressForResource } from '../lib/receiverAddress'
 import {
   badRequest,
   conflict,
@@ -14,11 +15,8 @@ import { nowIso } from '../lib/time'
 import type { Env } from '../types/env'
 import type { ResourceDefinition } from '../types/resource'
 
-export function publicResourceDefinition(
-  resource: ResourceDefinition,
-  env: Env,
-) {
-  const recv = env.PAYMENT_RECEIVER_ADDRESS?.trim() || null
+export function publicResourceDefinition(resource: ResourceDefinition) {
+  const recv = resource.receiverAddress
   return {
     slug: resource.slug,
     label: resource.label,
@@ -29,7 +27,8 @@ export function publicResourceDefinition(
     unlockType: resource.unlockType,
     contentType: resource.contentType,
     successRedirectPath: resource.successRedirectPath,
-    /** Base USDC payee when configured (for wallet deep links / display). */
+    receiverAddress: recv,
+    /** Same as `receiverAddress` — kept for clients that still read this field. */
     paymentReceiverAddress: recv,
     /** USDC contract on Base — EIP-681 token target. */
     usdcContractAddress:
@@ -47,7 +46,7 @@ export async function handleGetResource(
   }
   return json({
     ok: true,
-    resource: publicResourceDefinition(resource, env),
+    resource: publicResourceDefinition(resource),
   })
 }
 
@@ -74,6 +73,11 @@ export async function handlePostResource(
   const labelRaw = typeof o.label === 'string' ? o.label.trim() : ''
   const amountRaw = typeof o.amount === 'string' ? o.amount.trim() : ''
   const slugOptRaw = typeof o.slug === 'string' ? o.slug.trim() : ''
+  const recvParsed = parseReceiverAddressForResource(o.receiverAddress)
+  if (!recvParsed.ok) {
+    return badRequest(recvParsed.message)
+  }
+  const receiverAddress = recvParsed.value
 
   if (!labelRaw) {
     return badRequest('label is required')
@@ -126,6 +130,7 @@ export async function handlePostResource(
     amount: amountRaw,
     currency: 'USDC',
     network: 'base',
+    receiverAddress,
     unlockType: 'json',
     contentType: null,
     successRedirectPath,
@@ -145,7 +150,7 @@ export async function handlePostResource(
 
   return json({
     ok: true,
-    resource: publicResourceDefinition(resource, env),
+    resource: publicResourceDefinition(resource),
     paymentUrl,
   })
 }

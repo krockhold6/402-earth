@@ -1,3 +1,4 @@
+import { resolveExpectedReceiver } from './receiverAddress'
 import type { Env } from '../types/env'
 import type { PaymentAttempt } from '../types/payment'
 
@@ -141,7 +142,7 @@ function verifyTransferLogs(
 
 /**
  * Verify an x402 payment: mock when `X402_MOCK_VERIFY` is set; otherwise Base USDC
- * transfer to `PAYMENT_RECEIVER_ADDRESS` via `txHash`.
+ * transfer to the attempt’s `receiver_address` (or legacy global `PAYMENT_RECEIVER_ADDRESS` when the attempt still has the migration placeholder).
  */
 export async function verifyWithFacilitator(
   env: Env,
@@ -158,12 +159,12 @@ export async function verifyWithFacilitator(
   }
 
   const rpcUrl = env.BASE_RPC_URL?.trim()
-  const receiverRaw = env.PAYMENT_RECEIVER_ADDRESS?.trim()
+  const receiverRaw = resolveExpectedReceiver(input.attempt, env)
   if (!rpcUrl || !receiverRaw) {
     return {
       ok: false,
       error:
-        'Base USDC verification is not configured. Set BASE_RPC_URL and PAYMENT_RECEIVER_ADDRESS, or X402_MOCK_VERIFY=true for local mock only.',
+        'Base USDC verification is not configured. Set BASE_RPC_URL, ensure the payment attempt has a receiver address, or set PAYMENT_RECEIVER_ADDRESS for legacy resources; or use X402_MOCK_VERIFY=true for local mock only.',
       code: 'FACILITATOR_NOT_CONFIGURED',
     }
   }
