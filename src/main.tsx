@@ -7,19 +7,29 @@ import "@coinbase/cds-web/globalStyles"
 import "@coinbase/cds-web/defaultFontStyles"
 
 import { CdsAppShell } from "./providers/CdsAppShell"
+import { RootErrorBoundary } from "./RootErrorBoundary"
 
 import App from "./App"
 import "./index.css"
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const baseUrl =
+  typeof import.meta.env.BASE_URL === "string"
+    ? import.meta.env.BASE_URL
+    : "/"
+const routerBasename = baseUrl.replace(/\/$/, "") || undefined
+
+const rootEl = document.getElementById("root")
+if (!rootEl) {
+  throw new Error('Missing #root element')
+}
+
+ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <CdsAppShell>
-      <BrowserRouter
-        basename={
-          import.meta.env.BASE_URL.replace(/\/$/, "") || undefined
-        }
-      >
-        <App />
+      <BrowserRouter basename={routerBasename}>
+        <RootErrorBoundary>
+          <App />
+        </RootErrorBoundary>
       </BrowserRouter>
     </CdsAppShell>
   </React.StrictMode>,

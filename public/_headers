@@ -1,0 +1,4 @@
+# Cloudflare Pages: long-lived cache for Vite fingerprinted chunks only.
+# Purge CDN cache after deploy if users see a blank page (stale HTML → missing JS).
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

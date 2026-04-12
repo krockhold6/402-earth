@@ -25,9 +25,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      # Custom domain at site root (e.g. 402.earth) must use "/".
+      # For GitHub’s default URL only (user.github.io/repo-name/), set
+      # VITE_BASE_PATH: /repo-name/ in this workflow or via repo Variables.
       - run: npm run build
         env:
-          VITE_BASE_PATH: /402-earth/
+          VITE_BASE_PATH: /
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
