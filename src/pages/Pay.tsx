@@ -45,12 +45,20 @@ function usdcAmountToUint256String(amountStr: string): string | null {
   }
 }
 
+function resourceReceiver(resource: ApiResource): string {
+  return (
+    resource.paymentReceiverAddress?.trim() ||
+    resource.receiverAddress?.trim() ||
+    ""
+  )
+}
+
 /**
  * [EIP-681](https://eips.ethereum.org/EIPS/eip-681) ERC-20 transfer on Base.
- * Opens compatible wallets to send USDC to the configured receiver.
+ * Opens Coinbase Wallet, Base app, and other wallets that handle `ethereum:` URIs.
  */
-function buildBaseUsdcWalletDeepLink(resource: ApiResource): string | null {
-  const recv = resource.paymentReceiverAddress?.trim()
+function buildBaseUsdcEip681Link(resource: ApiResource): string | null {
+  const recv = resourceReceiver(resource)
   const token = resource.usdcContractAddress?.trim()
   if (!recv || !token) return null
   if (resource.network.toLowerCase() !== "base") return null
@@ -61,7 +69,26 @@ function buildBaseUsdcWalletDeepLink(resource: ApiResource): string | null {
   return `ethereum:${token.toLowerCase()}@${chainId}/transfer?address=${recv.toLowerCase()}&uint256=${minor}`
 }
 
-type PayFlow = "select" | "stripe_pending" | "crypto_wallet"
+/**
+ * MetaMask mobile deep link — see
+ * https://docs.metamask.io/metamask-connect/evm/guides/metamask-exclusive/use-deeplinks/
+ */
+function buildMetaMaskUsdcSendLink(resource: ApiResource): string | null {
+  const recv = resourceReceiver(resource)
+  const token = resource.usdcContractAddress?.trim()
+  if (!recv || !token) return null
+  if (resource.network.toLowerCase() !== "base") return null
+  if (resource.currency.toUpperCase() !== "USDC") return null
+  const minor = usdcAmountToUint256String(resource.amount)
+  if (!minor) return null
+  const chainId = 8453
+  const path = `${token.toLowerCase()}@${chainId}/transfer`
+  const q = new URLSearchParams({
+    address: recv.toLowerCase(),
+    uint256: minor,
+  })
+  return `https://link.metamask.io/send/${path}?${q.toString()}`
+}
 
 export default function Pay() {
   const navigate = useNavigate()
@@ -74,7 +101,6 @@ export default function Pay() {
     "idle",
   )
 
-  const [flow, setFlow] = useState<PayFlow>("select")
   const [manualAdvancedOpen, setManualAdvancedOpen] = useState(false)
   const [cryptoAdvancedOpen, setCryptoAdvancedOpen] = useState(false)
   const [attemptId, setAttemptId] = useState<string | null>(null)
@@ -118,7 +144,6 @@ export default function Pay() {
   }, [load])
 
   useEffect(() => {
-    setFlow("select")
     setManualAdvancedOpen(false)
     setCryptoAdvancedOpen(false)
     setAttemptId(null)
@@ -173,7 +198,6 @@ export default function Pay() {
   )
 
   const resetToPaymentChoice = useCallback(() => {
-    setFlow("select")
     setManualAdvancedOpen(false)
     setCryptoAdvancedOpen(false)
     setTxHash("")
@@ -219,25 +243,46 @@ export default function Pay() {
     }
   }, [attemptId, resource, slug])
 
-  const handlePayWithCard = async () => {
-    if (!canInteract) return
+  const openPayUrlWithAttempt = useCallback(
+    (id: string) => {
+      if (!slug) return
+      navigate(
+        `/pay/${encodeURIComponent(slug)}?attemptId=${encodeURIComponent(id)}`,
+        { replace: true },
+      )
+    },
+    [navigate, slug],
+  )
+
+  const handlePayOnBase = async () => {
+    if (!canInteract || !resource) return
     setManualAdvancedOpen(false)
+    const href = buildBaseUsdcEip681Link(resource)
+    if (!href) {
+      setAttemptError(
+        "Pay on Base isn’t available for this resource (check payout address and USDC on Base).",
+      )
+      return
+    }
     const id = await createAttempt()
-    if (id) setFlow("stripe_pending")
+    if (!id) return
+    openPayUrlWithAttempt(id)
+    window.location.href = href
   }
 
-  const handlePayWithCrypto = async () => {
-    if (!canInteract) return
+  const handlePayOnMetaMask = async () => {
+    if (!canInteract || !resource) return
     setManualAdvancedOpen(false)
-    setCryptoAdvancedOpen(false)
+    const href = buildMetaMaskUsdcSendLink(resource)
+    if (!href) {
+      setAttemptError(
+        "MetaMask pay isn’t available for this resource (check payout address and USDC on Base).",
+      )
+      return
+    }
     const id = await createAttempt()
-    if (id) setFlow("crypto_wallet")
-  }
-
-  const handleOpenWallet = () => {
-    if (!resource) return
-    const href = buildBaseUsdcWalletDeepLink(resource)
-    if (!href) return
+    if (!id) return
+    openPayUrlWithAttempt(id)
     window.location.href = href
   }
 
@@ -245,7 +290,6 @@ export default function Pay() {
     setVerifyError(null)
     setAttemptError(null)
     setManualAdvancedOpen(true)
-    setFlow("select")
   }
 
   const handleManualPanelCreateAttempt = async () => {
@@ -365,18 +409,20 @@ export default function Pay() {
 
   const isDev = import.meta.env.DEV
 
-  const walletDeepLink =
-    resource != null ? buildBaseUsdcWalletDeepLink(resource) : null
+  const basePayHref =
+    resource != null ? buildBaseUsdcEip681Link(resource) : null
+  const metaMaskPayHref =
+    resource != null ? buildMetaMaskUsdcSendLink(resource) : null
 
-  const showCryptoPrimaryPanel = flow === "crypto_wallet" && resource != null
+  const showAdvancedOnlyPanel = manualAdvancedOpen && resource != null
 
-  const showAdvancedOnlyPanel =
-    flow === "select" && manualAdvancedOpen && resource != null
-
-  const showMethodSelector = flow === "select" && !showResourceSkeleton
+  const showMethodSelector = loadState === "done" && !showResourceSkeleton
 
   const showAdvancedTxToggle =
-    flow === "select" && !showResourceSkeleton && !manualAdvancedOpen
+    loadState === "done" && !showResourceSkeleton && !manualAdvancedOpen
+
+  const showWalletFollowUp =
+    Boolean(attemptId && resource && !manualAdvancedOpen)
 
   const advancedTxForm = (opts: { title: string; showBackToMethods: boolean }) => (
     <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
@@ -483,10 +529,10 @@ export default function Pay() {
               title={<TextTitle3 color="fg">Pay</TextTitle3>}
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
-                  Choose how to pay. On Base, USDC payments are detected
-                  automatically—MetaMask or any Base-compatible wallet works; no
-                  transaction hash unless you use Advanced. Nothing is marked paid
-                  until the backend confirms it.
+                  Pay on Base opens Coinbase Wallet or the Base app. Pay on
+                  MetaMask opens the MetaMask app. USDC on Base is detected
+                  automatically when you check payment status—use Advanced only
+                  if you need to paste a transaction hash.
                 </TextBody>
               }
             />
@@ -580,86 +626,52 @@ export default function Pay() {
                   </Box>
                 )}
 
-                {flow === "stripe_pending" && attemptId && resource ? (
-                  <Box
-                    bordered
-                    borderRadius={400}
-                    background="bgSecondary"
-                    padding={{ base: 3, desktop: 4 }}
-                  >
-                    <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
-                      <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                        Card payment
-                      </TextCaption>
-                      <TextBody color="fgMuted" as="p">
-                        A payment attempt is ready on the server (
-                        <TextBody as="span" mono color="fgMuted">
-                          {attemptId.slice(0, 12)}…
-                        </TextBody>
-                        ).{" "}
-                        <TextBody as="span" color="fg" fontWeight="label1">
-                          Stripe Checkout is not wired up yet
-                        </TextBody>
-                        —this panel is where we will create a Stripe checkout
-                        session and redirect you. No charge happens until that
-                        ships.
-                      </TextBody>
-                      <Box
-                        bordered
-                        borderRadius={400}
-                        background="bgElevation1"
-                        padding={3}
-                      >
-                        <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                          Next implementation step
-                        </TextCaption>
-                        <TextBody color="fgMuted">
-                          Call Stripe (e.g. Checkout Session) with this{" "}
-                          <TextBody as="span" mono color="fgMuted">
-                            attemptId
-                          </TextBody>{" "}
-                          in metadata, then send the customer to Stripe’s hosted
-                          checkout URL.
-                        </TextBody>
-                      </Box>
-                      <Button
-                        variant="secondary"
-                        onClick={resetToPaymentChoice}
-                        disabled={isCreatingAttempt}
-                        block
-                      >
-                        Back to payment options
-                      </Button>
-                    </VStack>
-                  </Box>
-                ) : null}
-
                 {showMethodSelector ? (
                   <VStack gap={2} alignItems="stretch">
                     <TextCaption color="fgMuted" fontWeight="label1" as="p">
                       Payment method
                     </TextCaption>
+                    <Button variant="secondary" disabled block>
+                      Pay with card
+                    </Button>
+                    <TextCaption color="fgMuted" as="p">
+                      Card checkout is coming soon—no charge yet.
+                    </TextCaption>
                     <Button
-                      onClick={handlePayWithCard}
-                      disabled={!canInteract || isCreatingAttempt}
+                      variant="secondary"
+                      onClick={handlePayOnBase}
+                      disabled={
+                        !canInteract ||
+                        isCreatingAttempt ||
+                        !basePayHref
+                      }
                       block
                     >
-                      {isCreatingAttempt ? "Working…" : "Pay with card"}
+                      {isCreatingAttempt ? "Working…" : "Pay on Base"}
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={handlePayWithCrypto}
-                      disabled={!canInteract || isCreatingAttempt}
+                      onClick={handlePayOnMetaMask}
+                      disabled={
+                        !canInteract ||
+                        isCreatingAttempt ||
+                        !metaMaskPayHref
+                      }
                       block
                     >
-                      {isCreatingAttempt
-                        ? "Working…"
-                        : "Pay on Base (USDC)"}
+                      {isCreatingAttempt ? "Working…" : "Pay on MetaMask"}
                     </Button>
+                    {!basePayHref && !metaMaskPayHref && resource ? (
+                      <TextCaption color="fgMuted" as="p">
+                        Wallet links are unavailable (no payout address on Base
+                        for this resource). Use Advanced to verify with a
+                        transaction hash.
+                      </TextCaption>
+                    ) : null}
                   </VStack>
                 ) : null}
 
-                {showCryptoPrimaryPanel ? (
+                {showWalletFollowUp ? (
                   <Box
                     bordered
                     borderRadius={400}
@@ -668,44 +680,26 @@ export default function Pay() {
                   >
                     <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
                       <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                        MetaMask or wallet · Base (USDC)
+                        Payment in progress
                       </TextCaption>
                       <TextBody color="fgMuted" as="p">
-                        Open MetaMask or your preferred wallet on Base to send
-                        USDC. When you continue to the status page, the server
-                        scans Base for your transfer and marks this attempt paid
-                        automatically—no hash required.
+                        After you send USDC on Base, open payment status. You can
+                        tap Pay on Base or Pay on MetaMask again if you need to
+                        reopen your wallet.
                       </TextBody>
                       {attemptId ? (
                         <TextBody mono as="code" color="fgMuted" overflow="wrap">
                           attemptId: {attemptId}
                         </TextBody>
                       ) : null}
-
                       <Button
-                        onClick={handleOpenWallet}
-                        disabled={!walletDeepLink}
-                        block
-                      >
-                        Open in MetaMask / wallet
-                      </Button>
-                      {!walletDeepLink ? (
-                        <TextCaption color="fgMuted" as="p">
-                          Wallet link is unavailable (no payout address on Base
-                          for this resource). Use Advanced to verify with a
-                          transaction hash, or contact support.
-                        </TextCaption>
-                      ) : null}
-
-                      <Button
-                        variant="secondary"
+                        variant="primary"
                         onClick={() => attemptId && goToSuccess(attemptId)}
                         disabled={!attemptId}
                         block
                       >
                         View payment status
                       </Button>
-
                       <Button
                         variant="secondary"
                         onClick={resetToPaymentChoice}
@@ -714,7 +708,6 @@ export default function Pay() {
                       >
                         Back to payment options
                       </Button>
-
                       {attemptId ? (
                         <Box paddingTop={1}>
                           <Button
@@ -730,7 +723,6 @@ export default function Pay() {
                           </Button>
                         </Box>
                       ) : null}
-
                       {cryptoAdvancedOpen && attemptId ? (
                         <Box
                           bordered
@@ -758,7 +750,6 @@ export default function Pay() {
                           </VStack>
                         </Box>
                       ) : null}
-
                       {isDev && attemptId ? (
                         <Box
                           bordered
@@ -824,7 +815,7 @@ export default function Pay() {
                   </Box>
                 ) : null}
 
-                {manualAdvancedOpen && flow === "select" ? (
+                {manualAdvancedOpen ? (
                   <Box paddingTop={1}>
                     <Button
                       variant="secondary"
