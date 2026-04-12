@@ -134,3 +134,64 @@ export async function markAttemptPaid(
     .bind(...values)
     .run()
 }
+
+/** True if another attempt is already paid with this tx hash (excludes `excludeAttemptId`). */
+export async function txHashClaimedByOtherPaidAttempt(
+  db: D1Database,
+  txHash: string,
+  excludeAttemptId: string,
+): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT 1 AS ok FROM payment_attempts
+       WHERE tx_hash = ? AND status = 'paid' AND id != ?
+       LIMIT 1`,
+    )
+    .bind(txHash, excludeAttemptId)
+    .first<{ ok: number }>()
+  return row != null
+}
+
+/**
+ * Mark paid only when not already paid (idempotent, race-safe with concurrent GETs).
+ * Returns whether this call performed the transition to paid.
+ */
+export async function markAttemptPaidIfUnpaid(
+  db: D1Database,
+  id: string,
+  paidAt: string,
+  updatedAt: string,
+  patch: MarkAttemptPaidPatch = {},
+): Promise<boolean> {
+  const sets: string[] = [
+    'status = ?',
+    'paid_at = ?',
+    'updated_at = ?',
+  ]
+  const values: unknown[] = ['paid', paidAt, updatedAt]
+
+  if (patch.payerAddress !== undefined) {
+    sets.push('payer_address = ?')
+    values.push(patch.payerAddress)
+  }
+  if (patch.paymentSignatureHash !== undefined) {
+    sets.push('payment_signature_hash = ?')
+    values.push(patch.paymentSignatureHash)
+  }
+  if (patch.txHash !== undefined) {
+    sets.push('tx_hash = ?')
+    values.push(patch.txHash)
+  }
+
+  values.push(id)
+  const result = await db
+    .prepare(
+      `UPDATE payment_attempts SET ${sets.join(', ')}
+       WHERE id = ? AND status != 'paid'`,
+    )
+    .bind(...values)
+    .run()
+  const meta = result.meta as { changes?: number; rows_written?: number }
+  const n = meta.changes ?? meta.rows_written ?? 0
+  return n > 0
+}

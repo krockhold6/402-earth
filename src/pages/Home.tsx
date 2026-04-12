@@ -2,10 +2,21 @@ import { useCallback, useMemo, useRef, useState } from "react"
 import { QRCodeCanvas } from "qrcode.react"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
+import { absolutePayPageUrl } from "@/lib/appUrl"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
-import { Box, Grid, GridColumn, VStack } from "@coinbase/cds-web/layout"
-import { TextBody, TextTitle3 } from "@coinbase/cds-web/typography"
+import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
+import { TextBody, TextCaption, TextTitle3 } from "@coinbase/cds-web/typography"
+
+/** Default slug for QR: unique per load; must exist in the worker catalog to complete pay. */
+function newRandomPaySlug(): string {
+  const bytes = new Uint8Array(6)
+  crypto.getRandomValues(bytes)
+  const hex = Array.from(bytes, (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("")
+  return `pay-${hex}`
+}
 
 /** Spans the full width of the grid column (viewport edge → vertical rule on wide). */
 function HomeHorizontalRule() {
@@ -37,15 +48,17 @@ export default function Home() {
   const isWide = useMediaQuery("(min-width: 960px)")
   const [amount, setAmount] = useState("5.00")
   const [label, setLabel] = useState("Exclusive video")
-  const [slug, setSlug] = useState("demo-001")
+  const [slug, setSlug] = useState(newRandomPaySlug)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
 
+  const slugKey = slug.trim()
   const paymentUrl = useMemo(() => {
-    const origin = window.location.origin
-    return `${origin}/pay/${encodeURIComponent(slug)}`
-  }, [slug])
+    if (!slugKey) return ""
+    return absolutePayPageUrl(slugKey)
+  }, [slugKey])
 
   const sharePayment = useCallback(async () => {
+    if (!slugKey || !paymentUrl) return
     try {
       if (navigator.share) {
         await navigator.share({ title: label, text: label, url: paymentUrl })
@@ -55,7 +68,7 @@ export default function Home() {
     } catch {
       /* cancelled or unavailable */
     }
-  }, [label, paymentUrl])
+  }, [label, paymentUrl, slugKey])
 
   const downloadQr = useCallback(() => {
     const canvas = qrCanvasRef.current
@@ -126,14 +139,36 @@ export default function Home() {
           onChange={(e) => setLabel(e.target.value)}
           autoComplete="off"
         />
-        <TextInput
-          compact
-          label="Slug"
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          autoComplete="off"
-          spellCheck={false}
-        />
+        <VStack gap={1} alignItems="stretch">
+          <TextInput
+            compact
+            label="Slug"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <HStack gap={2} alignItems="flex-end" flexWrap="wrap">
+            <Box flexGrow={1} minWidth={0} flexBasis="12rem">
+              <TextCaption color="fgMuted" as="p">
+                Random by default (new link each visit). The pay page needs this
+                slug in the worker catalog — use{" "}
+                <TextBody as="span" mono color="fgMuted">
+                  demo-001
+                </TextBody>{" "}
+                if you ran the demo seed.
+              </TextCaption>
+            </Box>
+            <Button
+              compact
+              variant="secondary"
+              type="button"
+              onClick={() => setSlug("demo-001")}
+            >
+              Use demo-001
+            </Button>
+          </HStack>
+        </VStack>
         <Box
           bordered
           borderRadius={400}
@@ -145,9 +180,15 @@ export default function Home() {
             <TextTitle3 color="fg" as="p">
               Payment URL
             </TextTitle3>
-            <TextBody mono as="p" color="fg" overflow="wrap">
-              {paymentUrl}
-            </TextBody>
+            {!slugKey ? (
+              <TextBody color="fgMuted" as="p">
+                Enter a slug to generate a payment link.
+              </TextBody>
+            ) : (
+              <TextBody mono as="p" color="fg" overflow="wrap">
+                {paymentUrl}
+              </TextBody>
+            )}
           </VStack>
         </Box>
       </VStack>
@@ -185,14 +226,32 @@ export default function Home() {
   const rightPane = (
     <VStack gap={3} alignItems="center" width="100%">
       <Box display="flex" justifyContent="center" width="100%" padding={2}>
-        <QRCodeCanvas
-          ref={qrCanvasRef}
-          value={paymentUrl}
-          size={220}
-          marginSize={2}
-          bgColor="#ffffff"
-          fgColor="#000000"
-        />
+        {!slugKey ? (
+          <Box
+            width={220}
+            height={220}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            bordered
+            borderRadius={400}
+            background="bgSecondary"
+            padding={3}
+          >
+            <TextBody color="fgMuted" textAlign="center">
+              Enter a slug to generate the QR code.
+            </TextBody>
+          </Box>
+        ) : (
+          <QRCodeCanvas
+            ref={qrCanvasRef}
+            value={paymentUrl}
+            size={220}
+            marginSize={2}
+            bgColor="#ffffff"
+            fgColor="#000000"
+          />
+        )}
       </Box>
       <VStack gap={2} alignItems="stretch" width="100%">
         <Button
@@ -200,6 +259,7 @@ export default function Home() {
           compact
           variant="primary"
           onClick={sharePayment}
+          disabled={!slugKey}
           minHeight={48}
           borderRadius={500}
         >
@@ -210,6 +270,7 @@ export default function Home() {
           compact
           variant="secondary"
           onClick={downloadQr}
+          disabled={!slugKey}
           minHeight={48}
           borderRadius={500}
         >

@@ -1,9 +1,14 @@
+import { USDC_BASE } from '../lib/facilitator'
 import { getResourceBySlug } from '../db/resources'
 import { json, notFound } from '../lib/response'
 import type { Env } from '../types/env'
 import type { ResourceDefinition } from '../types/resource'
 
-export function publicResourceDefinition(resource: ResourceDefinition) {
+export function publicResourceDefinition(
+  resource: ResourceDefinition,
+  env: Env,
+) {
+  const recv = env.PAYMENT_RECEIVER_ADDRESS?.trim() || null
   return {
     slug: resource.slug,
     label: resource.label,
@@ -14,6 +19,11 @@ export function publicResourceDefinition(resource: ResourceDefinition) {
     unlockType: resource.unlockType,
     contentType: resource.contentType,
     successRedirectPath: resource.successRedirectPath,
+    /** Base USDC payee when configured (for wallet deep links / display). */
+    paymentReceiverAddress: recv,
+    /** USDC contract on Base — EIP-681 token target. */
+    usdcContractAddress:
+      resource.network.toLowerCase() === 'base' ? USDC_BASE : null,
   }
 }
 
@@ -27,6 +37,6 @@ export async function handleGetResource(
   }
   return json({
     ok: true,
-    resource: publicResourceDefinition(resource),
+    resource: publicResourceDefinition(resource, env),
   })
 }

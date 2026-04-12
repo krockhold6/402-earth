@@ -64,11 +64,11 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function attemptHeadline(status: string): string {
   switch (status as PaymentAttemptStatus) {
     case "paid":
-      return "Payment complete"
+      return "Payment received"
     case "payment_required":
-      return "Awaiting payment"
+      return "Waiting for payment…"
     case "pending":
-      return "Payment pending"
+      return "Waiting for payment…"
     case "failed":
       return "Payment failed"
     case "expired":
@@ -76,7 +76,7 @@ function attemptHeadline(status: string): string {
     case "cancelled":
       return "Payment cancelled"
     case "created":
-      return "Attempt created"
+      return "Waiting for payment…"
     default:
       return "Payment status"
   }
@@ -85,11 +85,11 @@ function attemptHeadline(status: string): string {
 function attemptSubtitle(status: string): string {
   switch (status as PaymentAttemptStatus) {
     case "paid":
-      return "The server marks this attempt as paid. This reflects worker state, not redirect parameters."
+      return "Your payment was confirmed and this attempt is marked paid."
     case "payment_required":
-      return "This payment attempt exists, but x402 verification and settlement are not complete yet. This page polls the worker until the status changes."
+      return "This page checks the server every few seconds. Complete the transfer from the pay page, or use Advanced there if you need to submit a transaction hash."
     case "pending":
-      return "The attempt is in a pending state on the server. Keep this page open or return later."
+      return "This page checks the server every few seconds. Complete the transfer or wait for confirmation."
     case "failed":
       return "This attempt did not complete successfully. Start a new payment from the pay page if you still need access."
     case "expired":
@@ -198,13 +198,14 @@ export default function Success() {
   if (attemptId) {
     const headline = (() => {
       if (attemptError && !attempt) return "Payment attempt unavailable"
-      if (!attempt && attemptInitialLoad) return "Loading payment attempt"
+      if (!attempt && attemptInitialLoad) return "Waiting for payment…"
       if (!attempt) return "Payment attempt unavailable"
       return attemptHeadline(attempt.status)
     })()
     const subtitle = (() => {
       if (attemptError && !attempt) return attemptError
-      if (!attempt && attemptInitialLoad) return "Fetching status from the worker…"
+      if (!attempt && attemptInitialLoad)
+        return "Checking your payment attempt with the server…"
       if (!attempt)
         return "We could not read this attempt from the worker. Check the link or try again."
       return attemptSubtitle(attempt.status)

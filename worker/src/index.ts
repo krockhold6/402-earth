@@ -2,7 +2,8 @@ import {
   handleLegacyX402PaySession,
   tryLegacyCoinbaseCheckoutRoutes,
 } from './legacy/coinbaseCheckoutSessionRoutes'
-import { ALLOWED_ORIGIN, json } from './lib/response'
+import { corsAllowOrigin, withCors } from './lib/cors'
+import { json } from './lib/response'
 import { handleGetResource } from './routes/resource'
 import { handlePostPaymentAttempt } from './routes/paymentAttempt'
 import { handleGetPaymentAttemptById } from './routes/paymentAttemptById'
@@ -21,22 +22,26 @@ export default {
       return new Response(null, {
         status: 204,
         headers: {
-          'access-control-allow-origin': ALLOWED_ORIGIN,
+          'access-control-allow-origin': corsAllowOrigin(req),
           'access-control-allow-methods': 'GET, POST, OPTIONS',
           'access-control-allow-headers': 'content-type, x-402-client',
         },
       })
     }
 
+    let res: Response
+
     const resourceGet =
       req.method === 'GET' && /^\/api\/resource\/([^/]+)$/.exec(url.pathname)
     if (resourceGet) {
       const slug = decodeURIComponent(resourceGet[1])
-      return handleGetResource(env, slug)
+      res = await handleGetResource(env, slug)
+      return withCors(req, res)
     }
 
     if (req.method === 'POST' && url.pathname === '/api/payment-attempt') {
-      return handlePostPaymentAttempt(env, req)
+      res = await handlePostPaymentAttempt(env, req)
+      return withCors(req, res)
     }
 
     const paymentAttemptGet =
@@ -44,7 +49,8 @@ export default {
       /^\/api\/payment-attempt\/([^/]+)$/.exec(url.pathname)
     if (paymentAttemptGet) {
       const id = paymentAttemptGet[1]
-      return handleGetPaymentAttemptById(env, id)
+      res = await handleGetPaymentAttemptById(env, id)
+      return withCors(req, res)
     }
 
     const x402Pay =
@@ -54,18 +60,22 @@ export default {
       const attemptId = url.searchParams.get('attemptId')?.trim()
       const sessionId = url.searchParams.get('sessionId')?.trim()
       if (sessionId && !attemptId) {
-        return handleLegacyX402PaySession(env, slug, sessionId)
+        res = await handleLegacyX402PaySession(env, slug, sessionId)
+        return withCors(req, res)
       }
-      return handleX402Pay(env, slug, url)
+      res = await handleX402Pay(env, slug, url)
+      return withCors(req, res)
     }
 
     if (req.method === 'POST' && url.pathname === '/x402/verify') {
-      return handleX402Verify(env, req)
+      res = await handleX402Verify(env, req)
+      return withCors(req, res)
     }
 
     const legacyResponse = await tryLegacyCoinbaseCheckoutRoutes(env, req, url)
-    if (legacyResponse) return legacyResponse
+    if (legacyResponse) return withCors(req, legacyResponse)
 
-    return json({ ok: false, error: 'Not found' }, { status: 404 })
+    res = json({ ok: false, error: 'Not found' }, { status: 404 })
+    return withCors(req, res)
   },
 }

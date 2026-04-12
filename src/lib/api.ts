@@ -22,6 +22,10 @@ export type ApiResource = {
   unlockType: string
   contentType: string | null
   successRedirectPath: string | null
+  /** Base payee address when the worker is configured (wallet deep links). */
+  paymentReceiverAddress: string | null
+  /** USDC contract on Base for EIP-681 links; null if not applicable. */
+  usdcContractAddress: string | null
 }
 
 export type ApiResourceResponse = {
@@ -93,6 +97,7 @@ export type PaymentAttemptPayload = {
   updatedAt: string
   paidAt: string | null
   expiresAt: string | null
+  paymentReceiverAddress?: string | null
 }
 
 export type PaymentAttemptGetResponse = {
