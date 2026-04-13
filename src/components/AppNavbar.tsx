@@ -8,7 +8,7 @@ import { Box, Grid, HStack, VStack } from "@coinbase/cds-web/layout"
 import { PageHeader } from "@coinbase/cds-web/page/PageHeader"
 import { TextCaption } from "@coinbase/cds-web/typography"
 import type { IconName } from "@coinbase/cds-common/types"
-import { useCdsColorScheme } from "@/providers/CdsAppShell"
+import { useCdsColorScheme } from "@/providers/cdsColorSchemeContext"
 
 function EarthLogo() {
   return (
@@ -134,7 +134,7 @@ export function AppNavbar() {
         </Box>
       }
       end={
-        <HStack gap={2} alignItems="center" flexShrink={0}>
+        <HStack gap={2} alignItems="center">
           <Button
             compact
             variant="secondary"
@@ -143,7 +143,6 @@ export function AppNavbar() {
             minWidth="auto"
             paddingX={3}
             type="button"
-            flexShrink={0}
           >
             Sign up
           </Button>
@@ -153,35 +152,31 @@ export function AppNavbar() {
             minWidth="auto"
             paddingX={3}
             type="button"
-            flexShrink={0}
           >
             Sign in
           </Button>
-          <Box flexShrink={0} width={40} minWidth={40} maxWidth={40}>
-            <Dropdown
-              accessibilityLabel="App menu"
-              content={menuContent}
-              contentPosition={{ placement: "bottom-end", gap: 1 }}
-              controlledElementAccessibilityProps={
-                controlledElementAccessibilityProps
-              }
-              maxHeight={360}
-              minWidth={280}
-              onChange={handleMenuChange}
-              onCloseMenu={() => setMenuOpen(false)}
-              onOpenMenu={() => setMenuOpen(true)}
-            >
+          <Dropdown
+            accessibilityLabel="App menu"
+            content={menuContent}
+            contentPosition={{ placement: "bottom-end", gap: 1 }}
+            controlledElementAccessibilityProps={
+              controlledElementAccessibilityProps
+            }
+            maxHeight={360}
+            minWidth={280}
+            onChange={handleMenuChange}
+            onCloseMenu={() => setMenuOpen(false)}
+            onOpenMenu={() => setMenuOpen(true)}
+          >
+            <Box display="inline-flex" style={{ width: "auto" }}>
               <IconButton
                 name="appSwitcher"
                 variant="secondary"
-                background="bg"
-                borderColor="fg"
-                iconSize="m"
                 accessibilityLabel="Open app menu"
                 {...triggerAccessibilityProps}
               />
-            </Dropdown>
-          </Box>
+            </Box>
+          </Dropdown>
         </HStack>
       }
     />

@@ -2,15 +2,12 @@ import { useCallback, useRef, useState } from "react"
 import { QRCodeCanvas } from "qrcode.react"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
-import { absolutePayPageUrl } from "@/lib/appUrl"
-import { createResource, fetchResource } from "@/lib/api"
+import { createResource } from "@/lib/api"
+import { useCdsColorScheme } from "@/providers/cdsColorSchemeContext"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
 import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
 import { TextBody, TextCaption, TextTitle3 } from "@coinbase/cds-web/typography"
-
-/** Migration / placeholder receiver from older seeded rows — not a real payout address. */
-const DEMO_ZERO_RECEIVER = "0x0000000000000000000000000000000000000000"
 
 function validateCreatorReceiverAddress(raw: string):
   | { ok: true; normalized: string }
@@ -51,9 +48,65 @@ function pickResourceReceiver(resource: {
   return b ?? ""
 }
 
-function receiverIsUsefulForPayout(address: string): boolean {
-  const t = address.trim().toLowerCase()
-  return t.length > 0 && t !== DEMO_ZERO_RECEIVER
+/** Same rule as worker `resource.ts` for custom slugs. */
+const SLUG_CUSTOM_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+
+function randomHexChars(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+}
+
+function slugPrefixFromLabel(raw: string): string {
+  let p = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  if (!p) p = "link"
+  if (!SLUG_CUSTOM_RE.test(p)) p = "link"
+  return p
+}
+
+function fitSlugPrefix(prefix: string, suffix: string): string {
+  const maxPrefix = 64 - 1 - suffix.length
+  if (maxPrefix < 1) return "x"
+  let p = prefix
+  if (p.length > maxPrefix) {
+    p = prefix.slice(0, maxPrefix).replace(/-+$/g, "")
+    if (!p) p = "link"
+  }
+  if (!SLUG_CUSTOM_RE.test(p)) p = "link"
+  if (p.length > maxPrefix) p = p.slice(0, maxPrefix).replace(/-+$/g, "") || "x"
+  if (!SLUG_CUSTOM_RE.test(p)) return "pay"
+  return p
+}
+
+function randomSlugFromLabel(labelRaw: string): string {
+  const suffix = randomHexChars(4)
+  const prefix = fitSlugPrefix(slugPrefixFromLabel(labelRaw), suffix)
+  const candidate = `${prefix}-${suffix}`
+  return SLUG_CUSTOM_RE.test(candidate) ? candidate : `pay-${randomHexChars(6)}`
+}
+
+function nextUniqueSlugFromLabel(
+  labelRaw: string,
+  used: Set<string>,
+  currentField: string,
+): string {
+  const current = currentField.trim().toLowerCase()
+  for (let i = 0; i < 48; i++) {
+    const c = randomSlugFromLabel(labelRaw)
+    if (used.has(c) || c === current) continue
+    used.add(c)
+    return c
+  }
+  let fallback: string
+  do {
+    fallback = `pay-${randomHexChars(8)}`
+  } while (used.has(fallback) || fallback === current)
+  used.add(fallback)
+  return fallback
 }
 
 /**
@@ -61,6 +114,12 @@ function receiverIsUsefulForPayout(address: string): boolean {
  * sticky `PageHeader` (~56px) plus a little air.
  */
 const DESKTOP_QR_STICKY_TOP_PX = 64
+
+/** Muted QR preview (empty state); canvas needs explicit hex, not CDS tokens. */
+const ghostQrPalette = {
+  light: { bg: "#f4f4f5", fg: "#d4d4d8" },
+  dark: { bg: "#2b2b30", fg: "#5c5c66" },
+} as const
 
 /** Spans the full width of the grid column (viewport edge → vertical rule on wide). */
 function HomeHorizontalRule() {
@@ -89,6 +148,7 @@ function HomeHorizontalRule() {
 }
 
 export default function Home() {
+  const { colorScheme } = useCdsColorScheme()
   const isWide = useMediaQuery("(min-width: 960px)")
   const [amount, setAmount] = useState("5.00")
   const [label, setLabel] = useState("Exclusive video")
@@ -100,13 +160,13 @@ export default function Home() {
   const [receiverAddressError, setReceiverAddressError] = useState<
     string | null
   >(null)
-  /** Shown after loading demo-001 when the API has no real payout address. */
-  const [demoWalletNotice, setDemoWalletNotice] = useState<string | null>(null)
-  /** Set only after API confirms a resource exists (create or demo load). */
+  /** Set only after API confirms a resource exists (create). */
   const [paymentUrl, setPaymentUrl] = useState("")
   const [createError, setCreateError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+  /** Slugs produced by "Generate Random" (and successful creates) — never reused by the generator. */
+  const usedGeneratedSlugsRef = useRef<Set<string>>(new Set())
 
   const slugKey = slug.trim()
   const hasQr = paymentUrl !== ""
@@ -114,8 +174,17 @@ export default function Home() {
   const invalidateQrIfFormChanged = useCallback(() => {
     setPaymentUrl("")
     setCreateError(null)
-    setDemoWalletNotice(null)
   }, [])
+
+  const handleGenerateRandomSlug = useCallback(() => {
+    const next = nextUniqueSlugFromLabel(
+      label,
+      usedGeneratedSlugsRef.current,
+      slug,
+    )
+    setSlug(next)
+    invalidateQrIfFormChanged()
+  }, [invalidateQrIfFormChanged, label, slug])
 
   const handleCreatePaymentLink = async () => {
     setCreateError(null)
@@ -156,7 +225,9 @@ export default function Home() {
         return
       }
 
-      setSlug(data.resource.slug)
+      const createdSlug = data.resource.slug
+      setSlug(createdSlug)
+      usedGeneratedSlugsRef.current.add(createdSlug)
       setReceiverAddress(
         pickResourceReceiver(data.resource).toLowerCase() ||
           recvResult.normalized,
@@ -164,51 +235,11 @@ export default function Home() {
       setPaymentUrl(data.paymentUrl)
       setCreateError(null)
       setReceiverAddressError(null)
-      setDemoWalletNotice(null)
     } catch {
       setCreateError(
         "Network error — check your connection or API configuration.",
       )
       setPaymentUrl("")
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  const handleUseDemo001 = async () => {
-    setCreateError(null)
-    setIsCreating(true)
-    try {
-      const data = await fetchResource("demo-001")
-      if (!data.ok || !data.resource) {
-        setCreateError(
-          data.error?.trim() ||
-            "demo-001 was not found. Run the worker demo seed (demo_resource.sql) for local testing.",
-        )
-        setPaymentUrl("")
-        setDemoWalletNotice(null)
-        return
-      }
-      const r = data.resource
-      setSlug("demo-001")
-      setLabel(r.label)
-      setAmount(r.amount)
-      const recv = pickResourceReceiver(r)
-      setReceiverAddress(recv ? recv.toLowerCase() : "")
-      if (!receiverIsUsefulForPayout(recv)) {
-        setDemoWalletNotice(
-          "This demo resource doesn’t have a real payout wallet in the API (missing or placeholder address). You can still open the pay link to try the flow; on-chain payouts need a resource with a valid wallet.",
-        )
-      } else {
-        setDemoWalletNotice(null)
-      }
-      setReceiverAddressError(null)
-      setPaymentUrl(absolutePayPageUrl("demo-001"))
-      setCreateError(null)
-    } catch {
-      setCreateError("Could not load demo-001 from the API.")
-      setPaymentUrl("")
-      setDemoWalletNotice(null)
     } finally {
       setIsCreating(false)
     }
@@ -324,19 +355,6 @@ export default function Home() {
               {receiverAddressError}
             </TextCaption>
           ) : null}
-          {demoWalletNotice ? (
-            <Box
-              bordered
-              borderRadius={400}
-              borderColor="bgLine"
-              background="bgSecondary"
-              padding={3}
-            >
-              <TextBody color="fgMuted" as="p">
-                {demoWalletNotice}
-              </TextBody>
-            </Box>
-          ) : null}
         </VStack>
         <VStack gap={1} alignItems="stretch">
           <TextInput
@@ -351,27 +369,15 @@ export default function Home() {
             spellCheck={false}
             placeholder="Leave empty for auto"
           />
-          <HStack gap={2} alignItems="flex-end" flexWrap="wrap">
-            <Box flexGrow={1} minWidth={0} flexBasis="12rem">
-              <TextCaption color="fgMuted" as="p">
-                Add your Base wallet above, then create a link — the QR uses the
-                saved resource from the API. Leave slug empty for a random id,
-                or choose one (letters, digits, hyphens). For a quick test
-                without creating a row, use the seeded{" "}
-                <TextBody as="span" mono color="fgMuted">
-                  demo-001
-                </TextBody>{" "}
-                button.
-              </TextCaption>
-            </Box>
+          <HStack justifyContent="flex-end" width="100%">
             <Button
               compact
               variant="secondary"
               type="button"
-              onClick={handleUseDemo001}
+              onClick={handleGenerateRandomSlug}
               disabled={isCreating}
             >
-              Use demo-001
+              Generate Random
             </Button>
           </HStack>
         </VStack>
@@ -403,6 +409,30 @@ export default function Home() {
     </Box>
   )
 
+  const homeQuickGuide = (
+    <Box
+      width="100%"
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+    >
+      <VStack gap={2} alignItems="stretch" width="100%">
+        <TextTitle3 color="fg" as="h2">
+          Quick guide
+        </TextTitle3>
+        <TextCaption color="fgMuted" as="p">
+          Add your Base wallet above, then create a link — the QR uses the saved
+          resource from the API. Leave slug empty for a random id, or choose one
+          (letters, digits, hyphens).{" "}
+          <TextBody as="span" fontWeight="label1" color="fgMuted">
+            Generate Random
+          </TextBody>{" "}
+          builds a slug from your label; each click picks a new name and never
+          repeats one you already used here in this session.
+        </TextCaption>
+      </VStack>
+    </Box>
+  )
+
   const homeHowItWorks = (
     <Box
       id="how-it-works"
@@ -415,18 +445,22 @@ export default function Home() {
           How it works
         </TextTitle3>
         <TextBody color="fgMuted" as="p">
-          {label}
+          Share your pay link or QR. Buyers pay USDC on Base; funds go to the
+          wallet on the resource, and they land on your success page for that
+          slug.
         </TextBody>
       </VStack>
     </Box>
   )
 
-  /** Wide: hero → form → how it works (QR stays in the right column). */
+  /** Wide: hero → form → quick guide → how it works (QR stays in the right column). */
   const leftPaneDesktop = (
     <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
       {homeHero}
       <HomeHorizontalRule />
       {homeForm}
+      <HomeHorizontalRule />
+      {homeQuickGuide}
       <HomeHorizontalRule />
       {homeHowItWorks}
     </VStack>
@@ -448,7 +482,7 @@ export default function Home() {
         </TextTitle3>
         {!hasQr ? (
           <TextBody color="fgMuted" as="p">
-            Create a link or load demo-001 to show the URL and QR.
+            Create a link to show the URL and QR.
           </TextBody>
         ) : (
           <TextBody mono as="p" color="fg" overflow="wrap">
@@ -472,24 +506,17 @@ export default function Home() {
         <Box display="flex" justifyContent="center" width="100%" padding={2}>
           {!hasQr ? (
             <Box
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              bordered
-              borderRadius={400}
-              background="bgSecondary"
               role="img"
               aria-label="QR code preview; create a payment link to show your live code."
+              style={{ lineHeight: 0 }}
             >
-              <Box style={{ lineHeight: 0 }}>
-                <QRCodeCanvas
-                  value="https://402.placeholder/preview"
-                  size={220}
-                  marginSize={2}
-                  bgColor="#f4f4f5"
-                  fgColor="#d4d4d8"
-                />
-              </Box>
+              <QRCodeCanvas
+                value="https://402.placeholder/preview"
+                size={220}
+                marginSize={2}
+                bgColor={ghostQrPalette[colorScheme].bg}
+                fgColor={ghostQrPalette[colorScheme].fg}
+              />
             </Box>
           ) : (
             <QRCodeCanvas
@@ -644,6 +671,8 @@ export default function Home() {
             >
               {rightPane}
             </Box>
+            <HomeHorizontalRule />
+            {homeQuickGuide}
             <HomeHorizontalRule />
             {homeHowItWorks}
           </VStack>

@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -10,32 +8,16 @@ import {
 import { Box } from "@coinbase/cds-web/layout"
 import { MediaQueryProvider, ThemeProvider } from "@coinbase/cds-web/system"
 import { defaultTheme } from "@coinbase/cds-web/themes/defaultTheme"
-
-export type CdsColorScheme = "light" | "dark"
-
-type CdsColorSchemeContextValue = {
-  colorScheme: CdsColorScheme
-  setColorScheme: (scheme: CdsColorScheme) => void
-  toggleColorScheme: () => void
-}
-
-const CdsColorSchemeContext = createContext<CdsColorSchemeContextValue | null>(
-  null,
-)
+import {
+  CdsColorSchemeContext,
+  type CdsColorScheme,
+} from "./cdsColorSchemeContext"
 
 function getPreferredColorScheme(): CdsColorScheme {
   if (typeof window === "undefined") return "light"
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light"
-}
-
-export function useCdsColorScheme() {
-  const ctx = useContext(CdsColorSchemeContext)
-  if (!ctx) {
-    throw new Error("useCdsColorScheme must be used within CdsAppShell")
-  }
-  return ctx
 }
 
 export function CdsAppShell({ children }: { children: ReactNode }) {
