@@ -1,7 +1,13 @@
-import { Link } from "react-router-dom"
+import { useCallback, useMemo, useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import { Button, IconButton } from "@coinbase/cds-web/buttons"
-import { Box, HStack } from "@coinbase/cds-web/layout"
+import { Dropdown, MenuItem } from "@coinbase/cds-web/dropdown"
+import { useA11yControlledVisibility } from "@coinbase/cds-web/hooks/useA11yControlledVisibility"
+import { Icon } from "@coinbase/cds-web/icons"
+import { Box, Grid, HStack, VStack } from "@coinbase/cds-web/layout"
 import { PageHeader } from "@coinbase/cds-web/page/PageHeader"
+import { TextCaption } from "@coinbase/cds-web/typography"
+import type { IconName } from "@coinbase/cds-common/types"
 import { useCdsColorScheme } from "@/providers/CdsAppShell"
 
 function EarthLogo() {
@@ -22,8 +28,90 @@ function EarthLogo() {
   )
 }
 
+type AppMenuTileProps = {
+  icon: IconName
+  label: string
+  value: string
+}
+
+function AppMenuTile({ icon, label, value }: AppMenuTileProps) {
+  const body = (
+    <VStack gap={1} alignItems="center" width="100%" paddingY={1} paddingX={1}>
+      <Icon name={icon} size="m" color="fg" />
+      <TextCaption color="fgMuted" textAlign="center">
+        {label}
+      </TextCaption>
+    </VStack>
+  )
+
+  return (
+    <MenuItem value={value} borderRadius={300} width="100%">
+      {body}
+    </MenuItem>
+  )
+}
+
+const APP_MENU_TILES: AppMenuTileProps[] = [
+  { icon: "light", label: "Theme", value: "theme" },
+  { icon: "compass", label: "How it works", value: "how-it-works" },
+  { icon: "documentation", label: "Docs", value: "docs" },
+  { icon: "helpCenterQuestionMark", label: "Help", value: "help" },
+  { icon: "pulse", label: "Status", value: "status" },
+  { icon: "api", label: "API", value: "api" },
+]
+
+/** Open in a new tab so the SPA never navigates away from the current window. */
+const EXTERNAL_MENU_URLS: Record<string, string> = {
+  docs: "https://402.earth",
+  help: "https://402.earth",
+  status: "https://402.earth",
+  api: "https://402.earth",
+}
+
 export function AppNavbar() {
-  const { colorScheme, toggleColorScheme } = useCdsColorScheme()
+  const navigate = useNavigate()
+  const { toggleColorScheme } = useCdsColorScheme()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const { triggerAccessibilityProps, controlledElementAccessibilityProps } =
+    useA11yControlledVisibility(menuOpen, {
+      accessibilityLabel: "App menu",
+      hasPopupType: "menu",
+    })
+
+  const handleMenuChange = useCallback(
+    (key: string) => {
+      if (key === "theme") {
+        toggleColorScheme()
+        return
+      }
+      if (key === "how-it-works") {
+        navigate("/#how-it-works")
+        requestAnimationFrame(() => {
+          document.getElementById("how-it-works")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          })
+        })
+        return
+      }
+      const externalUrl = EXTERNAL_MENU_URLS[key]
+      if (externalUrl) {
+        window.open(externalUrl, "_blank", "noopener,noreferrer")
+      }
+    },
+    [navigate, toggleColorScheme],
+  )
+
+  const menuContent = useMemo(
+    () => (
+      <Grid columns={3} gap={1} padding={2} width="100%">
+        {APP_MENU_TILES.map((tile) => (
+          <AppMenuTile key={tile.value} {...tile} />
+        ))}
+      </Grid>
+    ),
+    [],
+  )
 
   return (
     <PageHeader
@@ -46,7 +134,7 @@ export function AppNavbar() {
         </Box>
       }
       end={
-        <HStack gap={2} alignItems="center">
+        <HStack gap={2} alignItems="center" flexShrink={0}>
           <Button
             compact
             variant="secondary"
@@ -55,6 +143,7 @@ export function AppNavbar() {
             minWidth="auto"
             paddingX={3}
             type="button"
+            flexShrink={0}
           >
             Sign up
           </Button>
@@ -64,19 +153,35 @@ export function AppNavbar() {
             minWidth="auto"
             paddingX={3}
             type="button"
+            flexShrink={0}
           >
             Sign in
           </Button>
-          <IconButton
-            name={colorScheme === "light" ? "moon" : "sun"}
-            variant="secondary"
-            onClick={toggleColorScheme}
-            accessibilityLabel={
-              colorScheme === "light"
-                ? "Switch to dark theme"
-                : "Switch to light theme"
-            }
-          />
+          <Box flexShrink={0} width={40} minWidth={40} maxWidth={40}>
+            <Dropdown
+              accessibilityLabel="App menu"
+              content={menuContent}
+              contentPosition={{ placement: "bottom-end", gap: 1 }}
+              controlledElementAccessibilityProps={
+                controlledElementAccessibilityProps
+              }
+              maxHeight={360}
+              minWidth={280}
+              onChange={handleMenuChange}
+              onCloseMenu={() => setMenuOpen(false)}
+              onOpenMenu={() => setMenuOpen(true)}
+            >
+              <IconButton
+                name="appSwitcher"
+                variant="secondary"
+                background="bg"
+                borderColor="fg"
+                iconSize="m"
+                accessibilityLabel="Open app menu"
+                {...triggerAccessibilityProps}
+              />
+            </Dropdown>
+          </Box>
         </HStack>
       }
     />

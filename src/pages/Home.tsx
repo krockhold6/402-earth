@@ -405,6 +405,7 @@ export default function Home() {
 
   const homeHowItWorks = (
     <Box
+      id="how-it-works"
       width="100%"
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
@@ -471,19 +472,24 @@ export default function Home() {
         <Box display="flex" justifyContent="center" width="100%" padding={2}>
           {!hasQr ? (
             <Box
-              width={220}
-              height={220}
               display="flex"
               alignItems="center"
               justifyContent="center"
               bordered
               borderRadius={400}
               background="bgSecondary"
-              padding={3}
+              role="img"
+              aria-label="QR code preview; create a payment link to show your live code."
             >
-              <TextBody color="fgMuted" textAlign="center">
-                Create a payment link to generate the QR code.
-              </TextBody>
+              <Box style={{ lineHeight: 0 }}>
+                <QRCodeCanvas
+                  value="https://402.placeholder/preview"
+                  size={220}
+                  marginSize={2}
+                  bgColor="#f4f4f5"
+                  fgColor="#d4d4d8"
+                />
+              </Box>
             </Box>
           ) : (
             <QRCodeCanvas
