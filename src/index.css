@@ -41,3 +41,25 @@ body {
 #root main hr[role="separator"][aria-orientation="vertical"] {
   min-width: 1px;
 }
+
+/* How it works footer: RouterLink is a bare <a> and picks up browser serif otherwise. */
+#root .how-it-works-footer-link {
+  font-family: var(--fontFamily-caption);
+  font-size: var(--fontSize-caption);
+  font-weight: 600;
+  color: var(--color-fgMuted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  transition: color 0.15s ease;
+}
+
+@media (hover: hover) {
+  #root .how-it-works-footer-link:hover {
+    color: var(--color-fg);
+  }
+}
+
+#root .how-it-works-footer-link:focus-visible {
+  outline: 2px solid var(--color-fgPrimary);
+  outline-offset: 2px;
+}
