@@ -8,14 +8,17 @@
     "worker:dev": "npm run dev --prefix worker",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "locales:sync": "node scripts/sync-locale-keys.mjs"
   },
   "dependencies": {
     "@coinbase/cds-web": "^8.62.1",
     "framer-motion": "^10.18.0",
+    "i18next": "^26.0.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-i18next": "^17.0.2",
     "react-router-dom": "^7.14.0"
   },
   "devDependencies": {

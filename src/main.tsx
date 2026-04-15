@@ -2,6 +2,8 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 import { BrowserRouter } from "react-router-dom"
 
+import "@/i18n/config"
+
 import "@coinbase/cds-icons/fonts/web/icon-font.css"
 import "@coinbase/cds-web/globalStyles"
 import "@coinbase/cds-web/defaultFontStyles"

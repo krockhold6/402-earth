@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { Link, useParams, useSearchParams } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import {
@@ -13,7 +14,9 @@ import {
   type PaymentAttemptPayload,
   type PaymentAttemptStatus,
 } from "@/lib/api"
+import i18n from "@/i18n/config"
 import { LegacyCheckoutSessionPanel } from "@/legacy/LegacyCheckoutSessionPanel"
+import type { TFunction } from "i18next"
 
 const pagePaddingX = { base: 2, desktop: 4 } as const
 const pagePaddingY = { base: 3, desktop: 6 } as const
@@ -31,7 +34,7 @@ const TERMINAL_ATTEMPT: Set<string> = new Set([
 ])
 
 function formatTs(value: string | null) {
-  if (!value) return "—"
+  if (!value) return i18n.t("common.emDash")
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString()
@@ -61,58 +64,57 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function attemptHeadline(status: string): string {
+function attemptHeadline(status: string, t: TFunction): string {
   switch (status as PaymentAttemptStatus) {
     case "paid":
-      return "Payment received"
+      return t("success.headline.paid")
     case "payment_required":
-      return "Waiting for payment…"
     case "pending":
-      return "Waiting for payment…"
-    case "failed":
-      return "Payment failed"
-    case "expired":
-      return "Attempt expired"
-    case "cancelled":
-      return "Payment cancelled"
     case "created":
-      return "Waiting for payment…"
+      return t("success.headline.waiting")
+    case "failed":
+      return t("success.headline.failed")
+    case "expired":
+      return t("success.headline.expired")
+    case "cancelled":
+      return t("success.headline.cancelled")
     default:
-      return "Payment status"
+      return t("success.headline.default")
   }
 }
 
-function attemptSubtitle(status: string): string {
+function attemptSubtitle(status: string, t: TFunction): string {
   switch (status as PaymentAttemptStatus) {
     case "paid":
-      return "Your payment was confirmed and this attempt is marked paid."
+      return t("success.subtitle.paid")
     case "payment_required":
-      return "This page checks the server every few seconds. Complete the transfer from the pay page, or use Advanced there if you need to submit a transaction hash."
+      return t("success.subtitle.payment_required")
     case "pending":
-      return "This page checks the server every few seconds. Complete the transfer or wait for confirmation."
+      return t("success.subtitle.pending")
     case "failed":
-      return "This attempt did not complete successfully. Start a new payment from the pay page if you still need access."
+      return t("success.subtitle.failed")
     case "expired":
-      return "This attempt is no longer valid. Create a new attempt from the pay page."
+      return t("success.subtitle.expired")
     case "cancelled":
-      return "This attempt was cancelled."
+      return t("success.subtitle.cancelled")
     case "created":
-      return "The attempt was just created and is not ready for payment yet."
+      return t("success.subtitle.created")
     default:
-      return "Status is reported by the worker. If this looks wrong, refresh or contact support."
+      return t("success.subtitle.default")
   }
 }
 
-function statusPillLabel(status: string): string {
-  if (status === "payment_required") return "Payment required"
+function statusPillLabel(status: string, t: TFunction): string {
+  if (status === "payment_required") return t("success.pill.payment_required")
   return status.replace(/_/g, " ")
 }
 
 function NavButtons({ payHref }: { payHref: string }) {
+  const { t } = useTranslation()
   return (
     <VStack gap={2} width="100%" alignItems="stretch">
       <Button as={Link} to="/" block height="auto" minHeight={44}>
-        Home
+        {t("success.navHome")}
       </Button>
       <Button
         as={Link}
@@ -122,13 +124,14 @@ function NavButtons({ payHref }: { payHref: string }) {
         height="auto"
         minHeight={44}
       >
-        Back to payment
+        {t("success.navBackToPay")}
       </Button>
     </VStack>
   )
 }
 
 export default function Success() {
+  const { t } = useTranslation()
   const { slug: routeSlug } = useParams()
   const [searchParams] = useSearchParams()
   const attemptId = searchParams.get("attemptId")?.trim() || null
@@ -154,7 +157,7 @@ export default function Success() {
         const data = await fetchPaymentAttempt(attemptId)
         if (cancelled) return
         if (!data.ok || !data.attempt) {
-          setAttemptError(data.error || "Could not load payment attempt")
+          setAttemptError(data.error || t("success.loadAttemptError"))
           return
         }
         setAttemptError(null)
@@ -165,7 +168,7 @@ export default function Success() {
         }
       } catch {
         if (!cancelled) {
-          setAttemptError("Could not load payment attempt")
+          setAttemptError(t("success.loadAttemptError"))
         }
       } finally {
         if (first) {
@@ -181,7 +184,7 @@ export default function Success() {
       cancelled = true
       if (timer !== undefined) window.clearInterval(timer)
     }
-  }, [attemptId])
+  }, [attemptId, t])
 
   const slugMismatch = useMemo(() => {
     if (!routeSlug || !attempt) return false
@@ -197,22 +200,20 @@ export default function Success() {
   // --- Primary: x402 attempt (authoritative) ---
   if (attemptId) {
     const headline = (() => {
-      if (attemptError && !attempt) return "Payment attempt unavailable"
-      if (!attempt && attemptInitialLoad) return "Waiting for payment…"
-      if (!attempt) return "Payment attempt unavailable"
-      return attemptHeadline(attempt.status)
+      if (attemptError && !attempt) return t("success.headline.unavailable")
+      if (!attempt && attemptInitialLoad) return t("success.headline.waiting")
+      if (!attempt) return t("success.headline.unavailable")
+      return attemptHeadline(attempt.status, t)
     })()
     const subtitle = (() => {
       if (attemptError && !attempt) return attemptError
-      if (!attempt && attemptInitialLoad)
-        return "Checking your payment attempt with the server…"
-      if (!attempt)
-        return "We could not read this attempt from the worker. Check the link or try again."
-      return attemptSubtitle(attempt.status)
+      if (!attempt && attemptInitialLoad) return t("success.subtitle.checking")
+      if (!attempt) return t("success.subtitle.errorNoAttempt")
+      return attemptSubtitle(attempt.status, t)
     })()
 
     const paid = attempt?.status === "paid"
-    const headerBg = paid ? "bgPositiveWash" : "bgElevation1"
+    const headerBg = paid ? "bgPositiveWash" : "bgSecondary"
 
     return (
       <Box
@@ -270,15 +271,21 @@ export default function Success() {
                           padding={3}
                         >
                           <TextBody color="fg">
-                            Route slug{" "}
-                            <TextBody as="span" fontWeight="label1">
-                              {routeSlug}
-                            </TextBody>{" "}
-                            does not match attempt slug{" "}
-                            <TextBody as="span" fontWeight="label1">
-                              {attempt.slug}
-                            </TextBody>
-                            . Trust the attempt row below.
+                            <Trans
+                              i18nKey="success.slugMismatch"
+                              values={{
+                                routeSlug: routeSlug ?? "",
+                                attemptSlug: attempt.slug,
+                              }}
+                              components={{
+                                slug1: (
+                                  <TextBody as="span" fontWeight="label1" />
+                                ),
+                                slug2: (
+                                  <TextBody as="span" fontWeight="label1" />
+                                ),
+                              }}
+                            />
                           </TextBody>
                         </Box>
                       ) : null}
@@ -290,40 +297,55 @@ export default function Success() {
                       >
                         <VStack gap={2} alignItems="stretch">
                           <DetailRow
-                            label="Status"
-                            value={statusPillLabel(attempt.status)}
+                            label={t("success.detailStatus")}
+                            value={statusPillLabel(attempt.status, t)}
                           />
-                          <DetailRow label="Label" value={attempt.label} />
                           <DetailRow
-                            label="Amount"
+                            label={t("success.detailLabel")}
+                            value={attempt.label}
+                          />
+                          <DetailRow
+                            label={t("success.detailAmount")}
                             value={`${attempt.amount} ${attempt.currency}`}
                           />
-                          <DetailRow label="Network" value={attempt.network} />
-                          <DetailRow label="Slug" value={attempt.slug} />
-                          <DetailRow label="Attempt ID" value={attempt.id} />
                           <DetailRow
-                            label="Paid at"
+                            label={t("success.detailNetwork")}
+                            value={attempt.network}
+                          />
+                          <DetailRow
+                            label={t("success.detailSlug")}
+                            value={attempt.slug}
+                          />
+                          <DetailRow
+                            label={t("success.detailAttemptId")}
+                            value={attempt.id}
+                          />
+                          <DetailRow
+                            label={t("success.detailPaidAt")}
                             value={formatTs(attempt.paidAt)}
                           />
                           <DetailRow
-                            label="Updated"
+                            label={t("success.detailUpdated")}
                             value={formatTs(attempt.updatedAt)}
                           />
                         </VStack>
                       </Box>
                     </>
                   ) : attemptInitialLoad && !attemptError ? (
-                    <TextBody color="fgMuted">Loading attempt…</TextBody>
+                    <TextBody color="fgMuted">
+                      {t("success.loadingAttempt")}
+                    </TextBody>
                   ) : null}
 
                   <NavButtons payHref={payHref} />
 
                   <TextCaption color="fgMuted" textAlign="center" as="p">
-                    Truth comes from{" "}
-                    <TextBody as="span" mono color="fgMuted">
-                      GET /api/payment-attempt/:id
-                    </TextBody>{" "}
-                    only. Query-string flags are not used as payment proof.
+                    <Trans
+                      i18nKey="success.footnoteTruth"
+                      components={{
+                        mono: <TextBody as="span" mono color="fgMuted" />,
+                      }}
+                    />
                   </TextCaption>
                 </VStack>
               </ContentCardBody>
@@ -356,25 +378,23 @@ export default function Success() {
           <ContentCard
             width="100%"
             bordered
-            background="bgElevation1"
+            background="bgSecondary"
             padding={cardPadding}
             gap={cardGap}
           >
             <ContentCardHeader
               title={
-                <TextTitle3 color="fg">Missing payment attempt</TextTitle3>
+                <TextTitle3 color="fg">{t("success.missingTitle")}</TextTitle3>
               }
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
-                  This page needs an{" "}
-                  <TextBody as="span" mono color="fgMuted">
-                    attemptId
-                  </TextBody>{" "}
-                  from the x402 flow (e.g.{" "}
-                  <TextBody as="span" mono color="fgMuted">
-                    /success/demo-001?attemptId=…
-                  </TextBody>
-                  ). Without it, we cannot show verified payment status.
+                  <Trans
+                    i18nKey="success.missingSubtitle"
+                    components={{
+                      mono1: <TextBody as="span" mono color="fgMuted" />,
+                      mono2: <TextBody as="span" mono color="fgMuted" />,
+                    }}
+                  />
                 </TextBody>
               }
             />

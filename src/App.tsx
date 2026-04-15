@@ -2,6 +2,7 @@ import { Outlet, Route, Routes } from "react-router-dom"
 import { Box } from "@coinbase/cds-web/layout"
 import { AppNavbar } from "@/components/AppNavbar"
 import Home from "./pages/Home"
+import HowItWorks from "./pages/HowItWorks"
 import Pay from "./pages/Pay"
 import Success from "./pages/Success"
 
@@ -31,6 +32,7 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/pay/:slug" element={<Pay />} />
         <Route path="/success/:slug" element={<Success />} />
       </Route>

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Dropdown, MenuItem } from "@coinbase/cds-web/dropdown"
@@ -8,6 +9,12 @@ import { Box, Grid, HStack, VStack } from "@coinbase/cds-web/layout"
 import { PageHeader } from "@coinbase/cds-web/page/PageHeader"
 import { TextCaption } from "@coinbase/cds-web/typography"
 import type { IconName } from "@coinbase/cds-common/types"
+import { setAppLanguage } from "@/i18n/config"
+import {
+  type AppLocale,
+  isAppLocale,
+  SUPPORTED_LOCALES,
+} from "@/i18n/locales"
 import { useCdsColorScheme } from "@/providers/cdsColorSchemeContext"
 
 function EarthLogo() {
@@ -30,16 +37,17 @@ function EarthLogo() {
 
 type AppMenuTileProps = {
   icon: IconName
-  label: string
+  labelKey: string
   value: string
 }
 
-function AppMenuTile({ icon, label, value }: AppMenuTileProps) {
+function AppMenuTile({ icon, labelKey, value }: AppMenuTileProps) {
+  const { t } = useTranslation()
   const body = (
     <VStack gap={1} alignItems="center" width="100%" paddingY={1} paddingX={1}>
       <Icon name={icon} size="m" color="fg" />
       <TextCaption color="fgMuted" textAlign="center">
-        {label}
+        {t(labelKey)}
       </TextCaption>
     </VStack>
   )
@@ -52,12 +60,12 @@ function AppMenuTile({ icon, label, value }: AppMenuTileProps) {
 }
 
 const APP_MENU_TILES: AppMenuTileProps[] = [
-  { icon: "light", label: "Theme", value: "theme" },
-  { icon: "compass", label: "How it works", value: "how-it-works" },
-  { icon: "documentation", label: "Docs", value: "docs" },
-  { icon: "helpCenterQuestionMark", label: "Help", value: "help" },
-  { icon: "pulse", label: "Status", value: "status" },
-  { icon: "api", label: "API", value: "api" },
+  { icon: "light", labelKey: "nav.menuTheme", value: "theme" },
+  { icon: "compass", labelKey: "nav.menuHowItWorks", value: "how-it-works" },
+  { icon: "documentation", labelKey: "nav.menuDocs", value: "docs" },
+  { icon: "helpCenterQuestionMark", labelKey: "nav.menuHelp", value: "help" },
+  { icon: "pulse", labelKey: "nav.menuStatus", value: "status" },
+  { icon: "api", labelKey: "nav.menuApi", value: "api" },
 ]
 
 /** Open in a new tab so the SPA never navigates away from the current window. */
@@ -68,15 +76,56 @@ const EXTERNAL_MENU_URLS: Record<string, string> = {
   api: "https://402.earth",
 }
 
+/** Endonym labels for the language menu (not translated). */
+const LANGUAGE_MENU_LABELS: Record<AppLocale, string> = {
+  en: "English",
+  es: "Español",
+  fr: "Français",
+  de: "Deutsch",
+  it: "Italiano",
+  pt: "Português",
+  ja: "日本語",
+  ko: "한국어",
+  "zh-CN": "中文",
+  ar: "العربية",
+  hi: "हिन्दी",
+  ru: "Русский",
+  nl: "Nederlands",
+  pl: "Polski",
+  tr: "Türkçe",
+  vi: "Tiếng Việt",
+  id: "Bahasa Indonesia",
+  th: "ไทย",
+}
+
 export function AppNavbar() {
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { toggleColorScheme } = useCdsColorScheme()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [translatorOpen, setTranslatorOpen] = useState(false)
+
+  const resolved = i18n.resolvedLanguage
+  const activeLangCode: AppLocale = isAppLocale(i18n.language)
+    ? i18n.language
+    : resolved && isAppLocale(resolved)
+      ? resolved
+      : "en"
+  const activeLangLabel = LANGUAGE_MENU_LABELS[activeLangCode] ?? "English"
+
   const { triggerAccessibilityProps, controlledElementAccessibilityProps } =
     useA11yControlledVisibility(menuOpen, {
-      accessibilityLabel: "App menu",
+      accessibilityLabel: t("nav.appMenu"),
       hasPopupType: "menu",
     })
+
+  const {
+    triggerAccessibilityProps: translatorTriggerA11y,
+    controlledElementAccessibilityProps: translatorControlledA11y,
+  } = useA11yControlledVisibility(translatorOpen, {
+    accessibilityLabel: t("nav.languageMenu"),
+    hasPopupType: "menu",
+  })
 
   const handleMenuChange = useCallback(
     (key: string) => {
@@ -85,13 +134,7 @@ export function AppNavbar() {
         return
       }
       if (key === "how-it-works") {
-        navigate("/#how-it-works")
-        requestAnimationFrame(() => {
-          document.getElementById("how-it-works")?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          })
-        })
+        navigate("/how-it-works")
         return
       }
       const externalUrl = EXTERNAL_MENU_URLS[key]
@@ -102,15 +145,27 @@ export function AppNavbar() {
     [navigate, toggleColorScheme],
   )
 
-  const menuContent = useMemo(
+  const translatorContent = useMemo(
     () => (
-      <Grid columns={3} gap={1} padding={2} width="100%">
-        {APP_MENU_TILES.map((tile) => (
-          <AppMenuTile key={tile.value} {...tile} />
+      <VStack gap={0} padding={2} width="100%" minWidth={200}>
+        {SUPPORTED_LOCALES.map((code) => (
+          <MenuItem key={code} value={code} borderRadius={300}>
+            <TextCaption color="fg" paddingY={1} paddingX={2}>
+              {LANGUAGE_MENU_LABELS[code]}
+            </TextCaption>
+          </MenuItem>
         ))}
-      </Grid>
+      </VStack>
     ),
     [],
+  )
+
+  const handleTranslatorChange = useCallback(
+    (key: string) => {
+      if (!isAppLocale(key) || key === activeLangCode) return
+      setAppLanguage(key)
+    },
+    [activeLangCode],
   )
 
   return (
@@ -122,16 +177,46 @@ export function AppNavbar() {
       zIndex={100}
       width="100%"
       start={
-        <Box
-          as={Link}
-          to="/"
-          display="inline-flex"
-          alignItems="center"
-          color="fg"
-          accessibilityLabel="402.earth home"
-        >
-          <EarthLogo />
-        </Box>
+        <HStack gap={2} alignItems="center">
+          <Box
+            as={Link}
+            to="/"
+            display="inline-flex"
+            alignItems="center"
+            color="fg"
+            accessibilityLabel={t("nav.homeAria")}
+          >
+            <EarthLogo />
+          </Box>
+          <Dropdown
+            accessibilityLabel={t("nav.languageMenu")}
+            content={translatorContent}
+            contentPosition={{ placement: "bottom-start", gap: 1 }}
+            controlledElementAccessibilityProps={translatorControlledA11y}
+            maxHeight={320}
+            minWidth={200}
+            onChange={handleTranslatorChange}
+            onCloseMenu={() => setTranslatorOpen(false)}
+            onOpenMenu={() => setTranslatorOpen(true)}
+          >
+            <Box display="inline-flex" style={{ width: "auto" }}>
+              <Button
+                compact
+                variant="secondary"
+                background="bg"
+                borderColor="fg"
+                minWidth="auto"
+                paddingX={3}
+                type="button"
+                startIcon="globe"
+                accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
+                {...translatorTriggerA11y}
+              >
+                {activeLangLabel}
+              </Button>
+            </Box>
+          </Dropdown>
+        </HStack>
       }
       end={
         <HStack gap={2} alignItems="center">
@@ -144,7 +229,7 @@ export function AppNavbar() {
             paddingX={3}
             type="button"
           >
-            Sign up
+            {t("nav.signUp")}
           </Button>
           <Button
             compact
@@ -153,11 +238,17 @@ export function AppNavbar() {
             paddingX={3}
             type="button"
           >
-            Sign in
+            {t("nav.signIn")}
           </Button>
           <Dropdown
-            accessibilityLabel="App menu"
-            content={menuContent}
+            accessibilityLabel={t("nav.appMenu")}
+            content={
+              <Grid columns={3} gap={1} padding={2} width="100%">
+                {APP_MENU_TILES.map((tile) => (
+                  <AppMenuTile key={tile.value} {...tile} />
+                ))}
+              </Grid>
+            }
             contentPosition={{ placement: "bottom-end", gap: 1 }}
             controlledElementAccessibilityProps={
               controlledElementAccessibilityProps
@@ -172,7 +263,7 @@ export function AppNavbar() {
               <IconButton
                 name="appSwitcher"
                 variant="secondary"
-                accessibilityLabel="Open app menu"
+                accessibilityLabel={t("nav.openAppMenu")}
                 {...triggerAccessibilityProps}
               />
             </Box>

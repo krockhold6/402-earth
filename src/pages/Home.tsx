@@ -1,13 +1,22 @@
 import { useCallback, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { QRCodeCanvas } from "qrcode.react"
-import { Button } from "@coinbase/cds-web/buttons"
+import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
 import { createResource } from "@/lib/api"
 import { useCdsColorScheme } from "@/providers/cdsColorSchemeContext"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
+import { Carousel, CarouselItem } from "@coinbase/cds-web/carousel"
+import { MessagingCard } from "@coinbase/cds-web/cards"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
-import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
-import { TextBody, TextCaption, TextTitle3 } from "@coinbase/cds-web/typography"
+import { Box, Grid, GridColumn, VStack } from "@coinbase/cds-web/layout"
+import {
+  TextBody,
+  TextCaption,
+  TextTitle1,
+  TextTitle3,
+} from "@coinbase/cds-web/typography"
+import i18n from "@/i18n/config"
 
 function validateCreatorReceiverAddress(raw: string):
   | { ok: true; normalized: string }
@@ -16,23 +25,22 @@ function validateCreatorReceiverAddress(raw: string):
   if (!t) {
     return {
       ok: false,
-      message: "Enter the wallet address where you want to get paid.",
+      message: i18n.t("validation.walletRequired"),
     }
   }
   if (!t.startsWith("0x")) {
-    return { ok: false, message: "Wallet address must start with 0x." }
+    return { ok: false, message: i18n.t("validation.wallet0x") }
   }
   if (t.length !== 42) {
     return {
       ok: false,
-      message:
-        "Wallet address must be 42 characters (0x plus 40 hexadecimal digits).",
+      message: i18n.t("validation.walletLength"),
     }
   }
   if (!/^0x[a-fA-F0-9]{40}$/.test(t)) {
     return {
       ok: false,
-      message: "Only the digits 0–9 and letters a–f are allowed after 0x.",
+      message: i18n.t("validation.walletHex"),
     }
   }
   return { ok: true, normalized: t.toLowerCase() }
@@ -121,6 +129,56 @@ const ghostQrPalette = {
   dark: { bg: "#2b2b30", fg: "#5c5c66" },
 } as const
 
+const HOME_STEP_CARDS: ReadonlyArray<{
+  id: string
+  step: number
+  titleKey: string
+  descriptionKey: string
+}> = [
+  {
+    id: "home-step-1",
+    step: 1,
+    titleKey: "home.step1Title",
+    descriptionKey: "home.step1Description",
+  },
+  {
+    id: "home-step-2",
+    step: 2,
+    titleKey: "home.step2Title",
+    descriptionKey: "home.step2Description",
+  },
+  {
+    id: "home-step-3",
+    step: 3,
+    titleKey: "home.step3Title",
+    descriptionKey: "home.step3Description",
+  },
+]
+
+/**
+ * Step digit (1 / 2 / 3) shown on each carousel card — not the card surface itself.
+ * Fill: CDS spectrum **Gray 0** (`rgb(var(--gray0))`), theme-aware in light/dark.
+ */
+function HomeStepNumberTag({ step }: { step: number }) {
+  return (
+    <Box
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      width={56}
+      height={56}
+      flexShrink={0}
+      borderRadius={400}
+      dangerouslySetBackground="rgb(var(--gray0))"
+      aria-label={i18n.t("home.stepBadgeAria", { step })}
+    >
+      <TextTitle1 as="span" color="fg" style={{ lineHeight: 1 }}>
+        {step}
+      </TextTitle1>
+    </Box>
+  )
+}
+
 /** Spans the full width of the grid column (viewport edge → vertical rule on wide). */
 function HomeHorizontalRule() {
   return (
@@ -148,6 +206,7 @@ function HomeHorizontalRule() {
 }
 
 export default function Home() {
+  const { t } = useTranslation()
   const { colorScheme } = useCdsColorScheme()
   const isWide = useMediaQuery("(min-width: 960px)")
   const [amount, setAmount] = useState("5.00")
@@ -199,11 +258,11 @@ export default function Home() {
     const labelT = label.trim()
     const amountT = amount.trim()
     if (!labelT) {
-      setCreateError("Enter a label.")
+      setCreateError(t("home.errorLabel"))
       return
     }
     if (!amountT) {
-      setCreateError("Enter an amount.")
+      setCreateError(t("home.errorAmount"))
       return
     }
 
@@ -219,7 +278,7 @@ export default function Home() {
       if (!response.ok || !data?.ok || !data.resource || !data.paymentUrl) {
         const msg =
           data?.error?.trim() ||
-          `Could not create resource (HTTP ${response.status}).`
+          t("home.createErrorHttp", { status: response.status })
         setCreateError(msg)
         setPaymentUrl("")
         return
@@ -236,9 +295,7 @@ export default function Home() {
       setCreateError(null)
       setReceiverAddressError(null)
     } catch {
-      setCreateError(
-        "Network error — check your connection or API configuration.",
-      )
+      setCreateError(t("home.createErrorNetwork"))
       setPaymentUrl("")
     } finally {
       setIsCreating(false)
@@ -263,7 +320,7 @@ export default function Home() {
     if (!canvas) return
     const a = document.createElement("a")
     a.href = canvas.toDataURL("image/png")
-    a.download = `402-${slugKey || "payment"}.png`
+    a.download = `402-${slugKey || i18n.t("home.qrFilenamePayment")}.png`
     a.click()
   }, [slugKey])
 
@@ -295,11 +352,11 @@ export default function Home() {
           margin: 0,
         }}
       >
-        Scan
+        {t("home.hero1")}
         <br />
-        Pay
+        {t("home.hero2")}
         <br />
-        Get Paid
+        {t("home.hero3")}
       </Box>
     </Box>
   )
@@ -313,7 +370,7 @@ export default function Home() {
       <VStack gap={3} alignItems="stretch" width="100%">
         <TextInput
           compact
-          label="Amount"
+          label={t("home.amount")}
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value)
@@ -325,7 +382,7 @@ export default function Home() {
         />
         <TextInput
           compact
-          label="Label"
+          label={t("home.label")}
           value={label}
           onChange={(e) => {
             setLabel(e.target.value)
@@ -336,7 +393,7 @@ export default function Home() {
         <VStack gap={1} alignItems="stretch">
           <TextInput
             compact
-            label="Where should you get paid?"
+            label={t("home.receiverLabel")}
             value={receiverAddress}
             onChange={(e) => {
               setReceiverAddress(e.target.value)
@@ -348,7 +405,7 @@ export default function Home() {
             placeholder="0x…"
           />
           <TextCaption color="fgMuted" as="p">
-            USDC on Base will be sent here
+            {t("home.receiverHint")}
           </TextCaption>
           {receiverAddressError ? (
             <TextCaption color="fgNegative" as="p">
@@ -356,31 +413,40 @@ export default function Home() {
             </TextCaption>
           ) : null}
         </VStack>
-        <VStack gap={1} alignItems="stretch">
-          <TextInput
-            compact
-            label="Slug (optional)"
-            value={slug}
-            onChange={(e) => {
-              setSlug(e.target.value)
-              invalidateQrIfFormChanged()
-            }}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Leave empty for auto"
-          />
-          <HStack justifyContent="flex-end" width="100%">
-            <Button
-              compact
-              variant="secondary"
-              type="button"
-              onClick={handleGenerateRandomSlug}
-              disabled={isCreating}
+        <TextInput
+          compact
+          label={t("home.slugLabel")}
+          value={slug}
+          onChange={(e) => {
+            setSlug(e.target.value)
+            invalidateQrIfFormChanged()
+          }}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={t("home.slugPlaceholder")}
+          end={
+            <Box
+              display="flex"
+              alignItems="center"
+              paddingEnd={1}
+              flexShrink={0}
             >
-              Generate Random
-            </Button>
-          </HStack>
-        </VStack>
+              <IconButton
+                name="auto"
+                variant="foregroundMuted"
+                transparent
+                compact
+                type="button"
+                accessibilityLabel={t("home.generateRandom")}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleGenerateRandomSlug()
+                }}
+                disabled={isCreating}
+              />
+            </Box>
+          }
+        />
 
         <Button
           block
@@ -392,7 +458,9 @@ export default function Home() {
           minHeight={48}
           borderRadius={500}
         >
-          {isCreating ? "Creating…" : "Create payment link & QR"}
+          {isCreating
+            ? t("home.createLinkQrLoading")
+            : t("home.createLinkQr")}
         </Button>
 
         {createError ? (
@@ -409,60 +477,68 @@ export default function Home() {
     </Box>
   )
 
-  const homeQuickGuide = (
+  const homeSteps = (
     <Box
       width="100%"
+      minWidth={0}
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
     >
-      <VStack gap={2} alignItems="stretch" width="100%">
-        <TextTitle3 color="fg" as="h2">
-          Quick guide
-        </TextTitle3>
-        <TextCaption color="fgMuted" as="p">
-          Add your Base wallet above, then create a link — the QR uses the saved
-          resource from the API. Leave slug empty for a random id, or choose one
-          (letters, digits, hyphens).{" "}
-          <TextBody as="span" fontWeight="label1" color="fgMuted">
-            Generate Random
-          </TextBody>{" "}
-          builds a slug from your label; each click picks a new name and never
-          repeats one you already used here in this session.
-        </TextCaption>
-      </VStack>
+      <Carousel
+        width="100%"
+        minWidth={0}
+        snapMode="item"
+        paginationVariant="dot"
+        title={
+          <Box flexGrow={1} minWidth={0} paddingEnd={2}>
+            <TextTitle3 color="fg" as="h2">
+              {t("home.stepsTitle")}
+            </TextTitle3>
+          </Box>
+        }
+        styles={{
+          carousel: { gap: 16 },
+          carouselContainer: { minWidth: 0 },
+        }}
+      >
+        {HOME_STEP_CARDS.map(({ id, step, titleKey, descriptionKey }) => (
+            <CarouselItem key={id} id={id}>
+              <MessagingCard
+                as="article"
+                type="nudge"
+                background="bgSecondary"
+                tag={<HomeStepNumberTag step={step} />}
+                title={t(titleKey)}
+                description={
+                  <TextBody as="p" color="fg">
+                    {t(descriptionKey)}
+                  </TextBody>
+                }
+                width={320}
+                mediaPlacement="end"
+                styles={{
+                  mediaContainer: {
+                    display: "none",
+                  },
+                  textContainer: {
+                    gap: 12,
+                  },
+                }}
+              />
+            </CarouselItem>
+        ))}
+      </Carousel>
     </Box>
   )
 
-  const homeHowItWorks = (
-    <Box
-      id="how-it-works"
-      width="100%"
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-    >
-      <VStack gap={2} alignItems="stretch" width="100%">
-        <TextTitle3 color="fg" as="h2">
-          How it works
-        </TextTitle3>
-        <TextBody color="fgMuted" as="p">
-          Share your pay link or QR. Buyers pay USDC on Base; funds go to the
-          wallet on the resource, and they land on your success page for that
-          slug.
-        </TextBody>
-      </VStack>
-    </Box>
-  )
-
-  /** Wide: hero → form → quick guide → how it works (QR stays in the right column). */
+  /** Wide: hero → form → steps (QR stays in the right column). */
   const leftPaneDesktop = (
     <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
       {homeHero}
       <HomeHorizontalRule />
       {homeForm}
       <HomeHorizontalRule />
-      {homeQuickGuide}
-      <HomeHorizontalRule />
-      {homeHowItWorks}
+      {homeSteps}
     </VStack>
   )
 
@@ -478,11 +554,11 @@ export default function Home() {
     >
       <VStack gap={1} alignItems="stretch">
         <TextTitle3 color="fg" as="p">
-          Payment URL
+          {t("home.paymentUrlTitle")}
         </TextTitle3>
         {!hasQr ? (
           <TextBody color="fgMuted" as="p">
-            Create a link to show the URL and QR.
+            {t("home.paymentUrlEmpty")}
           </TextBody>
         ) : (
           <TextBody mono as="p" color="fg" overflow="wrap">
@@ -507,7 +583,7 @@ export default function Home() {
           {!hasQr ? (
             <Box
               role="img"
-              aria-label="QR code preview; create a payment link to show your live code."
+              aria-label={t("home.qrPreviewAria")}
               style={{ lineHeight: 0 }}
             >
               <QRCodeCanvas
@@ -539,7 +615,7 @@ export default function Home() {
             minHeight={48}
             borderRadius={500}
           >
-            Share
+            {t("home.share")}
           </Button>
           <Button
             block
@@ -550,7 +626,7 @@ export default function Home() {
             minHeight={48}
             borderRadius={500}
           >
-            Download
+            {t("home.download")}
           </Button>
         </VStack>
       </VStack>
@@ -672,9 +748,7 @@ export default function Home() {
               {rightPane}
             </Box>
             <HomeHorizontalRule />
-            {homeQuickGuide}
-            <HomeHorizontalRule />
-            {homeHowItWorks}
+            {homeSteps}
           </VStack>
         </Box>
       )}

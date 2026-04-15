@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
@@ -91,6 +92,7 @@ function buildMetaMaskUsdcSendLink(resource: ApiResource): string | null {
 }
 
 export default function Pay() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { slug } = useParams()
   const [searchParams] = useSearchParams()
@@ -113,7 +115,7 @@ export default function Pay() {
 
   const load = useCallback(async () => {
     if (!slug) {
-      setLoadError("Missing payment slug in the URL.")
+      setLoadError(t("pay.slugMissing"))
       setLoadState("done")
       setResource(null)
       return
@@ -124,20 +126,18 @@ export default function Pay() {
       const data = await fetchResource(slug)
       if (!data.ok || !data.resource) {
         setResource(null)
-        setLoadError(data.error || "Resource not found or unavailable.")
+        setLoadError(data.error || t("pay.resourceNotFound"))
         return
       }
       setResource(data.resource)
       setLoadError(null)
     } catch {
       setResource(null)
-      setLoadError(
-        "Could not load this payment. Check your connection and try again.",
-      )
+      setLoadError(t("pay.loadFailed"))
     } finally {
       setLoadState("done")
     }
-  }, [slug])
+  }, [slug, t])
 
   useEffect(() => {
     void load()
@@ -169,13 +169,12 @@ export default function Pay() {
       if (cancelled) return
       if (!data.ok || !data.attempt) {
         setAttemptError(
-          data.error?.trim() ||
-            "This payment link is invalid or no longer available.",
+          data.error?.trim() || t("pay.attemptInvalid"),
         )
         return
       }
       if (data.attempt.slug !== slug) {
-        setAttemptError("This payment link does not match this product.")
+        setAttemptError(t("pay.attemptSlugMismatch"))
         return
       }
       setAttemptError(null)
@@ -185,7 +184,7 @@ export default function Pay() {
     return () => {
       cancelled = true
     }
-  }, [attemptIdFromUrl, loadError, loadState, resource, slug])
+  }, [attemptIdFromUrl, loadError, loadState, resource, slug, t])
 
   const goToSuccess = useCallback(
     (id: string) => {
@@ -226,7 +225,7 @@ export default function Pay() {
 
       if (!attemptRes.ok || !attemptData?.ok || !attemptData.attemptId) {
         throw new Error(
-          attemptData?.error || "Failed to create payment attempt",
+          attemptData?.error || t("pay.createAttemptFailed"),
         )
       }
 
@@ -235,13 +234,13 @@ export default function Pay() {
       return id
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Unexpected error creating attempt"
+        err instanceof Error ? err.message : t("pay.unexpectedAttemptError")
       setAttemptError(message)
       return null
     } finally {
       setIsCreatingAttempt(false)
     }
-  }, [attemptId, resource, slug])
+  }, [attemptId, resource, slug, t])
 
   const openPayUrlWithAttempt = useCallback(
     (id: string) => {
@@ -259,9 +258,7 @@ export default function Pay() {
     setManualAdvancedOpen(false)
     const href = buildBaseUsdcEip681Link(resource)
     if (!href) {
-      setAttemptError(
-        "Pay on Base isn’t available for this resource (check payout address and USDC on Base).",
-      )
+      setAttemptError(t("pay.payBaseUnavailable"))
       return
     }
     const id = await createAttempt()
@@ -275,9 +272,7 @@ export default function Pay() {
     setManualAdvancedOpen(false)
     const href = buildMetaMaskUsdcSendLink(resource)
     if (!href) {
-      setAttemptError(
-        "MetaMask pay isn’t available for this resource (check payout address and USDC on Base).",
-      )
+      setAttemptError(t("pay.metaMaskUnavailable"))
       return
     }
     const id = await createAttempt()
@@ -302,13 +297,11 @@ export default function Pay() {
 
     const trimmed = txHash.trim()
     if (!trimmed) {
-      setVerifyError("Paste the transaction hash from your wallet or block explorer.")
+      setVerifyError(t("pay.pasteTxHash"))
       return
     }
     if (!isLikelyTxHash(trimmed)) {
-      setVerifyError(
-        "That does not look like a valid transaction hash (expected 0x followed by 64 hex characters).",
-      )
+      setVerifyError(t("pay.txHashInvalid"))
       return
     }
 
@@ -332,7 +325,7 @@ export default function Pay() {
       if (!verifyOk) {
         const detail =
           (verifyData?.error && verifyData.error.trim()) ||
-          `Verification request failed (HTTP ${verifyRes.status}).`
+          t("pay.verifyFailedHttp", { status: verifyRes.status })
         const code =
           verifyData?.code != null && String(verifyData.code).trim() !== ""
             ? ` (${String(verifyData.code).trim()})`
@@ -343,7 +336,7 @@ export default function Pay() {
       goToSuccess(attemptId)
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Unexpected verification error"
+        err instanceof Error ? err.message : t("pay.unexpectedVerifyError")
       setVerifyError(message)
     } finally {
       setIsVerifying(false)
@@ -373,7 +366,7 @@ export default function Pay() {
       if (!verifyOk) {
         const detail =
           (verifyData?.error && verifyData.error.trim()) ||
-          `Mock verify failed (HTTP ${verifyRes.status}).`
+          t("pay.mockVerifyFailedHttp", { status: verifyRes.status })
         const code =
           verifyData?.code != null && String(verifyData.code).trim() !== ""
             ? ` (${String(verifyData.code).trim()})`
@@ -384,7 +377,7 @@ export default function Pay() {
       goToSuccess(attemptId)
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Unexpected verification error"
+        err instanceof Error ? err.message : t("pay.unexpectedVerifyError")
       setVerifyError(message)
     } finally {
       setIsVerifying(false)
@@ -424,20 +417,19 @@ export default function Pay() {
   const showWalletFollowUp =
     Boolean(attemptId && resource && !manualAdvancedOpen)
 
-  const advancedTxForm = (opts: { title: string; showBackToMethods: boolean }) => (
+  const advancedTxForm = (opts: {
+    title: string
+    showBackToMethods: boolean
+  }) => (
     <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
       <TextCaption color="fgMuted" fontWeight="label1" as="p">
         {opts.title}
       </TextCaption>
       <TextBody color="fgMuted" as="p">
-        Send{" "}
-        <TextBody as="span" color="fg" fontWeight="label1">
-          at least {resource!.amount} {resource!.currency}
-        </TextBody>{" "}
-        on Base to the recipient for this link. The server detects USDC on Base
-        automatically when you open the status page; use this form only if you
-        need to force verification with a known transaction hash (e.g. from
-        MetaMask or a block explorer).
+        {t("pay.advancedInstruction", {
+          amount: resource!.amount,
+          currency: resource!.currency,
+        })}
       </TextBody>
 
       {!attemptId ? (
@@ -446,7 +438,9 @@ export default function Pay() {
           disabled={!canInteract || isCreatingAttempt}
           block
         >
-          {isCreatingAttempt ? "Creating attempt…" : "Create payment attempt"}
+          {isCreatingAttempt
+            ? t("pay.createAttemptLoading")
+            : t("pay.createAttempt")}
         </Button>
       ) : (
         <>
@@ -458,21 +452,28 @@ export default function Pay() {
           >
             <VStack gap={1} alignItems="stretch">
               <TextCaption color="fgMuted" fontWeight="label1">
-                Payment details
+                {t("pay.paymentDetails")}
               </TextCaption>
               <TextBody color="fg">
-                Amount (minimum): {resource!.amount} {resource!.currency}
+                {t("pay.amountMinimum", {
+                  amount: resource!.amount,
+                  currency: resource!.currency,
+                })}
               </TextBody>
-              <TextBody color="fg">Network: {resource!.network}</TextBody>
-              <TextBody color="fg">Slug: {resource!.slug}</TextBody>
+              <TextBody color="fg">
+                {t("pay.networkLabel", { network: resource!.network })}
+              </TextBody>
+              <TextBody color="fg">
+                {t("pay.slugLabel", { slug: resource!.slug })}
+              </TextBody>
               <TextBody mono as="code" color="fg" overflow="wrap">
-                attemptId: {attemptId}
+                {t("pay.attemptIdLabel", { id: attemptId })}
               </TextBody>
             </VStack>
           </Box>
           <TextInput
             compact
-            label="Transaction hash"
+            label={t("pay.txHash")}
             value={txHash}
             onChange={(e) => setTxHash(e.target.value)}
             placeholder="0x…"
@@ -482,7 +483,7 @@ export default function Pay() {
             disabled={isVerifying}
             block
           >
-            {isVerifying ? "Verifying…" : "Verify with transaction hash"}
+            {isVerifying ? t("pay.verifyTxLoading") : t("pay.verifyTx")}
           </Button>
         </>
       )}
@@ -494,7 +495,7 @@ export default function Pay() {
           disabled={isVerifying}
           block
         >
-          Back to payment options
+          {t("pay.backToOptions")}
         </Button>
       ) : null}
     </VStack>
@@ -521,18 +522,15 @@ export default function Pay() {
           <ContentCard
             width="100%"
             bordered
-            background="bgElevation1"
+            background="bgSecondary"
             padding={{ base: 3, desktop: 4 }}
             gap={{ base: 3, desktop: 4 }}
           >
             <ContentCardHeader
-              title={<TextTitle3 color="fg">Pay</TextTitle3>}
+              title={<TextTitle3 color="fg">{t("pay.title")}</TextTitle3>}
               subtitle={
                 <TextBody color="fgMuted" textAlign="center">
-                  Pay on Base opens Coinbase Wallet or the Base app. Pay on
-                  MetaMask opens the MetaMask app. USDC on Base is detected
-                  automatically when you check payment status—use Advanced only
-                  if you need to paste a transaction hash.
+                  {t("pay.subtitle")}
                 </TextBody>
               }
             />
@@ -546,10 +544,10 @@ export default function Pay() {
                 >
                   <VStack gap={2} alignItems="stretch">
                     <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                      Resource
+                      {t("pay.resource")}
                     </TextCaption>
                     {showResourceSkeleton ? (
-                      <TextBody color="fgMuted">Loading…</TextBody>
+                      <TextBody color="fgMuted">{t("pay.loading")}</TextBody>
                     ) : showResourceError ? (
                       <Box
                         bordered
@@ -567,7 +565,7 @@ export default function Pay() {
                         </TextTitle1>
                         <VStack gap={1} alignItems="stretch">
                           <TextBody color="fgMuted">
-                            Network:{" "}
+                            {t("pay.networkInline")}{" "}
                             <TextBody as="span" color="fg" fontWeight="label1">
                               {resource.network}
                             </TextBody>
@@ -579,19 +577,19 @@ export default function Pay() {
                               textTransform: "uppercase",
                             }}
                           >
-                            Slug: {resource.slug}
+                            {t("pay.slugCaption")} {resource.slug}
                           </TextCaption>
                         </VStack>
                       </>
                     ) : (
-                      <TextBody color="fgMuted">No resource data.</TextBody>
+                      <TextBody color="fgMuted">{t("pay.noResource")}</TextBody>
                     )}
                   </VStack>
                 </Box>
 
                 {linkValidationPending ? (
                   <TextBody color="fgMuted" textAlign="center" as="p">
-                    Confirming your payment link…
+                    {t("pay.confirmingLink")}
                   </TextBody>
                 ) : null}
 
@@ -619,7 +617,7 @@ export default function Pay() {
                           }}
                           block
                         >
-                          Open pay page without this link
+                          {t("pay.openPayWithoutLink")}
                         </Button>
                       ) : null}
                     </VStack>
@@ -629,13 +627,13 @@ export default function Pay() {
                 {showMethodSelector ? (
                   <VStack gap={2} alignItems="stretch">
                     <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                      Payment method
+                      {t("pay.method")}
                     </TextCaption>
                     <Button variant="secondary" disabled block>
-                      Pay with card
+                      {t("pay.payWithCard")}
                     </Button>
                     <TextCaption color="fgMuted" as="p">
-                      Card checkout is coming soon—no charge yet.
+                      {t("pay.cardSoon")}
                     </TextCaption>
                     <Button
                       variant="secondary"
@@ -647,7 +645,7 @@ export default function Pay() {
                       }
                       block
                     >
-                      {isCreatingAttempt ? "Working…" : "Pay on Base"}
+                      {isCreatingAttempt ? t("pay.working") : t("pay.payOnBase")}
                     </Button>
                     <Button
                       variant="secondary"
@@ -659,13 +657,13 @@ export default function Pay() {
                       }
                       block
                     >
-                      {isCreatingAttempt ? "Working…" : "Pay on MetaMask"}
+                      {isCreatingAttempt
+                        ? t("pay.working")
+                        : t("pay.payOnMetaMask")}
                     </Button>
                     {!basePayHref && !metaMaskPayHref && resource ? (
                       <TextCaption color="fgMuted" as="p">
-                        Wallet links are unavailable (no payout address on Base
-                        for this resource). Use Advanced to verify with a
-                        transaction hash.
+                        {t("pay.walletLinksUnavailable")}
                       </TextCaption>
                     ) : null}
                   </VStack>
@@ -680,16 +678,14 @@ export default function Pay() {
                   >
                     <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
                       <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                        Payment in progress
+                        {t("pay.inProgress")}
                       </TextCaption>
                       <TextBody color="fgMuted" as="p">
-                        After you send USDC on Base, open payment status. You can
-                        tap Pay on Base or Pay on MetaMask again if you need to
-                        reopen your wallet.
+                        {t("pay.inProgressBody")}
                       </TextBody>
                       {attemptId ? (
                         <TextBody mono as="code" color="fgMuted" overflow="wrap">
-                          attemptId: {attemptId}
+                          {t("pay.attemptIdLabel", { id: attemptId })}
                         </TextBody>
                       ) : null}
                       <Button
@@ -698,7 +694,7 @@ export default function Pay() {
                         disabled={!attemptId}
                         block
                       >
-                        View payment status
+                        {t("pay.viewStatus")}
                       </Button>
                       <Button
                         variant="secondary"
@@ -706,7 +702,7 @@ export default function Pay() {
                         disabled={isVerifying}
                         block
                       >
-                        Back to payment options
+                        {t("pay.backToOptions")}
                       </Button>
                       {attemptId ? (
                         <Box paddingTop={1}>
@@ -718,8 +714,8 @@ export default function Pay() {
                             block
                           >
                             {cryptoAdvancedOpen
-                              ? "Hide Advanced"
-                              : "Advanced — verify with transaction hash"}
+                              ? t("pay.hideAdvanced")
+                              : t("pay.showAdvanced")}
                           </Button>
                         </Box>
                       ) : null}
@@ -733,7 +729,7 @@ export default function Pay() {
                           <VStack gap={2} alignItems="stretch">
                             <TextInput
                               compact
-                              label="Transaction hash"
+                              label={t("pay.txHash")}
                               value={txHash}
                               onChange={(e) => setTxHash(e.target.value)}
                               placeholder="0x…"
@@ -744,8 +740,8 @@ export default function Pay() {
                               block
                             >
                               {isVerifying
-                                ? "Verifying…"
-                                : "Verify with transaction hash"}
+                                ? t("pay.verifyTxLoading")
+                                : t("pay.verifyTx")}
                             </Button>
                           </VStack>
                         </Box>
@@ -763,15 +759,17 @@ export default function Pay() {
                               fontWeight="label1"
                               as="p"
                             >
-                              Developer shortcut
+                              {t("pay.developerShortcut")}
                             </TextCaption>
                             <TextBody color="fgMuted">
-                              With{" "}
-                              <TextBody as="span" mono color="fgMuted">
-                                X402_MOCK_VERIFY=true
-                              </TextBody>{" "}
-                              on the worker, mock verify skips the chain (not for
-                              production).
+                              <Trans
+                                i18nKey="pay.devMockBody"
+                                components={{
+                                  mono: (
+                                    <TextBody as="span" mono color="fgMuted" />
+                                  ),
+                                }}
+                              />
                             </TextBody>
                             <Button
                               variant="secondary"
@@ -779,7 +777,7 @@ export default function Pay() {
                               disabled={isVerifying}
                               block
                             >
-                              Dev: mock verify (no tx hash)
+                              {t("pay.devMockButton")}
                             </Button>
                           </VStack>
                         </Box>
@@ -796,7 +794,7 @@ export default function Pay() {
                     padding={{ base: 3, desktop: 4 }}
                   >
                     {advancedTxForm({
-                      title: "Advanced — verify with transaction hash",
+                      title: t("pay.advancedTitle"),
                       showBackToMethods: true,
                     })}
                   </Box>
@@ -810,7 +808,7 @@ export default function Pay() {
                       disabled={!canInteract}
                       block
                     >
-                      Advanced — verify with transaction hash
+                      {t("pay.advancedTitle")}
                     </Button>
                   </Box>
                 ) : null}
@@ -828,17 +826,18 @@ export default function Pay() {
                       disabled={isCreatingAttempt}
                       block
                     >
-                      Hide advanced
+                      {t("pay.hideAdvancedBottom")}
                     </Button>
                   </Box>
                 ) : null}
 
                 <TextCaption color="fgMuted" textAlign="center" as="p">
-                  Status updates use{" "}
-                  <TextBody as="span" mono color="fgMuted">
-                    GET /api/payment-attempt/:id
-                  </TextBody>
-                  , which re-checks the chain while the attempt is unpaid.
+                  <Trans
+                    i18nKey="pay.statusApiNote"
+                    components={{
+                      mono: <TextBody as="span" mono color="fgMuted" />,
+                    }}
+                  />
                 </TextCaption>
               </VStack>
             </ContentCardBody>

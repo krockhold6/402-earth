@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react"
+import i18n from "@/i18n/config"
 
 type Props = { children: ReactNode }
 
@@ -35,13 +36,12 @@ export class RootErrorBoundary extends Component<Props, State> {
           }}
         >
           <h1 style={{ fontSize: "1.25rem", marginTop: 0 }}>
-            This page couldn’t load
+            {i18n.t("errorBoundary.title")}
           </h1>
           <p style={{ color: "#a8a8a8", lineHeight: 1.5 }}>
-            If you just deployed, try a{" "}
-            <strong>hard refresh</strong> (Cmd+Shift+R or Ctrl+Shift+R) so the
-            browser loads the latest scripts. Stale cache often causes a blank
-            page after a new build.
+            {i18n.t("errorBoundary.bodyBefore")}
+            <strong>{i18n.t("errorBoundary.hardRefresh")}</strong>
+            {i18n.t("errorBoundary.bodyAfter")}
           </p>
           <pre
             style={{
@@ -68,7 +68,7 @@ export class RootErrorBoundary extends Component<Props, State> {
               color: "#fff",
             }}
           >
-            Reload
+            {i18n.t("errorBoundary.reload")}
           </button>
         </div>
       )
