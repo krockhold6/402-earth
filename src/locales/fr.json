@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Partagez votre lien de paiement ou QR. Les acheteurs paient l'USDC sur la base ; les fonds vont dans le portefeuille de la ressource et atterrissent sur votre page de réussite pour cette limace.",
   "home.paymentUrlTitle": "URL de paiement",
   "home.paymentUrlEmpty": "Créez un lien pour afficher l'URL et le QR.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "Aperçu du code QR ; créez un lien de paiement pour afficher votre code en direct.",
   "home.share": "Partager",
   "home.download": "Télécharger",

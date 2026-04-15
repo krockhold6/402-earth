@@ -51,6 +51,7 @@
   "home.howItWorksBody": "Share your pay link or QR. Buyers pay USDC on Base; funds go to the wallet on the resource, and they land on your success page for that slug.",
   "home.paymentUrlTitle": "Payment URL",
   "home.paymentUrlEmpty": "Create a link to show the URL and QR.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "QR code preview; create a payment link to show your live code.",
   "home.share": "Share",
   "home.download": "Download",

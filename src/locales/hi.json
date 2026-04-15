@@ -21,6 +21,7 @@
   "home.howItWorksTitle": "यह काम किस प्रकार करता है",
   "home.label": "लेबल",
   "home.paymentUrlEmpty": "यूआरएल और क्यूआर दिखाने के लिए एक लिंक बनाएं।",
+  "home.copyPaymentUrl": "भुगतान URL कॉपी करें",
   "home.paymentUrlTitle": "Payment URL",
   "home.qrFilenamePayment": "भुगतान",
   "home.qrPreviewAria": "क्यूआर कोड पूर्वावलोकन; अपना लाइव कोड दिखाने के लिए एक भुगतान लिंक बनाएं।",

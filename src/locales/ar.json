@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Share your pay link or QR. Buyers pay USDC on Base; funds go to the wallet on the resource, and they land on your success page for that slug.",
   "home.paymentUrlTitle": "عنوان URL للدفع",
   "home.paymentUrlEmpty": "أنشئ رابطًا لإظهار عنوان URL وQR.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "معاينة رمز الاستجابة السريعة. أنشئ رابط دفع لإظهار الرمز المباشر الخاص بك.",
   "home.share": "يشارك",
   "home.download": "تحميل",

@@ -48,6 +48,7 @@
   "home.howItWorksBody": "有料リンクまたは QR を共有します。買い手はBaseに基づいてUSDCを支払います。資金はリソースのウォレットに送られ、そのスラッグの成功ページに到達します。",
   "home.paymentUrlTitle": "支払いURL",
   "home.paymentUrlEmpty": "URLとQRを表示するリンクを作成します。",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "QR コードのプレビュー。支払いリンクを作成してライブコードを表示します。",
   "home.share": "シェアする",
   "home.download": "ダウンロード",

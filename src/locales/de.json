@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Teilen Sie Ihren Bezahllink oder QR. Käufer zahlen USDC auf Basis; Die Gelder fließen in die Wallet der Ressource und landen auf Ihrer Erfolgsseite für diesen Slug.",
   "home.paymentUrlTitle": "Zahlungs-URL",
   "home.paymentUrlEmpty": "Erstellen Sie einen Link, um die URL und den QR anzuzeigen.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "QR-Code-Vorschau; Erstellen Sie einen Zahlungslink, um Ihren Live-Code anzuzeigen.",
   "home.share": "Teilen",
   "home.download": "Herunterladen",

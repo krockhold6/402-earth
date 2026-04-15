@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Comparte tu enlace de pago o QR. Los compradores pagan USDC en base; los fondos van a la billetera del recurso y llegan a su página de éxito para ese slug.",
   "home.paymentUrlTitle": "URL de pago",
   "home.paymentUrlEmpty": "Cree un enlace para mostrar la URL y el QR.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "Vista previa del código QR; cree un enlace de pago para mostrar su código en vivo.",
   "home.share": "Compartir",
   "home.download": "Descargar",

@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Udostępnij swój link do płatności lub kod QR. Kupujący płacą USDC w oparciu o kwotę podstawową; środki trafiają do portfela zasobu i lądują na stronie sukcesu danego ślimaka.",
   "home.paymentUrlTitle": "Adres URL płatności",
   "home.paymentUrlEmpty": "Utwórz łącze, aby wyświetlić adres URL i kod QR.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "podgląd kodu QR; utwórz link do płatności, aby wyświetlić swój aktywny kod.",
   "home.share": "Udostępnij",
   "home.download": "Pobierz",

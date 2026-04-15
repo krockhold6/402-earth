@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Condividi il tuo link di pagamento o QR. Gli acquirenti pagano USDC su Base; i fondi vanno al portafoglio sulla risorsa e finiscono sulla tua pagina di successo per quello slug.",
   "home.paymentUrlTitle": "URL di pagamento",
   "home.paymentUrlEmpty": "Crea un collegamento per mostrare l'URL e il QR.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "Anteprima del codice QR; crea un collegamento di pagamento per mostrare il tuo codice live.",
   "home.share": "Condividi",
   "home.download": "Scarica",

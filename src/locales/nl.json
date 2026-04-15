@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Deel uw betaallink of QR. Kopers betalen USDC op Base; het geld gaat naar de portemonnee van de bron en komt terecht op uw succespagina voor die naaktslak.",
   "home.paymentUrlTitle": "Betalings-URL",
   "home.paymentUrlEmpty": "Maak een link om de URL en QR weer te geven.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "QR-codevoorbeeld; maak een betaallink aan om uw livecode te tonen.",
   "home.share": "Deel",
   "home.download": "Downloaden",

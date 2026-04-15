@@ -48,6 +48,7 @@
   "home.howItWorksBody": "分享您的付款链接或二维码。买家在 Base 上支付 USDC；资金进入该资源的钱包，然后到达该 slug 的成功页面。",
   "home.paymentUrlTitle": "支付网址",
   "home.paymentUrlEmpty": "创建一个链接以显示 URL 和 QR。",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "二维码预览；创建付款链接以显示您的实时代码。",
   "home.share": "分享",
   "home.download": "下载",

@@ -21,6 +21,7 @@
   "home.howItWorksTitle": "Как это работает",
   "home.label": "Этикетка",
   "home.paymentUrlEmpty": "Создайте ссылку, чтобы показать URL-адрес и QR.",
+  "home.copyPaymentUrl": "Копировать URL платежа",
   "home.paymentUrlTitle": "Payment URL",
   "home.qrFilenamePayment": "оплата",
   "home.qrPreviewAria": "предварительный просмотр QR-кода; создайте ссылку для оплаты, чтобы показать ваш активный код.",

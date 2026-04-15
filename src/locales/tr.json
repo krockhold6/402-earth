@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Ödeme bağlantınızı veya QR'nizi paylaşın. Alıcılar Base üzerinden USDC ödüyor; fonlar kaynağın üzerindeki cüzdana gider ve o sümüklü böcek için başarı sayfanıza ulaşır.",
   "home.paymentUrlTitle": "Ödeme URL'si",
   "home.paymentUrlEmpty": "URL'yi ve QR'yi göstermek için bir bağlantı oluşturun.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "QR kodu önizlemesi; Canlı kodunuzu göstermek için bir ödeme bağlantısı oluşturun.",
   "home.share": "Paylaş",
   "home.download": "İndir",

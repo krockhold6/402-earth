@@ -21,6 +21,7 @@
   "home.howItWorksTitle": "มันทำงานอย่างไร",
   "home.label": "ฉลาก",
   "home.paymentUrlEmpty": "Create a link to show the URL and QR.",
+  "home.copyPaymentUrl": "คัดลอก URL การชำระเงิน",
   "home.paymentUrlTitle": "URL การชำระเงิน",
   "home.qrFilenamePayment": "การชำระเงิน",
   "home.qrPreviewAria": "ดูตัวอย่างโค้ด QR; สร้างลิงค์การชำระเงินเพื่อแสดงรหัสสดของคุณ",

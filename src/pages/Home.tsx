@@ -9,7 +9,7 @@ import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { Carousel, CarouselItem } from "@coinbase/cds-web/carousel"
 import { MessagingCard } from "@coinbase/cds-web/cards"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
-import { Box, Grid, GridColumn, VStack } from "@coinbase/cds-web/layout"
+import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
 import {
   TextBody,
   TextCaption,
@@ -302,6 +302,15 @@ export default function Home() {
     }
   }
 
+  const copyPaymentUrl = useCallback(async () => {
+    if (!paymentUrl) return
+    try {
+      await navigator.clipboard.writeText(paymentUrl)
+    } catch {
+      /* unavailable */
+    }
+  }, [paymentUrl])
+
   const sharePayment = useCallback(async () => {
     if (!paymentUrl) return
     try {
@@ -544,15 +553,14 @@ export default function Home() {
 
   const rightPanePaymentUrl = (
     <Box
-      bordered
       borderRadius={400}
-      borderColor="bgLine"
       background="bgSecondary"
       padding={3}
       width="100%"
+      minWidth={0}
       flexShrink={0}
     >
-      <VStack gap={1} alignItems="stretch">
+      <VStack gap={1} alignItems="stretch" minWidth={0}>
         <TextTitle3 color="fg" as="p">
           {t("home.paymentUrlTitle")}
         </TextTitle3>
@@ -561,9 +569,36 @@ export default function Home() {
             {t("home.paymentUrlEmpty")}
           </TextBody>
         ) : (
-          <TextBody mono as="p" color="fg" overflow="wrap">
-            {paymentUrl}
-          </TextBody>
+          <HStack
+            gap={2}
+            alignItems="flex-start"
+            width="100%"
+            minWidth={0}
+          >
+            <Box
+              minWidth={0}
+              style={{
+                flex: "1 1 0%",
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
+              }}
+            >
+              <TextBody mono as="p" color="fg" style={{ margin: 0 }}>
+                {paymentUrl}
+              </TextBody>
+            </Box>
+            <Box flexShrink={0} display="flex" alignItems="center">
+              <IconButton
+                name="copy"
+                variant="foregroundMuted"
+                transparent
+                compact
+                type="button"
+                accessibilityLabel={t("home.copyPaymentUrl")}
+                onClick={copyPaymentUrl}
+              />
+            </Box>
+          </HStack>
         )}
       </VStack>
     </Box>
@@ -605,30 +640,32 @@ export default function Home() {
             />
           )}
         </Box>
-        <VStack gap={2} alignItems="stretch" width="100%">
-          <Button
-            block
-            compact
-            variant="primary"
-            onClick={sharePayment}
-            disabled={!hasQr}
-            minHeight={48}
-            borderRadius={500}
-          >
-            {t("home.share")}
-          </Button>
-          <Button
-            block
-            compact
-            variant="secondary"
-            onClick={downloadQr}
-            disabled={!hasQr}
-            minHeight={48}
-            borderRadius={500}
-          >
-            {t("home.download")}
-          </Button>
-        </VStack>
+        <Box width="100%" maxWidth={350} alignSelf="center">
+          <VStack gap={2} alignItems="stretch" width="100%">
+            <Button
+              block
+              compact
+              variant="primary"
+              onClick={sharePayment}
+              disabled={!hasQr}
+              minHeight={48}
+              borderRadius={500}
+            >
+              {t("home.share")}
+            </Button>
+            <Button
+              block
+              compact
+              variant="secondary"
+              onClick={downloadQr}
+              disabled={!hasQr}
+              minHeight={48}
+              borderRadius={500}
+            >
+              {t("home.download")}
+            </Button>
+          </VStack>
+        </Box>
       </VStack>
       <Box style={{ flex: "1 1 auto", minHeight: 12 }} aria-hidden />
       {rightPanePaymentUrl}

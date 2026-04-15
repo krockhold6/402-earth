@@ -48,6 +48,7 @@
   "home.howItWorksBody": "Chia sẻ liên kết thanh toán hoặc QR của bạn. Người mua thanh toán USDC trên cơ sở; tiền sẽ chuyển đến ví của tài nguyên và chúng sẽ xuất hiện trên trang thành công của bạn cho con sên đó.",
   "home.paymentUrlTitle": "URL thanh toán",
   "home.paymentUrlEmpty": "Tạo liên kết để hiển thị URL và QR.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "xem trước mã QR; tạo một liên kết thanh toán để hiển thị mã trực tiếp của bạn.",
   "home.share": "Chia sẻ",
   "home.download": "Tải xuống",

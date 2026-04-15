@@ -48,6 +48,7 @@
   "home.howItWorksBody": "급여 링크 또는 QR을 공유하세요. 구매자는 기본적으로 USDC를 지불합니다. 자금은 리소스의 지갑으로 이동하고 해당 슬러그의 성공 페이지에 표시됩니다.",
   "home.paymentUrlTitle": "결제 URL",
   "home.paymentUrlEmpty": "URL과 QR을 표시하는 링크를 만듭니다.",
+  "home.copyPaymentUrl": "Copy payment URL",
   "home.qrPreviewAria": "QR 코드 미리보기; 라이브 코드를 표시하려면 결제 링크를 만드세요.",
   "home.share": "공유하다",
   "home.download": "다운로드",

@@ -21,6 +21,7 @@
   "home.howItWorksTitle": "Bagaimana cara kerjanya",
   "home.label": "Label",
   "home.paymentUrlEmpty": "Buat tautan untuk menampilkan URL dan QR.",
+  "home.copyPaymentUrl": "Salin URL pembayaran",
   "home.paymentUrlTitle": "URL pembayaran",
   "home.qrFilenamePayment": "pembayaran",
   "home.qrPreviewAria": "Pratinjau kode QR; buat tautan pembayaran untuk menampilkan kode langsung Anda.",
