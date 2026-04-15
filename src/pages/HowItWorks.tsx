@@ -129,11 +129,16 @@ export default function HowItWorks() {
           {t("howItWorks.closing")}
         </TextBody>
 
-        <Box as="footer" width="100%" marginTop={6} paddingTop={4}>
+        <Box
+          as="footer"
+          width="100%"
+          paddingTop={4}
+          style={{ marginTop: "2rem" }}
+        >
           <Divider
             direction="horizontal"
             background="bgLine"
-            marginBottom={4}
+            style={{ marginBottom: "1rem" }}
           />
           <HStack
             gap={4}
