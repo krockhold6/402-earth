@@ -24,7 +24,8 @@ export default {
         headers: {
           'access-control-allow-origin': corsAllowOrigin(req),
           'access-control-allow-methods': 'GET, POST, OPTIONS',
-          'access-control-allow-headers': 'content-type, x-402-client',
+          'access-control-allow-headers':
+            'content-type, x-402-client, payment-signature, payment-required',
         },
       })
     }
@@ -68,7 +69,7 @@ export default {
         res = await handleLegacyX402PaySession(env, slug, sessionId)
         return withCors(req, res)
       }
-      res = await handleX402Pay(env, slug, url)
+      res = await handleX402Pay(env, slug, url, req)
       return withCors(req, res)
     }
 

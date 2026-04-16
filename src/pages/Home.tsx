@@ -1,20 +1,35 @@
-import { useCallback, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+} from "react"
 import { useTranslation } from "react-i18next"
 import { QRCodeCanvas } from "qrcode.react"
 import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
+import { Icon } from "@coinbase/cds-web/icons"
+import { RemoteImage } from "@coinbase/cds-web/media"
 import { createResource } from "@/lib/api"
-import { useCdsColorScheme } from "@/providers/cdsColorSchemeContext"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { Carousel, CarouselItem } from "@coinbase/cds-web/carousel"
 import { MessagingCard } from "@coinbase/cds-web/cards"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
 import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
+import type { IconName } from "@coinbase/cds-common/types"
+import type { TabValue } from "@coinbase/cds-common/tabs/useTabs"
+import { SegmentedTabs } from "@coinbase/cds-web/tabs"
 import {
+  Text,
   TextBody,
   TextCaption,
-  TextTitle1,
+  TextLabel1,
+  TextTitle2,
   TextTitle3,
+  TextTitle4,
 } from "@coinbase/cds-web/typography"
 import i18n from "@/i18n/config"
 
@@ -117,65 +132,187 @@ function nextUniqueSlugFromLabel(
   return fallback
 }
 
+/** Golden ratio φ; left column : right column = φ : 1 (messaging side is wider). */
+const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2
+
 /**
- * Distance from viewport top for `position: sticky` on the QR column, below the
- * sticky `PageHeader` (~56px) plus a little air.
+ * `MessagingCard` row defaults to flex with a non-shrinking media slot, which squeezes
+ * copy on narrow cards. Grid tracks `φfr : 1fr` give the text column the larger share.
+ * Used for Creators + Software audience carousels (`type="upsell"` for full-bleed media).
+ */
+const HOME_AUDIENCE_UPSELL_LAYOUT_STYLES = {
+  layoutContainer: {
+    display: "grid",
+    gridTemplateColumns: `minmax(0, ${GOLDEN_RATIO}fr) minmax(0, 1fr)`,
+    minWidth: 0,
+    width: "100%",
+  },
+  contentContainer: {
+    minWidth: 0,
+    maxWidth: "100%",
+  },
+  mediaContainer: {
+    minWidth: 0,
+    maxWidth: "100%",
+    width: "100%",
+    alignSelf: "stretch",
+    /** Overrides CDS default `alignItems: center` on the media `Box` so media can span card height. */
+    alignItems: "stretch",
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
+  },
+} as const
+
+/**
+ * Distance from viewport top for `position: sticky` on the right transaction rail,
+ * below the sticky `PageHeader` (~56px) plus a little air.
  */
 const DESKTOP_QR_STICKY_TOP_PX = 64
 
-/** Muted QR preview (empty state); canvas needs explicit hex, not CDS tokens. */
-const ghostQrPalette = {
-  light: { bg: "#f4f4f5", fg: "#d4d4d8" },
-  dark: { bg: "#2b2b30", fg: "#5c5c66" },
-} as const
+/** Creators: spectrum Gray10 (matches “Background alternate” in light theme). */
+const HOME_AUDIENCE_CREATORS_CARD_BG = "rgb(var(--gray10))"
+/** Software: semantic inverse (= spectrum Gray100 role in each color scheme). */
+const HOME_AUDIENCE_SOFTWARE_CARD_BG = "var(--color-bgInverse)"
 
-const HOME_STEP_CARDS: ReadonlyArray<{
+type HomeAudienceMessagingCardRow = {
   id: string
-  step: number
   titleKey: string
   descriptionKey: string
-}> = [
+  tagKey: string
+  imageSrc: string
+  /** Optional `object-position` for portrait or asymmetric art in the media slot. */
+  imageObjectPosition?: string
+}
+
+const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
   {
-    id: "home-step-1",
-    step: 1,
-    titleKey: "home.step1Title",
-    descriptionKey: "home.step1Description",
+    id: "home-creators-1",
+    titleKey: "home.creatorsCard1Title",
+    descriptionKey: "home.creatorsCard1Description",
+    tagKey: "home.creatorsCard1Tag",
+    imageSrc: "/img/home-audience-creator-sell-links.png",
+    imageObjectPosition: "center 18%",
   },
   {
-    id: "home-step-2",
-    step: 2,
-    titleKey: "home.step2Title",
-    descriptionKey: "home.step2Description",
+    id: "home-creators-2",
+    titleKey: "home.creatorsCard2Title",
+    descriptionKey: "home.creatorsCard2Description",
+    tagKey: "home.creatorsCard2Tag",
+    imageSrc: "/img/home-audience-creator-downloads.png",
+    imageObjectPosition: "center 42%",
   },
   {
-    id: "home-step-3",
-    step: 3,
-    titleKey: "home.step3Title",
-    descriptionKey: "home.step3Description",
+    id: "home-creators-3",
+    titleKey: "home.creatorsCard3Title",
+    descriptionKey: "home.creatorsCard3Description",
+    tagKey: "home.creatorsCard3Tag",
+    imageSrc: "/img/home-audience-creator-content.png",
+    imageObjectPosition: "center 22%",
+  },
+  {
+    id: "home-creators-4",
+    titleKey: "home.creatorsCard4Title",
+    descriptionKey: "home.creatorsCard4Description",
+    tagKey: "home.creatorsCard4Tag",
+    imageSrc: "/img/home-audience-creator-one-off-access.png",
+    imageObjectPosition: "center 38%",
+  },
+  {
+    id: "home-creators-5",
+    titleKey: "home.creatorsCard5Title",
+    descriptionKey: "home.creatorsCard5Description",
+    tagKey: "home.creatorsCard5Tag",
+    imageSrc: "/img/home-audience-creator-social-drops.png",
+    imageObjectPosition: "center 38%",
   },
 ]
 
-/**
- * Step digit (1 / 2 / 3) shown on each carousel card — not the card surface itself.
- * Fill: CDS spectrum **Gray 0** (`rgb(var(--gray0))`), theme-aware in light/dark.
- */
-function HomeStepNumberTag({ step }: { step: number }) {
+const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
+  {
+    id: "home-software-1",
+    titleKey: "home.softwareCard1Title",
+    descriptionKey: "home.softwareCard1Description",
+    tagKey: "home.softwareCard1Tag",
+    imageSrc: "/img/home-audience-software-monetize-api.png",
+    imageObjectPosition: "46% center",
+  },
+  {
+    id: "home-software-2",
+    titleKey: "home.softwareCard2Title",
+    descriptionKey: "home.softwareCard2Description",
+    tagKey: "home.softwareCard2Tag",
+    imageSrc: "/img/home-audience-software-actions.png",
+    imageObjectPosition: "center 44%",
+  },
+  {
+    id: "home-software-3",
+    titleKey: "home.softwareCard3Title",
+    descriptionKey: "home.softwareCard3Description",
+    tagKey: "home.softwareCard3Tag",
+    imageSrc: "/img/home-audience-software-machine-readable.png",
+    imageObjectPosition: "center",
+  },
+]
+
+function renderHomeAudienceMessagingCard(
+  card: HomeAudienceMessagingCardRow,
+  t: (key: string) => string,
+  audience: "creators" | "software",
+) {
+  const titleText = t(card.titleKey)
+  const isCreators = audience === "creators"
+  const cardBackground = isCreators
+    ? HOME_AUDIENCE_CREATORS_CARD_BG
+    : HOME_AUDIENCE_SOFTWARE_CARD_BG
+  const tagColor = isCreators ? "fgMuted" : "fgInverse"
+  const titleColor = isCreators ? "fg" : "fgInverse"
+  const descriptionColor = isCreators ? "fgMuted" : "fgInverse"
   return (
-    <Box
-      display="flex"
-      alignItems="center"
-      justifyContent="center"
-      width={56}
-      height={56}
-      flexShrink={0}
-      borderRadius={400}
-      dangerouslySetBackground="rgb(var(--gray0))"
-      aria-label={i18n.t("home.stepBadgeAria", { step })}
-    >
-      <TextTitle1 as="span" color="fg" style={{ lineHeight: 1 }}>
-        {step}
-      </TextTitle1>
-    </Box>
+    <MessagingCard
+      as="article"
+      type="upsell"
+      width={320}
+      mediaPlacement="end"
+      tag={
+        <Text color={tagColor} font="label2">
+          {t(card.tagKey)}
+        </Text>
+      }
+      title={
+        <Text color={titleColor} font="title3" as="span">
+          {titleText}
+        </Text>
+      }
+      description={
+        <Text color={descriptionColor} font="label2" overflow="wrap">
+          {t(card.descriptionKey)}
+        </Text>
+      }
+      media={
+        <RemoteImage
+          alt={titleText}
+          height="100%"
+          width="100%"
+          resizeMode="cover"
+          shape="rectangle"
+          source={card.imageSrc}
+          style={{
+            maxWidth: "100%",
+            minHeight: "100%",
+            height: "100%",
+            objectPosition: card.imageObjectPosition ?? "center",
+          }}
+        />
+      }
+      styles={{
+        root: {
+          backgroundColor: cardBackground,
+        },
+        ...HOME_AUDIENCE_UPSELL_LAYOUT_STYLES,
+        textContainer: { gap: 12 },
+      }}
+    />
   )
 }
 
@@ -205,9 +342,63 @@ function HomeHorizontalRule() {
   )
 }
 
+/** Full-width row: primary circular icon + label (wallet-style quick actions). */
+function HomeLinkActionRow({
+  iconName,
+  label,
+  onClick,
+}: {
+  iconName: IconName
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <Box
+      as="button"
+      type="button"
+      onClick={onClick}
+      display="flex"
+      flexDirection="row"
+      alignItems="center"
+      gap={3}
+      width="100%"
+      minWidth={0}
+      paddingY={2}
+      background="transparent"
+      style={{
+        border: "none",
+        margin: 0,
+        cursor: "pointer",
+        font: "inherit",
+        textAlign: "start",
+        WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        flexShrink={0}
+        width={48}
+        height={48}
+        borderRadius={1000}
+        background="bgPrimary"
+      >
+        <Icon name={iconName} size="m" color="fgInverse" />
+      </Box>
+      <TextLabel1
+        as="span"
+        color="fg"
+        style={{ margin: 0, fontWeight: 700, textAlign: "start" }}
+      >
+        {label}
+      </TextLabel1>
+    </Box>
+  )
+}
+
 export default function Home() {
   const { t } = useTranslation()
-  const { colorScheme } = useCdsColorScheme()
   const isWide = useMediaQuery("(min-width: 960px)")
   const [amount, setAmount] = useState("5.00")
   const [label, setLabel] = useState("Exclusive video")
@@ -229,6 +420,49 @@ export default function Home() {
 
   const slugKey = slug.trim()
   const hasQr = paymentUrl !== ""
+
+  const why402ExampleLines = useMemo(
+    () =>
+      t("home.why402Examples")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    [t],
+  )
+
+  type HomeRailTabId = "sell" | "buy" | "api"
+  type HomeRailTab = { id: HomeRailTabId; label: string }
+
+  const railTabs = useMemo<HomeRailTab[]>(
+    () => [
+      { id: "sell", label: t("home.railTabSell") },
+      { id: "buy", label: t("home.railTabBuy") },
+      { id: "api", label: t("home.railTabApi") },
+    ],
+    [t],
+  )
+
+  const [activeTab, updateActiveTab] = useState<HomeRailTab>(
+    () => railTabs[0]!,
+  )
+
+  useEffect(() => {
+    updateActiveTab((current) => {
+      const next = railTabs.find((tab) => tab.id === current.id)
+      return next ?? railTabs[0]!
+    })
+  }, [railTabs])
+
+  const handleRailTabsChange = useCallback(
+    (next: TabValue<HomeRailTabId> | null) => {
+      if (!next) return
+      const resolved = railTabs.find((tab) => tab.id === next.id)
+      if (resolved) updateActiveTab(resolved)
+    },
+    [railTabs],
+  )
+
+  const canCreateOnRail = activeTab.id === "sell"
 
   const invalidateQrIfFormChanged = useCallback(() => {
     setPaymentUrl("")
@@ -338,155 +572,59 @@ export default function Home() {
   /** Space before the vertical rule (wide) so blocks don’t touch the line */
   const ruleGap = 3 as const
   const padTop = { base: 4, desktop: 6 } as const
-  const padBottom = { base: 5, desktop: 8 } as const
+  const padBottom = { base: 8, desktop: 10 } as const
+  /**
+   * Right rail scrolls in a short viewport; extra bottom inset so the last control
+   * isn’t tight against the scrollbar or viewport edge.
+   */
+  const rightWorkflowPadBottom = { base: 10, desktop: 10 } as const
 
   const contentPadStart = edgePad
   const contentPadEnd = isWide ? ruleGap : edgePad
 
-  const homeHero = (
+  /** Horizontal inset for the workflow column body (divider sits outside this for full bleed). */
+  const rightColumnInnerPad = isWide
+    ? { paddingStart: ruleGap, paddingEnd: edgePad }
+    : { paddingStart: edgePad, paddingEnd: edgePad }
+
+  /** Headline + subhead only; audience blocks sit below `HomeHorizontalRule` like `homeWhy402`. */
+  const homeHeroLead = (
     <Box
       width="100%"
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
     >
-      <Box
-        as="h1"
-        color="fg"
-        font="headline"
-        style={{
-          fontSize: "85px",
-          fontWeight: 700,
-          lineHeight: 1.05,
-          letterSpacing: "-0.03em",
-          margin: 0,
-        }}
-      >
-        {t("home.hero1")}
-        <br />
-        {t("home.hero2")}
-        <br />
-        {t("home.hero3")}
-      </Box>
-    </Box>
-  )
-
-  const homeForm = (
-    <Box
-      width="100%"
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-    >
-      <VStack gap={3} alignItems="stretch" width="100%">
-        <TextInput
-          compact
-          label={t("home.amount")}
-          value={amount}
-          onChange={(e) => {
-            setAmount(e.target.value)
-            invalidateQrIfFormChanged()
+      <VStack gap={5} alignItems="stretch" width="100%">
+        <Box
+          as="h1"
+          color="fg"
+          font="headline"
+          style={{
+            fontSize: "clamp(48px, 8vw, 85px)",
+            fontWeight: 700,
+            lineHeight: 1.05,
+            letterSpacing: "-0.03em",
+            margin: 0,
           }}
-          inputMode="decimal"
-          autoComplete="off"
-          suffix="USD"
-        />
-        <TextInput
-          compact
-          label={t("home.label")}
-          value={label}
-          onChange={(e) => {
-            setLabel(e.target.value)
-            invalidateQrIfFormChanged()
-          }}
-          autoComplete="off"
-        />
-        <VStack gap={1} alignItems="stretch">
-          <TextInput
-            compact
-            label={t("home.receiverLabel")}
-            value={receiverAddress}
-            onChange={(e) => {
-              setReceiverAddress(e.target.value)
-              setReceiverAddressError(null)
-              invalidateQrIfFormChanged()
-            }}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="0x…"
-          />
-          <TextCaption color="fgMuted" as="p">
-            {t("home.receiverHint")}
-          </TextCaption>
-          {receiverAddressError ? (
-            <TextCaption color="fgNegative" as="p">
-              {receiverAddressError}
-            </TextCaption>
-          ) : null}
-        </VStack>
-        <TextInput
-          compact
-          label={t("home.slugLabel")}
-          value={slug}
-          onChange={(e) => {
-            setSlug(e.target.value)
-            invalidateQrIfFormChanged()
-          }}
-          autoComplete="off"
-          spellCheck={false}
-          placeholder={t("home.slugPlaceholder")}
-          end={
-            <Box
-              display="flex"
-              alignItems="center"
-              paddingEnd={1}
-              flexShrink={0}
-            >
-              <IconButton
-                name="auto"
-                variant="foregroundMuted"
-                transparent
-                compact
-                type="button"
-                accessibilityLabel={t("home.generateRandom")}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleGenerateRandomSlug()
-                }}
-                disabled={isCreating}
-              />
-            </Box>
-          }
-        />
-
-        <Button
-          block
-          compact
-          variant="primary"
-          type="button"
-          onClick={handleCreatePaymentLink}
-          disabled={isCreating}
-          minHeight={48}
-          borderRadius={500}
         >
-          {isCreating
-            ? t("home.createLinkQrLoading")
-            : t("home.createLinkQr")}
-        </Button>
-
-        {createError ? (
-          <Box
-            bordered
-            borderRadius={400}
-            background="bgNegativeWash"
-            padding={3}
-          >
-            <TextBody color="fgNegative">{createError}</TextBody>
-          </Box>
-        ) : null}
+          {t("home.heroLine1")}
+          <br />
+          {t("home.heroLine2")}
+        </Box>
+        <TextTitle4 color="fgMuted" as="p" style={{ margin: 0 }}>
+          {t("home.heroSubhead")}
+        </TextTitle4>
       </VStack>
     </Box>
   )
 
-  const homeSteps = (
+  /** Carousel chrome for audience rows; cards use `MessagingCard` + `RemoteImage` media. */
+  const homeAudienceCarouselStyles = {
+    carousel: { gap: 16 },
+    carouselContainer: { minWidth: 0 },
+  } as const
+
+  const homeAudienceCreatorsCarousel = (
     <Box
       width="100%"
       minWidth={0}
@@ -501,109 +639,425 @@ export default function Home() {
         title={
           <Box flexGrow={1} minWidth={0} paddingEnd={2}>
             <TextTitle3 color="fg" as="h2">
-              {t("home.stepsTitle")}
+              {t("home.audienceCreatorsTitle")}
             </TextTitle3>
           </Box>
         }
-        styles={{
-          carousel: { gap: 16 },
-          carouselContainer: { minWidth: 0 },
-        }}
+        styles={homeAudienceCarouselStyles}
       >
-        {HOME_STEP_CARDS.map(({ id, step, titleKey, descriptionKey }) => (
-            <CarouselItem key={id} id={id}>
-              <MessagingCard
-                as="article"
-                type="nudge"
-                background="bgSecondary"
-                tag={<HomeStepNumberTag step={step} />}
-                title={t(titleKey)}
-                description={
-                  <TextBody as="p" color="fg">
-                    {t(descriptionKey)}
-                  </TextBody>
-                }
-                width={320}
-                mediaPlacement="end"
-                styles={{
-                  mediaContainer: {
-                    display: "none",
-                  },
-                  textContainer: {
-                    gap: 12,
-                  },
-                }}
-              />
-            </CarouselItem>
+        {HOME_CREATORS_CARDS.map((card) => (
+          <CarouselItem key={card.id} id={card.id}>
+            {renderHomeAudienceMessagingCard(card, t, "creators")}
+          </CarouselItem>
         ))}
       </Carousel>
     </Box>
   )
 
-  /** Wide: hero → form → steps (QR stays in the right column). */
-  const leftPaneDesktop = (
-    <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
-      {homeHero}
-      <HomeHorizontalRule />
-      {homeForm}
-      <HomeHorizontalRule />
-      {homeSteps}
-    </VStack>
-  )
-
-  const rightPanePaymentUrl = (
+  const homeAudienceSoftwareCarousel = (
     <Box
-      borderRadius={400}
-      background="bgSecondary"
-      padding={3}
       width="100%"
       minWidth={0}
-      flexShrink={0}
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
     >
-      <VStack gap={1} alignItems="stretch" minWidth={0}>
-        <TextTitle3 color="fg" as="p">
-          {t("home.paymentUrlTitle")}
-        </TextTitle3>
-        {!hasQr ? (
-          <TextBody color="fgMuted" as="p">
-            {t("home.paymentUrlEmpty")}
-          </TextBody>
-        ) : (
-          <HStack
-            gap={2}
-            alignItems="flex-start"
-            width="100%"
-            minWidth={0}
-          >
-            <Box
-              minWidth={0}
-              style={{
-                flex: "1 1 0%",
-                overflowWrap: "anywhere",
-                wordBreak: "break-word",
-              }}
-            >
-              <TextBody mono as="p" color="fg" style={{ margin: 0 }}>
-                {paymentUrl}
-              </TextBody>
-            </Box>
-            <Box flexShrink={0} display="flex" alignItems="center">
-              <IconButton
-                name="copy"
-                variant="foregroundMuted"
-                transparent
-                compact
-                type="button"
-                accessibilityLabel={t("home.copyPaymentUrl")}
-                onClick={copyPaymentUrl}
-              />
-            </Box>
-          </HStack>
-        )}
-      </VStack>
+      <Carousel
+        width="100%"
+        minWidth={0}
+        snapMode="item"
+        paginationVariant="dot"
+        title={
+          <Box flexGrow={1} minWidth={0} paddingEnd={2}>
+            <TextTitle3 color="fg" as="h2">
+              {t("home.audienceSoftwareTitle")}
+            </TextTitle3>
+          </Box>
+        }
+        styles={homeAudienceCarouselStyles}
+      >
+        {HOME_SOFTWARE_CARDS.map((card) => (
+          <CarouselItem key={card.id} id={card.id}>
+            {renderHomeAudienceMessagingCard(card, t, "software")}
+          </CarouselItem>
+        ))}
+      </Carousel>
     </Box>
   )
 
+  /** Match `bgSecondary` cards / Payment URL; no stroke until focus (CDS `focusedBorderWidth`). */
+  const homeFormTextInputSurface = {
+    bordered: false,
+    focusedBorderWidth: 100 as const,
+    inputBackground: "bgSecondary" as const,
+  } as const
+
+  const homeRailSegmentedControl = (
+    <SegmentedTabs<HomeRailTabId>
+      accessibilityLabel={t("home.railModeLabel")}
+      activeTab={activeTab}
+      onChange={handleRailTabsChange}
+      tabs={railTabs}
+      alignSelf="flex-start"
+      maxWidth="100%"
+    />
+  )
+
+  const homeRailFlowSelector = (
+    <HStack
+      gap={1}
+      alignItems="center"
+      alignSelf="flex-start"
+      borderRadius={500}
+      background="bgSecondary"
+      paddingY={2}
+      paddingX={3}
+      width="auto"
+      maxWidth="100%"
+    >
+      <TextLabel1 color="fg" as="span">
+        {t("home.flowOneTimePayment")}
+      </TextLabel1>
+      <Icon name="caretDown" size="s" color="fgMuted" />
+    </HStack>
+  )
+
+  const visuallyHidden: CSSProperties = {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clip: "rect(0, 0, 0, 0)",
+    whiteSpace: "nowrap",
+    border: 0,
+  }
+
+  const homeRailAmountHero = (
+    <Box
+      as="label"
+      htmlFor="home-rail-amount"
+      width="100%"
+      minWidth={0}
+      display="block"
+      position="relative"
+    >
+      <Box as="span" style={visuallyHidden}>
+        {t("home.amount")}
+      </Box>
+      <HStack
+        gap={3}
+        alignItems="center"
+        width="100%"
+        minWidth={0}
+        paddingY={2}
+      >
+        <Box position="relative" flexGrow={1} minWidth={0}>
+          <Box
+            as="input"
+            id="home-rail-amount"
+            value={amount}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              setAmount(e.target.value)
+              invalidateQrIfFormChanged()
+            }}
+            inputMode="decimal"
+            autoComplete="off"
+            style={{
+              display: "block",
+              width: "100%",
+              margin: 0,
+              padding: 0,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              fontFamily:
+                'CoinbaseSans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+              fontSize: "80px",
+              textAlign: "left",
+              color: "var(--color-fg)",
+              caretColor: "var(--color-fgPrimary)",
+              height: "68px",
+            }}
+          />
+        </Box>
+        <TextTitle3
+          as="span"
+          color="fgMuted"
+          style={{ flexShrink: 0, lineHeight: 1 }}
+        >
+          USD
+        </TextTitle3>
+      </HStack>
+    </Box>
+  )
+
+  const homeRailStackedFields = (
+    <VStack gap={4} alignItems="stretch" width="100%">
+      <TextInput
+        compact
+        {...homeFormTextInputSurface}
+        label={t("home.label")}
+        value={label}
+        onChange={(e) => {
+          setLabel(e.target.value)
+          invalidateQrIfFormChanged()
+        }}
+        autoComplete="off"
+      />
+      <VStack gap={1} alignItems="stretch">
+        <TextInput
+          compact
+          {...homeFormTextInputSurface}
+          label={t("home.getPaidAt")}
+          value={receiverAddress}
+          onChange={(e) => {
+            setReceiverAddress(e.target.value)
+            setReceiverAddressError(null)
+            invalidateQrIfFormChanged()
+          }}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="0x…"
+        />
+        <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+          {t("home.receiverHint")}
+        </TextCaption>
+        {receiverAddressError ? (
+          <TextCaption color="fgNegative" as="p" style={{ margin: 0 }}>
+            {receiverAddressError}
+          </TextCaption>
+        ) : null}
+      </VStack>
+      <TextInput
+        compact
+        {...homeFormTextInputSurface}
+        label={t("home.slugRailLabel")}
+        value={slug}
+        onChange={(e) => {
+          setSlug(e.target.value)
+          invalidateQrIfFormChanged()
+        }}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={t("home.slugPlaceholder")}
+        end={
+          <Box
+            display="flex"
+            alignItems="center"
+            paddingEnd={1}
+            flexShrink={0}
+          >
+            <IconButton
+              name="auto"
+              variant="foregroundMuted"
+              transparent
+              compact
+              type="button"
+              accessibilityLabel={t("home.generateRandom")}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleGenerateRandomSlug()
+              }}
+              disabled={isCreating}
+            />
+          </Box>
+        }
+      />
+    </VStack>
+  )
+
+  const homeFormSubmit = (
+    <VStack gap={2} alignItems="stretch" width="100%">
+      <Button
+        block
+        compact
+        variant="primary"
+        type="button"
+        onClick={handleCreatePaymentLink}
+        disabled={isCreating || !canCreateOnRail}
+        minHeight={48}
+        borderRadius={500}
+        title={
+          canCreateOnRail ? undefined : t("home.railCreateDisabledHint")
+        }
+      >
+        {isCreating
+          ? t("home.createLinkQrLoading")
+          : t("home.createLinkQr")}
+      </Button>
+      {createError ? (
+        <Box
+          bordered
+          borderRadius={400}
+          background="bgNegativeWash"
+          padding={3}
+        >
+          <TextBody color="fgNegative">{createError}</TextBody>
+        </Box>
+      ) : null}
+    </VStack>
+  )
+
+  const homeRailResultSection = hasQr ? (
+    <VStack gap={3} alignItems="stretch" width="100%">
+      <TextTitle4 color="fgMuted" as="p" style={{ margin: 0 }}>
+        {t("home.railResultHeading")}
+      </TextTitle4>
+      <Box display="flex" justifyContent="center" width="100%">
+        <QRCodeCanvas
+          ref={qrCanvasRef}
+          value={paymentUrl}
+          size={isWide ? 220 : 200}
+          marginSize={2}
+          bgColor="#ffffff"
+          fgColor="#000000"
+        />
+      </Box>
+      <Box
+        borderRadius={400}
+        background="bgSecondary"
+        padding={4}
+        width="100%"
+        minWidth={0}
+      >
+        <VStack gap={2} alignItems="stretch" width="100%" minWidth={0}>
+          <TextLabel1 color="fg" as="p" style={{ margin: 0 }}>
+            {t("home.paymentUrlTitle")}
+          </TextLabel1>
+          <Box
+            minWidth={0}
+            style={{
+              overflowWrap: "anywhere",
+              wordBreak: "break-word",
+            }}
+          >
+            <TextBody mono as="p" color="fg" style={{ margin: 0 }}>
+              {paymentUrl}
+            </TextBody>
+          </Box>
+        </VStack>
+      </Box>
+      <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+        <HomeLinkActionRow
+          iconName="copy"
+          label={t("home.copyPaymentUrl")}
+          onClick={copyPaymentUrl}
+        />
+        <HomeLinkActionRow
+          iconName="share"
+          label={t("home.share")}
+          onClick={sharePayment}
+        />
+        <HomeLinkActionRow
+          iconName="download"
+          label={t("home.download")}
+          onClick={downloadQr}
+        />
+      </VStack>
+    </VStack>
+  ) : null
+
+  const homeWhy402 = (
+    <Box
+      width="100%"
+      minWidth={0}
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+      paddingBottom={6}
+    >
+      <Box width="100%" maxWidth={680} minWidth={0}>
+        <VStack gap={6} alignItems="stretch" width="100%">
+          <VStack gap={3} alignItems="stretch" width="100%">
+            <TextTitle2
+              color="fg"
+              as="h2"
+              style={{ margin: 0, letterSpacing: "-0.02em" }}
+            >
+              {t("home.why402Heading")}
+            </TextTitle2>
+            <TextTitle4 color="fg" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+              {t("home.why402Tagline")}
+            </TextTitle4>
+          </VStack>
+          <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.6 }}>
+            {t("home.why402Lead")}
+          </TextBody>
+          <Box
+            as="ul"
+            margin={0}
+            paddingStart={4}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              listStyleType: "disc",
+            }}
+          >
+            {why402ExampleLines.map((line, i) => (
+              <Box as="li" key={i} style={{ margin: 0 }}>
+                <TextBody color="fgMuted" as="span" style={{ lineHeight: 1.55 }}>
+                  {line}
+                </TextBody>
+              </Box>
+            ))}
+          </Box>
+          <VStack gap={2} alignItems="stretch" width="100%">
+            <TextBody color="fg" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
+              {t("home.why402Built")}
+            </TextBody>
+            <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.6 }}>
+              {t("home.why402Closer")}
+            </TextBody>
+          </VStack>
+          <VStack gap={5} alignItems="stretch" width="100%">
+            <VStack gap={1} alignItems="stretch" width="100%">
+              <TextTitle3 color="fg" as="h3" style={{ margin: 0 }}>
+                {t("home.why402EverydayTitle")}
+              </TextTitle3>
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
+                {t("home.why402EverydayBody")}
+              </TextBody>
+            </VStack>
+            <VStack gap={1} alignItems="stretch" width="100%">
+              <TextTitle3 color="fg" as="h3" style={{ margin: 0 }}>
+                {t("home.why402CreatorTitle")}
+              </TextTitle3>
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
+                {t("home.why402CreatorBody")}
+              </TextBody>
+            </VStack>
+            <VStack gap={1} alignItems="stretch" width="100%">
+              <TextTitle3 color="fg" as="h3" style={{ margin: 0 }}>
+                {t("home.why402MachineTitle")}
+              </TextTitle3>
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
+                {t("home.why402MachineBody")}
+              </TextBody>
+            </VStack>
+          </VStack>
+        </VStack>
+      </Box>
+    </Box>
+  )
+
+  /** Wide: lead → audience carousels → “Why 402”; form + output live in the right column. */
+  const leftPaneDesktop = (
+    <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
+      {homeHeroLead}
+      <HomeHorizontalRule />
+      {homeAudienceCreatorsCarousel}
+      <HomeHorizontalRule />
+      {homeAudienceSoftwareCarousel}
+      <HomeHorizontalRule />
+      {homeWhy402}
+    </VStack>
+  )
+
+  /**
+   * Transaction rail: mode → flow → amount → fields → CTA; generated QR/URL/share
+   * live in `homeRailResultSection` below the CTA.
+   */
   const rightPane = (
     <Box
       display="flex"
@@ -613,62 +1067,16 @@ export default function Home() {
       minHeight={0}
       style={{ flex: "1 1 0%", minHeight: 0 }}
     >
-      <VStack gap={3} alignItems="center" width="100%" flexShrink={0}>
-        <Box display="flex" justifyContent="center" width="100%" padding={2}>
-          {!hasQr ? (
-            <Box
-              role="img"
-              aria-label={t("home.qrPreviewAria")}
-              style={{ lineHeight: 0 }}
-            >
-              <QRCodeCanvas
-                value="https://402.placeholder/preview"
-                size={220}
-                marginSize={2}
-                bgColor={ghostQrPalette[colorScheme].bg}
-                fgColor={ghostQrPalette[colorScheme].fg}
-              />
-            </Box>
-          ) : (
-            <QRCodeCanvas
-              ref={qrCanvasRef}
-              value={paymentUrl}
-              size={220}
-              marginSize={2}
-              bgColor="#ffffff"
-              fgColor="#000000"
-            />
-          )}
-        </Box>
-        <Box width="100%" maxWidth={350} alignSelf="center">
-          <VStack gap={2} alignItems="stretch" width="100%">
-            <Button
-              block
-              compact
-              variant="primary"
-              onClick={sharePayment}
-              disabled={!hasQr}
-              minHeight={48}
-              borderRadius={500}
-            >
-              {t("home.share")}
-            </Button>
-            <Button
-              block
-              compact
-              variant="secondary"
-              onClick={downloadQr}
-              disabled={!hasQr}
-              minHeight={48}
-              borderRadius={500}
-            >
-              {t("home.download")}
-            </Button>
-          </VStack>
-        </Box>
-      </VStack>
-      <Box style={{ flex: "1 1 auto", minHeight: 12 }} aria-hidden />
-      {rightPanePaymentUrl}
+      <Box width="100%" {...rightColumnInnerPad}>
+        <VStack gap={5} alignItems="stretch" width="100%">
+          {homeRailSegmentedControl}
+          {homeRailFlowSelector}
+          {homeRailAmountHero}
+          {homeRailStackedFields}
+          {homeFormSubmit}
+          {homeRailResultSection}
+        </VStack>
+      </Box>
     </Box>
   )
 
@@ -691,7 +1099,7 @@ export default function Home() {
         <Grid
           width="100%"
           minHeight={0}
-          templateColumns="minmax(0, 2fr) 1px minmax(0, 1fr)"
+          templateColumns={`minmax(0, ${GOLDEN_RATIO}fr) 1px minmax(0, 1fr)`}
           rows={1}
           alignItems="stretch"
           columnGap={0}
@@ -745,10 +1153,8 @@ export default function Home() {
               height="100%"
               minWidth={0}
               minHeight={0}
-              paddingStart={ruleGap}
-              paddingEnd={edgePad}
               paddingTop={padTop}
-              paddingBottom={padBottom}
+              paddingBottom={rightWorkflowPadBottom}
               display="flex"
               flexDirection="column"
               alignItems="stretch"
@@ -759,7 +1165,7 @@ export default function Home() {
                 top: DESKTOP_QR_STICKY_TOP_PX,
                 alignSelf: "start",
                 maxHeight: `calc(100dvh - ${DESKTOP_QR_STICKY_TOP_PX}px)`,
-                overflowY: "hidden",
+                overflowY: "auto",
               }}
             >
               {rightPane}
@@ -773,19 +1179,17 @@ export default function Home() {
           paddingBottom={padBottom}
         >
           <VStack gap={0} alignItems="stretch" width="100%">
-            {homeHero}
+            {homeHeroLead}
             <HomeHorizontalRule />
-            {homeForm}
+            {homeAudienceCreatorsCarousel}
             <HomeHorizontalRule />
-            <Box
-              width="100%"
-              paddingStart={contentPadStart}
-              paddingEnd={contentPadEnd}
-            >
+            {homeAudienceSoftwareCarousel}
+            <HomeHorizontalRule />
+            <Box width="100%" paddingBottom={rightWorkflowPadBottom}>
               {rightPane}
             </Box>
             <HomeHorizontalRule />
-            {homeSteps}
+            {homeWhy402}
           </VStack>
         </Box>
       )}

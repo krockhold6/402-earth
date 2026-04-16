@@ -4,7 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "predev": "npm --prefix worker run db:migrate:local",
+    "dev": "concurrently -k -n worker,vite -c cyan,green \"npm run worker:dev\" \"wait-on -t 60000 tcp:127.0.0.1:8787 && vite\"",
+    "db:migrate:local": "npm --prefix worker run db:migrate:local",
+    "dev:vite": "vite",
     "worker:dev": "npm run dev --prefix worker",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
@@ -27,12 +30,14 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.0",
-    "vite": "^8.0.4"
+    "vite": "^8.0.4",
+    "wait-on": "^9.0.5"
   }
 }

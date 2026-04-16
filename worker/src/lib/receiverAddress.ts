@@ -1,4 +1,5 @@
 import type { PaymentAttempt } from '../types/payment'
+import type { ResourceDefinition } from '../types/resource'
 
 /** Placeholder from migration 0004 for rows created before per-resource receivers. */
 export const LEGACY_PLACEHOLDER_RECEIVER =
@@ -22,6 +23,17 @@ export function resolveExpectedReceiver(
   }
   const g = env.PAYMENT_RECEIVER_ADDRESS?.trim()
   return g || null
+}
+
+/** Expected USDC recipient for a catalog resource (per-resource address or legacy env). */
+export function resolveExpectedReceiverForResource(
+  resource: Pick<ResourceDefinition, 'receiverAddress'>,
+  env: { PAYMENT_RECEIVER_ADDRESS?: string },
+): string | null {
+  return resolveExpectedReceiver(
+    { receiverAddress: resource.receiverAddress },
+    env,
+  )
 }
 
 export type ParseReceiverAddressResult =

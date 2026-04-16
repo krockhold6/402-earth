@@ -7,7 +7,10 @@ function mergeJsonHeaders(init?: ResponseInit): Headers {
   }
   h.set('access-control-allow-origin', ALLOWED_ORIGIN)
   h.set('access-control-allow-methods', 'GET, POST, OPTIONS')
-  h.set('access-control-allow-headers', 'content-type, x-402-client')
+  h.set(
+    'access-control-allow-headers',
+    'content-type, x-402-client, payment-signature, payment-required',
+  )
   return h
 }
 
