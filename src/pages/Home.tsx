@@ -15,6 +15,8 @@ import { Icon } from "@coinbase/cds-web/icons"
 import { RemoteImage } from "@coinbase/cds-web/media"
 import { createResource } from "@/lib/api"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
+import { useTheme } from "@coinbase/cds-web/hooks/useTheme"
+import { Interactable } from "@coinbase/cds-web/system/Interactable"
 import { Carousel, CarouselItem } from "@coinbase/cds-web/carousel"
 import { MessagingCard } from "@coinbase/cds-web/cards"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
@@ -342,7 +344,10 @@ function HomeHorizontalRule() {
   )
 }
 
-/** Full-width row: primary circular icon + label (wallet-style quick actions). */
+/**
+ * Coinbase-style list row: one `Interactable` control, primary icon disc + label,
+ * hover/press wash via `blendStyles` (same interaction model as mobile money actions).
+ */
 function HomeLinkActionRow({
   iconName,
   label,
@@ -352,48 +357,54 @@ function HomeLinkActionRow({
   label: string
   onClick: () => void
 }) {
+  const theme = useTheme()
   return (
-    <Box
-      as="button"
+    <Interactable
       type="button"
       onClick={onClick}
-      display="flex"
-      flexDirection="row"
-      alignItems="center"
-      gap={3}
-      width="100%"
-      minWidth={0}
+      block
+      borderRadius={400}
+      paddingX={3}
       paddingY={2}
-      background="transparent"
+      background="bg"
+      borderColor="bg"
+      borderWidth={0}
+      blendStyles={{
+        hoveredBackground: theme.color.bgSecondaryWash,
+        pressedBackground: theme.color.bgSecondary,
+        hoveredOpacity: 1,
+        pressedOpacity: 1,
+      }}
       style={{
         border: "none",
         margin: 0,
-        cursor: "pointer",
-        font: "inherit",
         textAlign: "start",
         WebkitTapHighlightColor: "transparent",
       }}
     >
-      <Box
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        flexShrink={0}
-        width={48}
-        height={48}
-        borderRadius={1000}
-        background="bgPrimary"
-      >
-        <Icon name={iconName} size="m" color="fgInverse" />
-      </Box>
-      <TextLabel1
-        as="span"
-        color="fg"
-        style={{ margin: 0, fontWeight: 700, textAlign: "start" }}
-      >
-        {label}
-      </TextLabel1>
-    </Box>
+      <HStack gap={3} alignItems="center" width="100%" minWidth={0}>
+        <Box
+          aria-hidden
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          flexShrink={0}
+          width={40}
+          height={40}
+          borderRadius={1000}
+          background="bgPrimary"
+        >
+          <Icon name={iconName} size="s" color="fgInverse" />
+        </Box>
+        <TextLabel1
+          as="span"
+          color="fg"
+          style={{ margin: 0, fontWeight: 700, textAlign: "start" }}
+        >
+          {label}
+        </TextLabel1>
+      </HStack>
+    </Interactable>
   )
 }
 

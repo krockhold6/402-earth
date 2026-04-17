@@ -70,27 +70,6 @@ function buildBaseUsdcEip681Link(resource: ApiResource): string | null {
   return `ethereum:${token.toLowerCase()}@${chainId}/transfer?address=${recv.toLowerCase()}&uint256=${minor}`
 }
 
-/**
- * MetaMask mobile deep link — see
- * https://docs.metamask.io/metamask-connect/evm/guides/metamask-exclusive/use-deeplinks/
- */
-function buildMetaMaskUsdcSendLink(resource: ApiResource): string | null {
-  const recv = resourceReceiver(resource)
-  const token = resource.usdcContractAddress?.trim()
-  if (!recv || !token) return null
-  if (resource.network.toLowerCase() !== "base") return null
-  if (resource.currency.toUpperCase() !== "USDC") return null
-  const minor = usdcAmountToUint256String(resource.amount)
-  if (!minor) return null
-  const chainId = 8453
-  const path = `${token.toLowerCase()}@${chainId}/transfer`
-  const q = new URLSearchParams({
-    address: recv.toLowerCase(),
-    uint256: minor,
-  })
-  return `https://link.metamask.io/send/${path}?${q.toString()}`
-}
-
 export default function Pay() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -253,26 +232,13 @@ export default function Pay() {
     [navigate, slug],
   )
 
-  const handlePayOnBase = async () => {
+  /** [EIP-681](https://eips.ethereum.org/EIPS/eip-681) — Base + USDC + amount + recipient; works with MetaMask, Coinbase Wallet, Base app, and other compatible wallets. */
+  const handlePayWithWallet = async () => {
     if (!canInteract || !resource) return
     setManualAdvancedOpen(false)
     const href = buildBaseUsdcEip681Link(resource)
     if (!href) {
       setAttemptError(t("pay.payBaseUnavailable"))
-      return
-    }
-    const id = await createAttempt()
-    if (!id) return
-    openPayUrlWithAttempt(id)
-    window.location.href = href
-  }
-
-  const handlePayOnMetaMask = async () => {
-    if (!canInteract || !resource) return
-    setManualAdvancedOpen(false)
-    const href = buildMetaMaskUsdcSendLink(resource)
-    if (!href) {
-      setAttemptError(t("pay.metaMaskUnavailable"))
       return
     }
     const id = await createAttempt()
@@ -402,10 +368,8 @@ export default function Pay() {
 
   const isDev = import.meta.env.DEV
 
-  const basePayHref =
+  const walletPayHref =
     resource != null ? buildBaseUsdcEip681Link(resource) : null
-  const metaMaskPayHref =
-    resource != null ? buildMetaMaskUsdcSendLink(resource) : null
 
   const showAdvancedOnlyPanel = manualAdvancedOpen && resource != null
 
@@ -636,32 +600,25 @@ export default function Pay() {
                       {t("pay.cardSoon")}
                     </TextCaption>
                     <Button
-                      variant="secondary"
-                      onClick={handlePayOnBase}
+                      variant="primary"
+                      onClick={handlePayWithWallet}
                       disabled={
                         !canInteract ||
                         isCreatingAttempt ||
-                        !basePayHref
-                      }
-                      block
-                    >
-                      {isCreatingAttempt ? t("pay.working") : t("pay.payOnBase")}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={handlePayOnMetaMask}
-                      disabled={
-                        !canInteract ||
-                        isCreatingAttempt ||
-                        !metaMaskPayHref
+                        !walletPayHref
                       }
                       block
                     >
                       {isCreatingAttempt
                         ? t("pay.working")
-                        : t("pay.payOnMetaMask")}
+                        : t("pay.payWithWallet")}
                     </Button>
-                    {!basePayHref && !metaMaskPayHref && resource ? (
+                    {walletPayHref ? (
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.payWithWalletHint")}
+                      </TextCaption>
+                    ) : null}
+                    {!walletPayHref && resource ? (
                       <TextCaption color="fgMuted" as="p">
                         {t("pay.walletLinksUnavailable")}
                       </TextCaption>

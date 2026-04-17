@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react"
 import { Box } from "@coinbase/cds-web/layout"
+import { PortalProvider } from "@coinbase/cds-web/overlays"
 import { MediaQueryProvider, ThemeProvider } from "@coinbase/cds-web/system"
 import { defaultTheme } from "@coinbase/cds-web/themes/defaultTheme"
 import {
@@ -63,14 +64,16 @@ export function CdsAppShell({ children }: { children: ReactNode }) {
         }}
       >
         <CdsColorSchemeContext.Provider value={value}>
-          <Box
-            display="flex"
-            flexDirection="column"
-            width="100%"
-            style={{ flex: "1 1 0%", minHeight: 0 }}
-          >
-            {children}
-          </Box>
+          <PortalProvider>
+            <Box
+              display="flex"
+              flexDirection="column"
+              width="100%"
+              style={{ flex: "1 1 0%", minHeight: 0 }}
+            >
+              {children}
+            </Box>
+          </PortalProvider>
         </CdsColorSchemeContext.Provider>
       </ThemeProvider>
     </MediaQueryProvider>

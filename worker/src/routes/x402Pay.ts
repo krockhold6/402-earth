@@ -23,6 +23,7 @@ type X402PayLogBranch =
   | 'malformed_signature'
   | 'missing_attempt_context'
   | 'verification_failed'
+  | 'verification_retryable_error'
   | 'verification_succeeded'
 
 function logX402PayBranch(
@@ -203,10 +204,29 @@ export async function handleX402Pay(
       )
     }
 
-    logX402PayBranch('verification_failed', {
-      slug: resource.slug,
-      httpStatus: settle.httpStatus,
-    })
+    const retryable =
+      settle.payload &&
+      typeof settle.payload === 'object' &&
+      !Array.isArray(settle.payload) &&
+      (settle.payload as Record<string, unknown>).retryable === true
+    if (retryable) {
+      logX402PayBranch('verification_retryable_error', {
+        slug: resource.slug,
+        httpStatus: settle.httpStatus,
+        attemptId: aid,
+        code: String((settle.payload as Record<string, unknown>).code ?? ''),
+        classification: String(
+          (settle.payload as Record<string, unknown>).classification ?? '',
+        ),
+      })
+    } else {
+      logX402PayBranch('verification_failed', {
+        slug: resource.slug,
+        httpStatus: settle.httpStatus,
+        attemptId: aid,
+        code: String((settle.payload as Record<string, unknown>).code ?? ''),
+      })
+    }
     return json(settle.payload, { status: settle.httpStatus })
   }
 

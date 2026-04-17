@@ -4,7 +4,11 @@ import {
   updateAttemptStatus,
 } from '../db/attempts'
 import { insertPaymentEvent } from '../db/events'
-import { mockVerifyEnabled, verifyWithFacilitator } from '../lib/facilitator'
+import {
+  mockVerifyEnabled,
+  verifyWithFacilitator,
+  type VerificationClassification,
+} from '../lib/facilitator'
 import { sha256HexUtf8 } from '../lib/hash'
 import { createEventId } from '../lib/ids'
 import { nowIso } from '../lib/time'
@@ -28,6 +32,26 @@ export type VerifySettleResult =
 
 function terminalUnpaid(status: PaymentAttemptStatus): boolean {
   return status === 'failed' || status === 'expired' || status === 'cancelled'
+}
+
+function logVerificationOutcome(input: {
+  source: string
+  classification: VerificationClassification
+  attemptId: string
+  txHash: string | undefined
+  code: string
+  shortReason: string
+}): void {
+  console.log(
+    JSON.stringify({
+      source: input.source,
+      verification_classification: input.classification,
+      attemptId: input.attemptId,
+      txHash: input.txHash ?? null,
+      code: input.code,
+      short_reason: input.shortReason.slice(0, 240),
+    }),
+  )
 }
 
 /**
@@ -123,22 +147,50 @@ export async function verifyAndSettlePaymentAttempt(
       return { kind: 'paid_idempotent', attemptId: attempt.id }
     }
 
-    const payload = {
+    const classification = verifyResult.classification
+    const payload: Record<string, unknown> = {
       ok: false,
       error: verifyResult.error,
-      code: verifyResult.code ?? null,
+      code: verifyResult.code,
       attemptId: attempt.id,
+      classification,
     }
+    if (classification === 'verification_retryable_error') {
+      payload.retryable = true
+    }
+
+    logVerificationOutcome({
+      source,
+      classification,
+      attemptId: attempt.id,
+      txHash: txHashRaw || undefined,
+      code: verifyResult.code,
+      shortReason: verifyResult.logReason ?? verifyResult.error,
+    })
+
+    const eventPayload: Record<string, unknown> = {
+      ...payload,
+      txHash: txHashRaw || undefined,
+      ...(verifyResult.logReason ? { logReason: verifyResult.logReason } : {}),
+    }
+
     await insertPaymentEvent(env.DB, {
       id: createEventId(),
       attemptId: attempt.id,
-      eventType: 'verification_failed',
+      eventType:
+        classification === 'verification_retryable_error'
+          ? 'verification_retryable_error'
+          : 'verification_failed',
       source,
-      payloadJson: JSON.stringify(payload),
+      payloadJson: JSON.stringify(eventPayload),
       createdAt: t,
     })
 
     if (verifyResult.code === 'FACILITATOR_NOT_CONFIGURED') {
+      return { kind: 'error', httpStatus: 503, payload }
+    }
+
+    if (classification === 'verification_retryable_error') {
       return { kind: 'error', httpStatus: 503, payload }
     }
 

@@ -4,7 +4,9 @@ import { Link } from "react-router-dom"
 import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Dropdown, MenuItem } from "@coinbase/cds-web/dropdown"
 import { useA11yControlledVisibility } from "@coinbase/cds-web/hooks/useA11yControlledVisibility"
+import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
+import { Tray } from "@coinbase/cds-web/overlays"
 import { PageHeader } from "@coinbase/cds-web/page/PageHeader"
 import { TextCaption } from "@coinbase/cds-web/typography"
 import { setAppLanguage } from "@/i18n/config"
@@ -55,10 +57,14 @@ const LANGUAGE_MENU_LABELS: Record<AppLocale, string> = {
   th: "ไทย",
 }
 
+const MOBILE_NAV_MAX = "(max-width: 959px)"
+
 export function AppNavbar() {
   const { t, i18n } = useTranslation()
+  const isCompactNav = useMediaQuery(MOBILE_NAV_MAX)
   const { colorScheme, toggleColorScheme } = useCdsColorScheme()
   const [translatorOpen, setTranslatorOpen] = useState(false)
+  const [appMenuOpen, setAppMenuOpen] = useState(false)
 
   const resolved = i18n.resolvedLanguage
   const activeLangCode: AppLocale = isAppLocale(i18n.language)
@@ -74,6 +80,14 @@ export function AppNavbar() {
   } = useA11yControlledVisibility(translatorOpen, {
     accessibilityLabel: t("nav.languageMenu"),
     hasPopupType: "menu",
+  })
+
+  const {
+    triggerAccessibilityProps: appMenuTriggerA11y,
+    controlledElementAccessibilityProps: appMenuControlledA11y,
+  } = useA11yControlledVisibility(appMenuOpen, {
+    accessibilityLabel: t("nav.openAppMenu"),
+    hasPopupType: "dialog",
   })
 
   const translatorContent = useMemo(
@@ -105,7 +119,7 @@ export function AppNavbar() {
       borderedBottom
       position="sticky"
       top={0}
-      zIndex={100}
+      zIndex={10000}
       width="100%"
       start={
         <HStack gap={2} alignItems="center">
@@ -119,55 +133,160 @@ export function AppNavbar() {
           >
             <EarthLogo />
           </Box>
-          <Dropdown
-            accessibilityLabel={t("nav.languageMenu")}
-            content={translatorContent}
-            contentPosition={{ placement: "bottom-start", gap: 1 }}
-            controlledElementAccessibilityProps={translatorControlledA11y}
-            maxHeight={320}
-            minWidth={200}
-            onChange={handleTranslatorChange}
-            onCloseMenu={() => setTranslatorOpen(false)}
-            onOpenMenu={() => setTranslatorOpen(true)}
-          >
-            <Box display="inline-flex" style={{ width: "auto" }}>
-              <Button
-                compact
-                variant="secondary"
-                borderRadius={500}
-                minWidth="auto"
-                paddingX={3}
-                type="button"
-                endIcon="caretDown"
-                accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
-                {...translatorTriggerA11y}
-              >
-                {activeLangLabel}
-              </Button>
-            </Box>
-          </Dropdown>
+          {!isCompactNav ? (
+            <Dropdown
+              accessibilityLabel={t("nav.languageMenu")}
+              content={translatorContent}
+              contentPosition={{ placement: "bottom-start", gap: 1 }}
+              controlledElementAccessibilityProps={translatorControlledA11y}
+              maxHeight={320}
+              minWidth={200}
+              onChange={handleTranslatorChange}
+              onCloseMenu={() => setTranslatorOpen(false)}
+              onOpenMenu={() => setTranslatorOpen(true)}
+            >
+              <Box display="inline-flex" style={{ width: "auto" }}>
+                <Button
+                  compact
+                  variant="secondary"
+                  borderRadius={500}
+                  minWidth="auto"
+                  paddingX={3}
+                  type="button"
+                  endIcon="caretDown"
+                  accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
+                  {...translatorTriggerA11y}
+                >
+                  {activeLangLabel}
+                </Button>
+              </Box>
+            </Dropdown>
+          ) : null}
         </HStack>
       }
       end={
         <HStack gap={2} alignItems="center">
-          <Button
-            as={Link}
-            to="/how-it-works"
-            compact
-            variant="secondary"
-            minWidth="auto"
-            paddingX={3}
-            type="button"
-          >
-            {t("nav.menuHowItWorks")}
-          </Button>
-          <IconButton
-            name={colorScheme === "light" ? "moon" : "sun"}
-            variant="secondary"
-            type="button"
-            accessibilityLabel={t("nav.menuTheme")}
-            onClick={toggleColorScheme}
-          />
+          {isCompactNav ? (
+            <>
+              <Box display="inline-flex">
+                <IconButton
+                  name="appSwitcher"
+                  variant="secondary"
+                  type="button"
+                  accessibilityLabel={t("nav.openAppMenu")}
+                  {...appMenuTriggerA11y}
+                  onClick={() => setAppMenuOpen(true)}
+                />
+              </Box>
+              {appMenuOpen ? (
+                <Tray
+                  accessibilityLabel={t("nav.appMenu")}
+                  id={appMenuControlledA11y.id}
+                  pin="right"
+                  title={t("nav.appMenu")}
+                  onCloseComplete={() => setAppMenuOpen(false)}
+                >
+                  {({ handleClose }) => (
+                    <VStack
+                      gap={2}
+                      paddingX={3}
+                      paddingY={2}
+                      width="100%"
+                      alignItems="stretch"
+                    >
+                      <Button
+                        as={Link}
+                        to="/how-it-works"
+                        variant="secondary"
+                        type="button"
+                        width="100%"
+                        onClick={handleClose}
+                      >
+                        {t("nav.menuHowItWorks")}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        type="button"
+                        width="100%"
+                        startIcon={
+                          colorScheme === "light" ? "moon" : "sun"
+                        }
+                        onClick={() => {
+                          toggleColorScheme()
+                        }}
+                      >
+                        {colorScheme === "light"
+                          ? t("nav.themeSwitchToDark")
+                          : t("nav.themeSwitchToLight")}
+                      </Button>
+                      <Box paddingTop={1} width="100%">
+                        <TextCaption color="fgMuted" paddingBottom={1}>
+                          {t("nav.languageMenu")}
+                        </TextCaption>
+                        <Dropdown
+                          accessibilityLabel={t("nav.languageMenu")}
+                          content={translatorContent}
+                          contentPosition={{
+                            placement: "bottom-start",
+                            gap: 1,
+                          }}
+                          controlledElementAccessibilityProps={
+                            translatorControlledA11y
+                          }
+                          maxHeight={320}
+                          minWidth={200}
+                          width="100%"
+                          onChange={(key: string) => {
+                            if (!isAppLocale(key) || key === activeLangCode)
+                              return
+                            handleTranslatorChange(key)
+                            handleClose()
+                          }}
+                          onCloseMenu={() => setTranslatorOpen(false)}
+                          onOpenMenu={() => setTranslatorOpen(true)}
+                        >
+                          <Box display="flex" width="100%">
+                            <Button
+                              compact
+                              variant="secondary"
+                              width="100%"
+                              type="button"
+                              endIcon="caretDown"
+                              accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
+                              {...translatorTriggerA11y}
+                            >
+                              {activeLangLabel}
+                            </Button>
+                          </Box>
+                        </Dropdown>
+                      </Box>
+                    </VStack>
+                  )}
+                </Tray>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Button
+                as={Link}
+                to="/how-it-works"
+                compact
+                variant="secondary"
+                minWidth="auto"
+                paddingX={3}
+                type="button"
+              >
+                {t("nav.menuHowItWorks")}
+              </Button>
+              <IconButton
+                name={colorScheme === "light" ? "moon" : "sun"}
+                variant="secondary"
+                type="button"
+                accessibilityLabel={t("nav.menuTheme")}
+                onClick={toggleColorScheme}
+              />
+            </>
+          )}
         </HStack>
       }
     />

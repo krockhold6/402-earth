@@ -3,6 +3,12 @@ import type { Env } from '../types/env'
 import type { PaymentAttempt } from '../types/payment'
 
 /** Outcome of x402 payment proof verification (facilitator or mock). */
+export type VerificationClassification =
+  | 'verification_succeeded'
+  | 'verification_terminal_failure'
+  | 'verification_retryable_error'
+
+/** Outcome of x402 payment proof verification (facilitator or mock). */
 export type VerificationResult =
   | {
       ok: true
@@ -13,7 +19,10 @@ export type VerificationResult =
   | {
       ok: false
       error: string
-      code?: string
+      code: string
+      classification: VerificationClassification
+      /** Short, log-safe detail (e.g. JSON-RPC hint). Never secrets. */
+      logReason?: string
     }
 
 /** Inputs for facilitator verification; stable contract for swapping implementations. */
@@ -71,6 +80,7 @@ function isTxHash(s: string): boolean {
 }
 
 type RpcReceipt = {
+  status?: string
   logs?: Array<{
     address?: string
     topics?: string[]
@@ -78,10 +88,20 @@ type RpcReceipt = {
   }>
 }
 
-async function fetchReceipt(
-  rpcUrl: string,
-  txHash: string,
-): Promise<{ ok: true; receipt: RpcReceipt | null } | { ok: false }> {
+const LOG_REASON_MAX = 160
+
+function truncateLogReason(s: string): string {
+  const t = s.trim()
+  if (t.length <= LOG_REASON_MAX) return t
+  return `${t.slice(0, LOG_REASON_MAX)}…`
+}
+
+type FetchReceiptResult =
+  | { outcome: 'ok'; receipt: RpcReceipt }
+  | { outcome: 'pending' }
+  | { outcome: 'rpc_error'; reason: string }
+
+async function fetchReceipt(rpcUrl: string, txHash: string): Promise<FetchReceiptResult> {
   try {
     const res = await fetch(rpcUrl, {
       method: 'POST',
@@ -93,15 +113,34 @@ async function fetchReceipt(
         id: 1,
       }),
     })
-    if (!res.ok) return { ok: false }
-    const body = (await res.json()) as {
-      result?: RpcReceipt | null
-      error?: { message?: string }
+    if (!res.ok) {
+      return { outcome: 'rpc_error', reason: `http_${res.status}` }
     }
-    if (body.error) return { ok: false }
-    return { ok: true, receipt: body.result ?? null }
+    let body: {
+      result?: RpcReceipt | null
+      error?: { message?: string; code?: number | string }
+    }
+    try {
+      body = (await res.json()) as typeof body
+    } catch {
+      return { outcome: 'rpc_error', reason: 'invalid_json_response' }
+    }
+    if (body.error) {
+      const msg =
+        typeof body.error.message === 'string' && body.error.message.trim()
+          ? body.error.message.trim()
+          : 'jsonrpc_error'
+      return { outcome: 'rpc_error', reason: truncateLogReason(msg) }
+    }
+    if (body.result === null || body.result === undefined) {
+      return { outcome: 'pending' }
+    }
+    if (typeof body.result !== 'object' || Array.isArray(body.result)) {
+      return { outcome: 'rpc_error', reason: 'unexpected_receipt_shape' }
+    }
+    return { outcome: 'ok', receipt: body.result as RpcReceipt }
   } catch {
-    return { ok: false }
+    return { outcome: 'rpc_error', reason: 'transport_error' }
   }
 }
 
@@ -166,6 +205,7 @@ export async function verifyWithFacilitator(
       error:
         'Base USDC verification is not configured. Set BASE_RPC_URL, ensure the payment attempt has a receiver address, or set PAYMENT_RECEIVER_ADDRESS for legacy resources; or use X402_MOCK_VERIFY=true for local mock only.',
       code: 'FACILITATOR_NOT_CONFIGURED',
+      classification: 'verification_terminal_failure',
     }
   }
 
@@ -175,41 +215,90 @@ export async function verifyWithFacilitator(
       ok: false,
       error: 'txHash is required for on-chain verification',
       code: 'TX_HASH_REQUIRED',
+      classification: 'verification_terminal_failure',
     }
   }
   if (!isTxHash(txHash)) {
-    return { ok: false, error: 'Invalid txHash', code: 'INVALID_TX_HASH' }
+    return {
+      ok: false,
+      error: 'Invalid txHash',
+      code: 'INVALID_TX_HASH',
+      classification: 'verification_terminal_failure',
+    }
   }
 
   if (input.attempt.currency.toUpperCase() !== 'USDC') {
-    return { ok: false, error: 'PAYMENT_NOT_FOUND', code: 'UNSUPPORTED_CURRENCY' }
+    return {
+      ok: false,
+      error: 'Currency on this attempt is not USDC; payment cannot be verified here',
+      code: 'UNSUPPORTED_CURRENCY',
+      classification: 'verification_terminal_failure',
+    }
   }
   if (input.attempt.network.toLowerCase() !== 'base') {
-    return { ok: false, error: 'PAYMENT_NOT_FOUND', code: 'UNSUPPORTED_NETWORK' }
+    return {
+      ok: false,
+      error: 'Network on this attempt is not Base; payment cannot be verified here',
+      code: 'UNSUPPORTED_NETWORK',
+      classification: 'verification_terminal_failure',
+    }
   }
 
   const expectedMinor = parseUsdcMinorUnits(input.attempt.amount)
   if (expectedMinor === null) {
-    return { ok: false, error: 'PAYMENT_NOT_FOUND', code: 'INVALID_AMOUNT' }
+    return {
+      ok: false,
+      error: 'Invalid stored amount on attempt',
+      code: 'INVALID_AMOUNT',
+      classification: 'verification_terminal_failure',
+    }
   }
 
   const receiptResult = await fetchReceipt(rpcUrl, txHash)
-  if (!receiptResult.ok) {
-    return { ok: false, error: 'RPC_ERROR' }
+  if (receiptResult.outcome === 'rpc_error') {
+    return {
+      ok: false,
+      error:
+        'RPC provider error while fetching the transaction receipt. Retry with the same PAYMENT-SIGNATURE shortly.',
+      code: 'VERIFICATION_RPC_ERROR',
+      classification: 'verification_retryable_error',
+      logReason: receiptResult.reason,
+    }
   }
-  if (receiptResult.receipt === null) {
-    return { ok: false, error: 'TX_NOT_FOUND' }
+  if (receiptResult.outcome === 'pending') {
+    return {
+      ok: false,
+      error:
+        'Transaction receipt not yet available from the RPC (pending or not indexed). Retry with the same PAYMENT-SIGNATURE shortly.',
+      code: 'VERIFICATION_TX_PENDING',
+      classification: 'verification_retryable_error',
+      logReason: 'receipt_null',
+    }
+  }
+
+  const receipt = receiptResult.receipt
+  const st = receipt.status !== undefined && receipt.status !== null
+    ? String(receipt.status).toLowerCase()
+    : null
+  if (st === '0x0' || st === '0') {
+    return {
+      ok: false,
+      error: 'Transaction failed on-chain (reverted); it does not prove USDC payment',
+      code: 'VERIFICATION_TX_REVERTED',
+      classification: 'verification_terminal_failure',
+    }
   }
 
   const receiverNorm = normalizeAddr(receiverRaw)
-  const match = verifyTransferLogs(
-    receiptResult.receipt,
-    USDC_BASE,
-    receiverNorm,
-    expectedMinor,
-  )
+  const match = verifyTransferLogs(receipt, USDC_BASE, receiverNorm, expectedMinor)
   if (!match) {
-    return { ok: false, error: 'PAYMENT_NOT_FOUND' }
+    return {
+      ok: false,
+      error:
+        'This transaction receipt does not contain a matching USDC transfer to the expected receiver for the required amount',
+      code: 'VERIFICATION_PAYMENT_NOT_FOUND',
+      classification: 'verification_terminal_failure',
+    }
   }
 
   return {
