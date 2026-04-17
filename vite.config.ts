@@ -14,11 +14,18 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: "github-pages-spa-fallback",
+      name: "spa-fallback-404-html",
+      apply: "build",
+      enforce: "post",
       closeBundle() {
         const indexHtml = path.resolve(__dirname, "dist/index.html")
-        if (base !== "/" && existsSync(indexHtml)) {
-          copyFileSync(indexHtml, path.resolve(__dirname, "dist/404.html"))
+        const notFoundHtml = path.resolve(__dirname, "dist/404.html")
+        // Copy shell for deep links / hard refresh on static hosts (GitHub Pages,
+        // Cloudflare Pages). Prefer this over a catch-all `_redirects` rule: Cloudflare
+        // applies those redirects even when a static file would match, which can
+        // rewrite `/assets/*.js` to `index.html` and break ES modules (MIME error).
+        if (existsSync(indexHtml)) {
+          copyFileSync(indexHtml, notFoundHtml)
         }
       },
     },
