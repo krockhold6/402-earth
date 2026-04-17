@@ -13,8 +13,17 @@ From repo root:
 | Command | Purpose |
 |--------|---------|
 | `npm run dev` | Vite dev server (proxies `/api` and `/x402` to `http://127.0.0.1:8787`) |
-| `npm run build` | Production bundle |
+| `npm run build` | Production bundle (`VITE_BASE_PATH` defaults to `/`) |
 | `npm run preview` | Preview production build locally |
+
+**Static host base path:** GitHub *project* Pages needs `/<repo>/` (e.g. `VITE_BASE_PATH=/402-earth/ npm run build`). The GitHub Actions workflow sets this automatically. For an apex site (e.g. 402.earth on Cloudflare Pages), build with `VITE_BASE_PATH=/` (or unset). `VITE_PUBLIC_BASE` is accepted as an alias for `VITE_BASE_PATH` at build time only.
+
+Verify a subpath build locally:
+
+```bash
+VITE_BASE_PATH=/402-earth/ npm run build && VITE_BASE_PATH=/402-earth/ npm run preview
+# open http://localhost:4173/402-earth/
+```
 
 Optional: `VITE_API_ORIGIN=https://api.402.earth npm run dev` — point the UI at the live API while developing locally.
 
@@ -58,7 +67,8 @@ SQL: `worker/seeds/demo_resource.sql` (slug `demo-001`). Requires the v3 migrati
 
 | Surface | How |
 |--------|-----|
-| **Frontend** (e.g. GitHub Pages / CI) | Push to `main` — your pipeline builds from `npm run build` (this repo: `git push origin main` if CI deploys on push). |
+| **Frontend** (GitHub Pages project URL) | Push to `main` — CI builds with `VITE_BASE_PATH=/<repo>/` so `https://<user>.github.io/<repo>/` loads assets correctly. |
+| **Frontend** (apex / custom domain, e.g. 402.earth) | Use a deploy whose build sets `VITE_BASE_PATH=/` (this repo’s GitHub Pages workflow is tuned for the project path only). |
 | **Worker + D1 binding** | From `worker/`: `npx wrangler deploy` (or `npm run deploy`). |
 
 Apply remote migrations / seeds when schema or catalog data changes in production.

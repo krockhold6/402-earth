@@ -3,8 +3,12 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-// GitHub project Pages URL is /<repo>/; set VITE_BASE_PATH in CI (e.g. /402-earth/).
-const rawBase = process.env.VITE_BASE_PATH ?? "/"
+// Public path for built assets (Vite `base`). Examples:
+// - Apex / custom domain at site root → "/" (e.g. Cloudflare Pages for 402.earth).
+// - GitHub project Pages → "/<repo>/" (e.g. /402-earth/ for krockhold6.github.io/402-earth/).
+// Set at build time: VITE_BASE_PATH (preferred) or VITE_PUBLIC_BASE (alias).
+const rawBase =
+  process.env.VITE_BASE_PATH ?? process.env.VITE_PUBLIC_BASE ?? "/"
 const base =
   rawBase === "/" ? "/" : rawBase.endsWith("/") ? rawBase : `${rawBase}/`
 

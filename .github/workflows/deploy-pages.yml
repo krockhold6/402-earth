@@ -25,12 +25,16 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      # Custom domain at site root (e.g. 402.earth) must use "/".
-      # For GitHub’s default URL only (user.github.io/repo-name/), set
-      # VITE_BASE_PATH: /repo-name/ in this workflow or via repo Variables.
+      # GitHub *project* Pages is served under /<repo>/ (e.g. …/402-earth/). The
+      # bundle must reference /402-earth/assets/… or the browser requests /assets/
+      # from the github.io host root and gets HTML/404 → stuck on "Loading…".
+      #
+      # Apex custom domain (e.g. 402.earth) is usually a *separate* deploy with
+      # VITE_BASE_PATH=/ (e.g. Cloudflare Pages env). Do not change this job to "/"
+      # unless this artifact is only ever served from the domain root.
       - run: npm run build
         env:
-          VITE_BASE_PATH: /
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
