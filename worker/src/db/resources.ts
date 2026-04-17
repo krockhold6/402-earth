@@ -10,6 +10,10 @@ function rowToResource(row: Record<string, unknown>): ResourceDefinition {
     receiverAddress: String(row.receiver_address),
     active: Number(row.active) === 1,
     unlockType: String(row.unlock_type),
+    unlockValue:
+      row.unlock_value != null && String(row.unlock_value) !== ''
+        ? String(row.unlock_value)
+        : null,
     contentType:
       row.content_type != null && row.content_type !== ''
         ? String(row.content_type)
@@ -30,7 +34,7 @@ export async function getResourceBySlug(
   const row = await db
     .prepare(
       `SELECT slug, label, amount, currency, network, receiver_address, active, unlock_type,
-              content_type, success_redirect_path, created_at, updated_at
+              unlock_value, content_type, success_redirect_path, created_at, updated_at
        FROM resource_definitions WHERE slug = ?`,
     )
     .bind(slug)
@@ -46,6 +50,7 @@ export type InsertResourceDefinitionInput = {
   network: string
   receiverAddress: string
   unlockType: string
+  unlockValue: string | null
   contentType: string | null
   successRedirectPath: string | null
   createdAt: string
@@ -60,8 +65,8 @@ export async function insertResourceDefinition(
     .prepare(
       `INSERT INTO resource_definitions (
         slug, label, amount, currency, network, receiver_address, active, unlock_type,
-        content_type, success_redirect_path, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+        unlock_value, content_type, success_redirect_path, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.slug,
@@ -71,6 +76,7 @@ export async function insertResourceDefinition(
       input.network,
       input.receiverAddress,
       input.unlockType,
+      input.unlockValue,
       input.contentType,
       input.successRedirectPath,
       input.createdAt,

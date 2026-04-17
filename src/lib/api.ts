@@ -20,6 +20,8 @@ export type ApiResource = {
   network: string
   active: boolean
   unlockType: string
+  /** Present on Worker responses when `unlock_value` is stored; never exposes the payload. */
+  hasPaidPayload?: boolean
   contentType: string | null
   successRedirectPath: string | null
   /** Lowercase Base USDC payee (`0x` + 40 hex); may be missing on very old responses. */

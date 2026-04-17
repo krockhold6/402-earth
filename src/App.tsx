@@ -2,6 +2,7 @@ import { Outlet, Route, Routes } from "react-router-dom"
 import { Box } from "@coinbase/cds-web/layout"
 import { AppNavbar } from "@/components/AppNavbar"
 import Home from "./pages/Home"
+import Demo from "./pages/Demo"
 import HowItWorks from "./pages/HowItWorks"
 import LegalDocumentPage from "./pages/LegalDocumentPage"
 import Pay from "./pages/Pay"
@@ -39,6 +40,7 @@ function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
+        <Route path="/demo" element={<Demo />} />
         <Route
           path="/terms"
           element={<LegalDocumentPage variant="terms" />}

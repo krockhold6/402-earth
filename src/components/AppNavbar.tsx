@@ -196,6 +196,16 @@ export function AppNavbar() {
                     >
                       <Button
                         as={Link}
+                        to="/demo"
+                        variant="secondary"
+                        type="button"
+                        width="100%"
+                        onClick={handleClose}
+                      >
+                        {t("nav.menuDemo")}
+                      </Button>
+                      <Button
+                        as={Link}
                         to="/how-it-works"
                         variant="secondary"
                         type="button"
@@ -267,6 +277,17 @@ export function AppNavbar() {
             </>
           ) : (
             <>
+              <Button
+                as={Link}
+                to="/demo"
+                compact
+                variant="secondary"
+                minWidth="auto"
+                paddingX={3}
+                type="button"
+              >
+                {t("nav.menuDemo")}
+              </Button>
               <Button
                 as={Link}
                 to="/how-it-works"

@@ -1,5 +1,5 @@
 -- Demo resource for Worker v3 manual tests (resource_definitions).
--- Requires migrations through 0004 applied on the target database.
+-- Requires migrations through 0005 applied on the target database.
 --
 -- Local:  npm run db:seed:local
 -- Remote: npm run db:seed:remote
@@ -13,6 +13,7 @@ INSERT OR REPLACE INTO resource_definitions (
   receiver_address,
   active,
   unlock_type,
+  unlock_value,
   content_type,
   success_redirect_path,
   created_at,
@@ -26,6 +27,7 @@ INSERT OR REPLACE INTO resource_definitions (
   '0x1111111111111111111111111111111111111111',
   1,
   'json',
+  '{"title":"Exclusive video - Production","kind":"video","deliveryUrl":"https://402.earth/demo/exclusive-video"}',
   NULL,
   '/success/demo-001',
   (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

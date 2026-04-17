@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from "react"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 import { QRCodeCanvas } from "qrcode.react"
 import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
@@ -598,7 +599,7 @@ export default function Home() {
     ? { paddingStart: ruleGap, paddingEnd: edgePad }
     : { paddingStart: edgePad, paddingEnd: edgePad }
 
-  /** Headline + subhead only; audience blocks sit below `HomeHorizontalRule` like `homeWhy402`. */
+  /** Headline only; audience blocks sit below `HomeHorizontalRule` like `homeWhy402`. */
   const homeHeroLead = (
     <Box
       width="100%"
@@ -616,16 +617,58 @@ export default function Home() {
             lineHeight: 1.05,
             letterSpacing: "-0.03em",
             margin: 0,
+            paddingBottom: 60,
           }}
         >
           {t("home.heroLine1")}
           <br />
           {t("home.heroLine2")}
         </Box>
-        <TextTitle4 color="fgMuted" as="p" style={{ margin: 0 }}>
-          {t("home.heroSubhead")}
-        </TextTitle4>
       </VStack>
+    </Box>
+  )
+
+  const homeDemoProofBand = (
+    <Box
+      width="100%"
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+      paddingBottom={{ base: 2, desktop: 3 }}
+    >
+      <Box
+        borderRadius={400}
+        background="bgSecondary"
+        padding={{ base: 4, desktop: 5 }}
+        width="100%"
+        maxWidth={680}
+      >
+        <HStack
+          justifyContent="space-between"
+          alignItems="center"
+          width="100%"
+          minWidth={0}
+          style={{ gap: "120px" }}
+        >
+          <Box minWidth={0} flexShrink={1} paddingEnd={3}>
+            <TextTitle4 color="fg" as="p" style={{ margin: 0, lineHeight: 1.35 }}>
+              {t("home.demoBandTitle")}
+            </TextTitle4>
+          </Box>
+          <Box flexShrink={0}>
+            <Button
+              as={Link}
+              to="/demo"
+              compact
+              variant="primary"
+              type="button"
+              borderRadius={500}
+              minHeight={44}
+            >
+              {t("home.demoBandCta")}
+            </Button>
+          </Box>
+        </HStack>
+      </Box>
     </Box>
   )
 
@@ -1056,6 +1099,7 @@ export default function Home() {
   const leftPaneDesktop = (
     <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
       {homeHeroLead}
+      {homeDemoProofBand}
       <HomeHorizontalRule />
       {homeAudienceCreatorsCarousel}
       <HomeHorizontalRule />
@@ -1191,6 +1235,7 @@ export default function Home() {
         >
           <VStack gap={0} alignItems="stretch" width="100%">
             {homeHeroLead}
+            {homeDemoProofBand}
             <HomeHorizontalRule />
             {homeAudienceCreatorsCarousel}
             <HomeHorizontalRule />

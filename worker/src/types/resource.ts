@@ -9,6 +9,8 @@ export interface ResourceDefinition {
   receiverAddress: string
   active: boolean
   unlockType: string
+  /** Stored delivery payload; returned only after verified payment on `/x402/pay/…`. */
+  unlockValue: string | null
   contentType: string | null
   successRedirectPath: string | null
   createdAt: string

@@ -6,6 +6,7 @@ import {
   readPaymentSignatureHeader,
   type ParsedPaymentSignature,
 } from '../lib/paymentHeaders'
+import { resolvePaidResourceDelivery } from '../lib/resourceDelivery'
 import {
   resolveExpectedReceiver,
   resolveExpectedReceiverForResource,
@@ -14,6 +15,7 @@ import { paymentRequiredResponse } from '../lib/x402'
 import { verifyAndSettlePaymentAttempt } from '../lib/x402VerificationFlow'
 import type { Env } from '../types/env'
 import type { PaymentAttempt } from '../types/payment'
+import type { ResourceDefinition } from '../types/resource'
 import { publicResourceDefinition } from './resource'
 
 const VERIFY_SOURCE = 'x402_pay_get'
@@ -77,23 +79,44 @@ function payeeMisconfiguredResponse(slug: string): Response {
   )
 }
 
-function paidSuccessBody(input: {
-  slug: string
+function paidSuccessOrError(input: {
+  resource: ResourceDefinition
   attempt: PaymentAttempt | null
   attemptIdInQuery: string | null
-}): Record<string, unknown> {
+}):
+  | { ok: true; body: Record<string, unknown> }
+  | { ok: false; body: Record<string, unknown>; status: number } {
+  const delivery = resolvePaidResourceDelivery(input.resource)
+  if (!delivery.ok) {
+    const errBody: Record<string, unknown> = {
+      ok: false,
+      error: delivery.message,
+      code: delivery.code,
+      slug: input.resource.slug,
+    }
+    if (input.attempt) {
+      errBody.attemptId = input.attempt.id
+    } else if (input.attemptIdInQuery) {
+      errBody.attemptId = input.attemptIdInQuery
+    }
+    return { ok: false, body: errBody, status: delivery.httpStatus }
+  }
+
   const body: Record<string, unknown> = {
     ok: true,
     status: 'paid' as const,
-    slug: input.slug,
-    resource: { type: 'unlock' as const, value: 'access_granted' as const },
+    slug: input.resource.slug,
+    resource: {
+      type: delivery.resourceType,
+      value: delivery.value,
+    },
   }
   if (input.attempt) {
     body.attemptId = input.attempt.id
   } else if (input.attemptIdInQuery) {
     body.attemptId = input.attemptIdInQuery
   }
-  return body
+  return { ok: true, body }
 }
 
 export async function handleX402Pay(
@@ -167,18 +190,17 @@ export async function handleX402Pay(
     }
 
     if (attempt.status === 'paid') {
+      const paid = paidSuccessOrError({
+        resource,
+        attempt,
+        attemptIdInQuery: aid,
+      })
       logX402PayBranch('verification_succeeded', {
         slug: resource.slug,
-        outcome: 'already_paid',
-        httpStatus: 200,
+        outcome: paid.ok ? 'already_paid' : 'delivery_error',
+        httpStatus: paid.ok ? 200 : paid.status,
       })
-      return json(
-        paidSuccessBody({
-          slug: resource.slug,
-          attempt,
-          attemptIdInQuery: aid,
-        }),
-      )
+      return json(paid.body, { status: paid.ok ? 200 : paid.status })
     }
 
     const settle = await verifyAndSettlePaymentAttempt(env, {
@@ -190,18 +212,17 @@ export async function handleX402Pay(
     })
 
     if (settle.kind === 'paid_idempotent' || settle.kind === 'settled') {
+      const paid = paidSuccessOrError({
+        resource,
+        attempt,
+        attemptIdInQuery: aid,
+      })
       logX402PayBranch('verification_succeeded', {
         slug: resource.slug,
-        outcome: settle.kind,
-        httpStatus: 200,
+        outcome: paid.ok ? settle.kind : 'delivery_error',
+        httpStatus: paid.ok ? 200 : paid.status,
       })
-      return json(
-        paidSuccessBody({
-          slug: resource.slug,
-          attempt,
-          attemptIdInQuery: aid,
-        }),
-      )
+      return json(paid.body, { status: paid.ok ? 200 : paid.status })
     }
 
     const retryable =
@@ -268,18 +289,17 @@ export async function handleX402Pay(
   }
 
   if (attempt.status === 'paid') {
+    const paid = paidSuccessOrError({
+      resource,
+      attempt,
+      attemptIdInQuery: attemptId,
+    })
     logX402PayBranch('verification_succeeded', {
       slug: resource.slug,
-      outcome: 'already_paid',
-      httpStatus: 200,
+      outcome: paid.ok ? 'already_paid' : 'delivery_error',
+      httpStatus: paid.ok ? 200 : paid.status,
     })
-    return json(
-      paidSuccessBody({
-        slug: resource.slug,
-        attempt,
-        attemptIdInQuery: attemptId,
-      }),
-    )
+    return json(paid.body, { status: paid.ok ? 200 : paid.status })
   }
 
   const payTo = resolveExpectedReceiver(attempt, env)
