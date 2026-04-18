@@ -79,3 +79,54 @@ body {
   flex-shrink: 0;
   animation: buy-flow-spin 0.75s linear infinite;
 }
+
+/* Tray theme toggle: CDS Button start-icon span defaults to flex-grow:1 (~147px); keep icon column 24px. */
+#root .app-nav-theme-toggle.cds-Button > span:first-child {
+  width: 24px;
+  flex-grow: 0;
+}
+
+/*
+ * Home “Pay, then receive…” demo CTA: stack title + button when the *card* is
+ * narrow (e.g. golden-ratio left column), not only when the viewport is small.
+ */
+#root .home-demo-proof-band {
+  container-type: inline-size;
+  container-name: home-demo-band;
+}
+
+#root .home-demo-proof-band__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4, 1rem);
+  width: 100%;
+  min-width: 0;
+}
+
+#root .home-demo-proof-band__row > *:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-inline-end: var(--space-3, 0.75rem);
+}
+
+#root .home-demo-proof-band__row > *:last-child {
+  flex-shrink: 0;
+}
+
+@container home-demo-band (max-width: 639px) {
+  #root .home-demo-proof-band__row {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  #root .home-demo-proof-band__row > *:first-child {
+    padding-inline-end: 0;
+  }
+
+  #root .home-demo-proof-band__row > *:last-child {
+    align-self: flex-start;
+  }
+}

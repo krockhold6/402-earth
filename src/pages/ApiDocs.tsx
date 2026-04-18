@@ -10,7 +10,9 @@ export default function ApiDocs() {
       style={{ flex: "1 1 0%", overflowY: "auto" }}
       background="bg"
       color="fg"
-      padding={{ base: 4, desktop: 6 }}
+      paddingTop={{ base: 4, desktop: 6 }}
+      paddingX={{ base: 4, desktop: 6 }}
+      paddingBottom={{ base: 8, desktop: 10 }}
     >
       <ApiDocsPanel variant="page" />
     </Box>

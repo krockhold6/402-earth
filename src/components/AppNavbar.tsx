@@ -204,6 +204,7 @@ export function AppNavbar() {
                       {t("nav.menuHowItWorks")}
                     </Button>
                     <Button
+                      className="app-nav-theme-toggle"
                       variant="secondary"
                       type="button"
                       width="100%"

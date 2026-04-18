@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
+import { Box, VStack } from "@coinbase/cds-web/layout"
 import {
   TextBody,
   TextCaption,
@@ -73,89 +73,108 @@ export function ApiDocsPanel({ variant = "page" }: ApiDocsPanelProps) {
   const gapSection = isRail ? 3 : 4
   const gapStep = isRail ? 2 : 2
 
+  const replacesTraditionalColumn = (
+    <VStack gap={2} alignItems="stretch" width="100%" minWidth={0}>
+      <TextTitle4 color="fgMuted" as="h4" style={{ margin: 0, fontSize: 13, lineHeight: 1.3 }}>
+        {t("api.replacesTraditional")}
+      </TextTitle4>
+      <Box
+        as="ul"
+        margin={0}
+        paddingStart={4}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          listStyleType: "disc",
+        }}
+      >
+        <Box as="li" style={{ margin: 0 }}>
+          <TextBody color="fgMuted" as="span" style={{ lineHeight: 1.5 }}>
+            {t("api.replacesTraditional1")}
+          </TextBody>
+        </Box>
+        <Box as="li" style={{ margin: 0 }}>
+          <TextBody color="fgMuted" as="span" style={{ lineHeight: 1.5 }}>
+            {t("api.replacesTraditional2")}
+          </TextBody>
+        </Box>
+        <Box as="li" style={{ margin: 0 }}>
+          <TextBody color="fgMuted" as="span" style={{ lineHeight: 1.5 }}>
+            {t("api.replacesTraditional3")}
+          </TextBody>
+        </Box>
+        <Box as="li" style={{ margin: 0 }}>
+          <TextBody color="fgMuted" as="span" style={{ lineHeight: 1.5 }}>
+            {t("api.replacesTraditional4")}
+          </TextBody>
+        </Box>
+      </Box>
+    </VStack>
+  )
+
+  const replaces402Column = (
+    <VStack gap={2} alignItems="stretch" width="100%" minWidth={0}>
+      <TextTitle4 color="fgMuted" as="h4" style={{ margin: 0, fontSize: 13, lineHeight: 1.3 }}>
+        {t("api.replaces402")}
+      </TextTitle4>
+      <Box
+        as="ul"
+        margin={0}
+        paddingStart={4}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          listStyleType: "disc",
+        }}
+      >
+        <Box as="li" style={{ margin: 0 }}>
+          <TextBody color="fg" as="span" style={{ lineHeight: 1.5 }}>
+            {t("api.replaces402_1")}
+          </TextBody>
+        </Box>
+        <Box as="li" style={{ margin: 0 }}>
+          <TextBody color="fg" as="span" style={{ lineHeight: 1.5 }}>
+            {t("api.replaces402_2")}
+          </TextBody>
+        </Box>
+        <Box as="li" style={{ margin: 0 }}>
+          <TextBody color="fg" as="span" style={{ lineHeight: 1.5 }}>
+            {t("api.replaces402_3")}
+          </TextBody>
+        </Box>
+      </Box>
+    </VStack>
+  )
+
   const replacesBlock = (
-    <Box width="100%" minWidth={0}>
-      <TextTitle4 color="fg" as="p" style={{ margin: "0 0 10px" }}>
+    <VStack gap={3} alignItems="stretch" width="100%" minWidth={0}>
+      <TextTitle4 color="fg" as="h3" style={{ margin: 0 }}>
         {t("api.replacesTitle")}
       </TextTitle4>
-      <HStack
-        gap={4}
-        alignItems="flex-start"
-        width="100%"
-        minWidth={0}
-        flexWrap="wrap"
-      >
-        <Box minWidth={0} style={{ flex: "1 1 140px", minWidth: 0 }}>
-          <TextCaption color="fgMuted" as="p" style={{ margin: "0 0 6px" }}>
-            {t("api.replacesTraditional")}
-          </TextCaption>
-          <Box
-            as="ul"
-            margin={0}
-            paddingStart={4}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              listStyleType: "disc",
-            }}
-          >
-            <Box as="li" style={{ margin: 0 }}>
-              <TextCaption color="fgMuted" as="span" style={{ lineHeight: 1.45 }}>
-                {t("api.replacesTraditional1")}
-              </TextCaption>
-            </Box>
-            <Box as="li" style={{ margin: 0 }}>
-              <TextCaption color="fgMuted" as="span" style={{ lineHeight: 1.45 }}>
-                {t("api.replacesTraditional2")}
-              </TextCaption>
-            </Box>
-            <Box as="li" style={{ margin: 0 }}>
-              <TextCaption color="fgMuted" as="span" style={{ lineHeight: 1.45 }}>
-                {t("api.replacesTraditional3")}
-              </TextCaption>
-            </Box>
-            <Box as="li" style={{ margin: 0 }}>
-              <TextCaption color="fgMuted" as="span" style={{ lineHeight: 1.45 }}>
-                {t("api.replacesTraditional4")}
-              </TextCaption>
-            </Box>
-          </Box>
+      {isRail ? (
+        <VStack gap={4} alignItems="stretch" width="100%" minWidth={0}>
+          {replacesTraditionalColumn}
+          {replaces402Column}
+        </VStack>
+      ) : (
+        <Box
+          width="100%"
+          minWidth={0}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+            columnGap: 28,
+            rowGap: 8,
+            alignItems: "start",
+          }}
+        >
+          {replacesTraditionalColumn}
+          {replaces402Column}
         </Box>
-        <Box minWidth={0} style={{ flex: "1 1 140px", minWidth: 0 }}>
-          <TextCaption color="fgMuted" as="p" style={{ margin: "0 0 6px" }}>
-            {t("api.replaces402")}
-          </TextCaption>
-          <Box
-            as="ul"
-            margin={0}
-            paddingStart={4}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              listStyleType: "disc",
-            }}
-          >
-            <Box as="li" style={{ margin: 0 }}>
-              <TextCaption color="fg" as="span" style={{ lineHeight: 1.45 }}>
-                {t("api.replaces402_1")}
-              </TextCaption>
-            </Box>
-            <Box as="li" style={{ margin: 0 }}>
-              <TextCaption color="fg" as="span" style={{ lineHeight: 1.45 }}>
-                {t("api.replaces402_2")}
-              </TextCaption>
-            </Box>
-            <Box as="li" style={{ margin: 0 }}>
-              <TextCaption color="fg" as="span" style={{ lineHeight: 1.45 }}>
-                {t("api.replaces402_3")}
-              </TextCaption>
-            </Box>
-          </Box>
-        </Box>
-      </HStack>
-    </Box>
+      )}
+    </VStack>
   )
 
   return (

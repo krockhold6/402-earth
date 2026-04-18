@@ -43,6 +43,17 @@ import i18n from "@/i18n/config"
 const HERO_AMOUNT_FONT_FAMILY =
   'CoinbaseSans, var(--defaultFont-sans, system-ui), system-ui, sans-serif'
 
+/** Icons for `home.why402Examples` lines (retail → … → machine). */
+const HOME_WHY402_EXAMPLE_ICONS = [
+  "shoppingCart",
+  "dinnerPlate",
+  "chainLink",
+  "qrCode",
+  "clock",
+  "api",
+  "robot",
+] as const satisfies readonly IconName[]
+
 function sanitizeHomeAmountInput(raw: string): string {
   let v = raw.replace(/[^\d.]/g, "")
   const firstDot = v.indexOf(".")
@@ -700,15 +711,10 @@ export default function Home() {
         padding={{ base: 4, desktop: 5 }}
         width="100%"
         maxWidth={680}
+        className="home-demo-proof-band"
       >
-        <HStack
-          justifyContent="space-between"
-          alignItems="center"
-          width="100%"
-          minWidth={0}
-          style={{ gap: "120px" }}
-        >
-          <Box minWidth={0} flexShrink={1} paddingEnd={3}>
+        <Box className="home-demo-proof-band__row">
+          <Box minWidth={0} flexShrink={1}>
             <TextTitle4 color="fg" as="p" style={{ margin: 0, lineHeight: 1.35 }}>
               {t("home.demoBandTitle")}
             </TextTitle4>
@@ -726,7 +732,7 @@ export default function Home() {
               {t("home.demoBandCta")}
             </Button>
           </Box>
-        </HStack>
+        </Box>
       </Box>
     </Box>
   )
@@ -1137,25 +1143,43 @@ export default function Home() {
           <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.6 }}>
             {t("home.why402Lead")}
           </TextBody>
-          <Box
+          <VStack
             as="ul"
+            gap={2}
+            alignItems="stretch"
+            width="100%"
             margin={0}
-            paddingStart={4}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              listStyleType: "disc",
-            }}
+            padding={0}
+            style={{ listStyle: "none" }}
           >
             {why402ExampleLines.map((line, i) => (
               <Box as="li" key={i} style={{ margin: 0 }}>
-                <TextBody color="fgMuted" as="span" style={{ lineHeight: 1.55 }}>
-                  {line}
-                </TextBody>
+                <Button
+                  as="div"
+                  compact
+                  transparent
+                  variant="secondary"
+                  block
+                  startIcon={HOME_WHY402_EXAMPLE_ICONS[i] ?? "circleCheckmark"}
+                  style={{
+                    justifyContent: "flex-start",
+                    textAlign: "start",
+                    height: "auto",
+                    minHeight: 44,
+                    whiteSpace: "normal",
+                  }}
+                >
+                  <TextBody
+                    color="fgMuted"
+                    as="span"
+                    style={{ lineHeight: 1.55, textAlign: "start" }}
+                  >
+                    {line}
+                  </TextBody>
+                </Button>
               </Box>
             ))}
-          </Box>
+          </VStack>
           <VStack gap={2} alignItems="stretch" width="100%">
             <TextBody color="fg" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
               {t("home.why402Built")}
@@ -1222,20 +1246,8 @@ export default function Home() {
       minHeight={0}
       style={{ flex: "1 1 0%", minHeight: 0 }}
     >
-      <Box width="100%" {...rightColumnInnerPad}>
+      <Box width="100%" paddingBottom={6} {...rightColumnInnerPad}>
         <VStack gap={5} alignItems="stretch" width="100%">
-          <TextCaption
-            color="fgMuted"
-            as="p"
-            style={{
-              margin: 0,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              fontSize: 11,
-            }}
-          >
-            {t("home.railPanelEyebrow")}
-          </TextCaption>
           {homeRailSegmentedControl}
           {activeTab.id === "sell" ? (
             <>
