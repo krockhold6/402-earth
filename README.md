@@ -18,6 +18,8 @@ From repo root:
 
 **Static hosting:** Default `base` is **`/`** so scripts load as **`/assets/…`** on apex and on **custom domains at site root** (e.g. `https://402.earth/pay/...` hard-refresh works). A relative base (`./`) breaks those routes because the browser resolves `./assets/…` under `/pay/…`. For the raw **GitHub project** URL (`https://<user>.github.io/<repo>/`), build with `VITE_BASE_PATH=/<repo>/ npm run build` so assets live under `/<repo>/assets/…`. React Router basename on `*.github.io` still comes from `src/lib/appUrl.ts`.
 
+**Public images / files in `public/`:** Use **`publicUrl()`** from `src/lib/publicUrl.ts` for URLs in React (Vite does not rewrite string literals; hardcoded `/img/…` misses the subpath when `base` is `/<repo>/`).
+
 After `npm run build && npm run preview`, open the printed `localhost` URL; routing matches production for apex-style URLs (`basename` is inferred only on `*.github.io`).
 
 Optional: `VITE_API_ORIGIN=https://api.402.earth npm run dev` — point the UI at the live API while developing locally.

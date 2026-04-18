@@ -15,6 +15,7 @@ import { TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
 import { RemoteImage } from "@coinbase/cds-web/media"
 import { createResource } from "@/lib/api"
+import { publicUrl } from "@/lib/publicUrl"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { useTheme } from "@coinbase/cds-web/hooks/useTheme"
 import { Interactable } from "@coinbase/cds-web/system/Interactable"
@@ -194,7 +195,7 @@ const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     titleKey: "home.creatorsCard1Title",
     descriptionKey: "home.creatorsCard1Description",
     tagKey: "home.creatorsCard1Tag",
-    imageSrc: "/img/home-audience-creator-sell-links.png",
+    imageSrc: publicUrl("img/home-audience-creator-sell-links.png"),
     imageObjectPosition: "center 18%",
   },
   {
@@ -202,7 +203,7 @@ const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     titleKey: "home.creatorsCard2Title",
     descriptionKey: "home.creatorsCard2Description",
     tagKey: "home.creatorsCard2Tag",
-    imageSrc: "/img/home-audience-creator-downloads.png",
+    imageSrc: publicUrl("img/home-audience-creator-downloads.png"),
     imageObjectPosition: "center 42%",
   },
   {
@@ -210,7 +211,7 @@ const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     titleKey: "home.creatorsCard3Title",
     descriptionKey: "home.creatorsCard3Description",
     tagKey: "home.creatorsCard3Tag",
-    imageSrc: "/img/home-audience-creator-content.png",
+    imageSrc: publicUrl("img/home-audience-creator-content.png"),
     imageObjectPosition: "center 22%",
   },
   {
@@ -218,7 +219,7 @@ const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     titleKey: "home.creatorsCard4Title",
     descriptionKey: "home.creatorsCard4Description",
     tagKey: "home.creatorsCard4Tag",
-    imageSrc: "/img/home-audience-creator-one-off-access.png",
+    imageSrc: publicUrl("img/home-audience-creator-one-off-access.png"),
     imageObjectPosition: "center 38%",
   },
   {
@@ -226,7 +227,7 @@ const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     titleKey: "home.creatorsCard5Title",
     descriptionKey: "home.creatorsCard5Description",
     tagKey: "home.creatorsCard5Tag",
-    imageSrc: "/img/home-audience-creator-social-drops.png",
+    imageSrc: publicUrl("img/home-audience-creator-social-drops.png"),
     imageObjectPosition: "center 38%",
   },
 ]
@@ -237,7 +238,7 @@ const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     titleKey: "home.softwareCard1Title",
     descriptionKey: "home.softwareCard1Description",
     tagKey: "home.softwareCard1Tag",
-    imageSrc: "/img/home-audience-software-monetize-api.png",
+    imageSrc: publicUrl("img/home-audience-software-monetize-api.png"),
     imageObjectPosition: "46% center",
   },
   {
@@ -245,7 +246,7 @@ const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     titleKey: "home.softwareCard2Title",
     descriptionKey: "home.softwareCard2Description",
     tagKey: "home.softwareCard2Tag",
-    imageSrc: "/img/home-audience-software-actions.png",
+    imageSrc: publicUrl("img/home-audience-software-actions.png"),
     imageObjectPosition: "center 44%",
   },
   {
@@ -253,7 +254,7 @@ const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     titleKey: "home.softwareCard3Title",
     descriptionKey: "home.softwareCard3Description",
     tagKey: "home.softwareCard3Tag",
-    imageSrc: "/img/home-audience-software-machine-readable.png",
+    imageSrc: publicUrl("img/home-audience-software-machine-readable.png"),
     imageObjectPosition: "center",
   },
 ]
