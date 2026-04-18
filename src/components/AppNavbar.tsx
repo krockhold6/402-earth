@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, useLocation } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Dropdown, MenuItem } from "@coinbase/cds-web/dropdown"
 import { useA11yControlledVisibility } from "@coinbase/cds-web/hooks/useA11yControlledVisibility"
@@ -61,7 +61,6 @@ const MOBILE_NAV_MAX = "(max-width: 959px)"
 
 export function AppNavbar() {
   const { t, i18n } = useTranslation()
-  const { pathname } = useLocation()
   const isCompactNav = useMediaQuery(MOBILE_NAV_MAX)
   const { colorScheme, toggleColorScheme } = useCdsColorScheme()
   const [translatorOpen, setTranslatorOpen] = useState(false)
@@ -74,9 +73,6 @@ export function AppNavbar() {
       ? resolved
       : "en"
   const activeLangLabel = LANGUAGE_MENU_LABELS[activeLangCode] ?? "English"
-
-  const pathSell = pathname === "/" || pathname === ""
-  const pathApi = pathname === "/api"
 
   const {
     triggerAccessibilityProps: translatorTriggerA11y,
@@ -138,33 +134,6 @@ export function AppNavbar() {
             <EarthLogo />
           </Box>
           {!isCompactNav ? (
-            <>
-              <Button
-                as={Link}
-                to="/"
-                compact
-                variant={pathSell ? "primary" : "secondary"}
-                minWidth="auto"
-                paddingX={3}
-                paddingStart={1}
-                type="button"
-              >
-                {t("nav.menuSell")}
-              </Button>
-              <Button
-                as={Link}
-                to="/api"
-                compact
-                variant={pathApi ? "primary" : "secondary"}
-                minWidth="auto"
-                paddingX={3}
-                type="button"
-              >
-                {t("nav.menuApi")}
-              </Button>
-            </>
-          ) : null}
-          {!isCompactNav ? (
             <Dropdown
               accessibilityLabel={t("nav.languageMenu")}
               content={translatorContent}
@@ -224,26 +193,6 @@ export function AppNavbar() {
                     width="100%"
                     alignItems="stretch"
                   >
-                    <Button
-                      as={Link}
-                      to="/"
-                      variant={pathSell ? "primary" : "secondary"}
-                      type="button"
-                      width="100%"
-                      onClick={handleClose}
-                    >
-                      {t("nav.menuSell")}
-                    </Button>
-                    <Button
-                      as={Link}
-                      to="/api"
-                      variant={pathApi ? "primary" : "secondary"}
-                      type="button"
-                      width="100%"
-                      onClick={handleClose}
-                    >
-                      {t("nav.menuApi")}
-                    </Button>
                     <Button
                       as={Link}
                       to="/how-it-works"
