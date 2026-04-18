@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+  "skills": [
+    {
+      "name": "402-earth-x402",
+      "type": "skill-md",
+      "description": "Use the 402.earth site and x402 payment APIs: resources, payment attempts, and verification.",
+      "url": "https://402.earth/.well-known/agent-skills/402-earth.skill.md",
+      "digest": "sha256:5dc5e1d72f0b34b51238e856214327dc437481bfd5f33ea1596e5252db393c9c"
+    }
+  ]
+}

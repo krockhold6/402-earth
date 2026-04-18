@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
+    "predeploy": "node ../scripts/generate-agent-discovery.mjs",
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply 402-earth-payments --local",
     "db:seed:local": "wrangler d1 execute 402-earth-payments --local --file=./seeds/demo_resource.sql",

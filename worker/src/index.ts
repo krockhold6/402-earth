@@ -9,6 +9,7 @@ import { handlePostPaymentAttempt } from './routes/paymentAttempt'
 import { handleGetPaymentAttemptById } from './routes/paymentAttemptById'
 import { handleX402Pay } from './routes/x402Pay'
 import { handleX402Verify } from './routes/x402Verify'
+import { tryDiscoveryRoutes } from './routes/discovery'
 import type { Env } from './types/env'
 
 export type { Env } from './types/env'
@@ -23,12 +24,15 @@ export default {
         status: 204,
         headers: {
           'access-control-allow-origin': corsAllowOrigin(req),
-          'access-control-allow-methods': 'GET, POST, OPTIONS',
+          'access-control-allow-methods': 'GET, HEAD, POST, OPTIONS',
           'access-control-allow-headers':
             'content-type, x-402-client, payment-signature, payment-required',
         },
       })
     }
+
+    const discovery = tryDiscoveryRoutes(req)
+    if (discovery) return withCors(req, discovery)
 
     let res: Response
 

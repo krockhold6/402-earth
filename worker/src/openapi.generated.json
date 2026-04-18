@@ -1,0 +1,220 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "402-earth payment API",
+    "version": "1.0.0",
+    "description": "HTTP APIs for x402 payment attempts, paid resource delivery, and resource configuration. Browser flows use https://402.earth; machine clients call this host."
+  },
+  "servers": [
+    {
+      "url": "https://api.402.earth"
+    }
+  ],
+  "paths": {
+    "/api/resource": {
+      "post": {
+        "summary": "Create or update a sellable resource",
+        "operationId": "postResource",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "label",
+                  "amount",
+                  "receiverAddress"
+                ],
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "string"
+                  },
+                  "receiverAddress": {
+                    "type": "string",
+                    "pattern": "^0x[a-fA-F0-9]{40}$"
+                  },
+                  "slug": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created or updated resource"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/api/resource/{slug}": {
+      "get": {
+        "summary": "Fetch public resource metadata",
+        "operationId": "getResource",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resource"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/payment-attempt": {
+      "post": {
+        "summary": "Create a payment attempt for a resource",
+        "operationId": "postPaymentAttempt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "clientType"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string"
+                  },
+                  "clientType": {
+                    "type": "string",
+                    "enum": [
+                      "browser",
+                      "agent",
+                      "api"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Attempt created"
+          }
+        }
+      }
+    },
+    "/api/payment-attempt/{id}": {
+      "get": {
+        "summary": "Get payment attempt by id",
+        "operationId": "getPaymentAttempt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attempt"
+          }
+        }
+      }
+    },
+    "/x402/pay/{slug}": {
+      "get": {
+        "summary": "Paywall / paid payload delivery for x402",
+        "operationId": "x402Pay",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attemptId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON payment or resource body"
+          }
+        }
+      }
+    },
+    "/x402/verify": {
+      "post": {
+        "summary": "Verify on-chain USDC payment for an attempt",
+        "operationId": "x402Verify",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "attemptId",
+                  "slug"
+                ],
+                "properties": {
+                  "attemptId": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "txHash": {
+                    "type": "string"
+                  },
+                  "paymentSignature": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification result"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Liveness / health",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

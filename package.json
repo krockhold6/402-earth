@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "predev": "npm --prefix worker run db:migrate:local",
+    "generate:agent-discovery": "node scripts/generate-agent-discovery.mjs",
+    "prebuild": "npm run generate:agent-discovery",
+    "predev": "npm run generate:agent-discovery && npm --prefix worker run db:migrate:local",
     "dev": "concurrently -k -n worker,vite -c cyan,green \"npm run worker:dev\" \"wait-on -t 60000 tcp:127.0.0.1:8787 && vite\"",
     "db:migrate:local": "npm --prefix worker run db:migrate:local",
     "dev:vite": "vite",

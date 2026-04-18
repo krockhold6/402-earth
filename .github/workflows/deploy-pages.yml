@@ -29,6 +29,9 @@ jobs:
       # at site root. To preview `https://<user>.github.io/<repo>/` locally, build with
       # `VITE_BASE_PATH=/<repo>/ npm run build` (assets must live under that subpath).
       - run: npm run build
+        env:
+          SITE_ORIGIN: https://402.earth
+          API_PUBLIC_ORIGIN: https://api.402.earth
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

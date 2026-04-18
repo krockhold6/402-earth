@@ -1,0 +1,25 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://api.402.earth/",
+      "service-desc": [
+        {
+          "href": "https://402.earth/openapi.json",
+          "type": "application/json"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://402.earth/api",
+          "type": "text/html"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://api.402.earth/health",
+          "type": "application/json"
+        }
+      ]
+    }
+  ]
+}

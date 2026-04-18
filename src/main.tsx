@@ -14,6 +14,9 @@ import { RootErrorBoundary } from "./RootErrorBoundary"
 import App from "./App"
 import "./index.css"
 import { appBasePath } from "@/lib/appUrl"
+import { registerWebMcpTools } from "@/webmcp/registerWebMcpTools"
+
+registerWebMcpTools()
 
 const routerPrefix = appBasePath()
 const routerBasename = routerPrefix === "" ? undefined : routerPrefix
