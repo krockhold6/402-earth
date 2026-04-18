@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -14,6 +15,8 @@ import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
 import { RemoteImage } from "@coinbase/cds-web/media"
+import { ApiDocsPanel } from "@/components/ApiDocsPanel"
+import { BuyFlowPanel } from "@/components/BuyFlowPanel"
 import { createResource } from "@/lib/api"
 import { publicUrl } from "@/lib/publicUrl"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
@@ -36,6 +39,30 @@ import {
   TextTitle4,
 } from "@coinbase/cds-web/typography"
 import i18n from "@/i18n/config"
+
+const HERO_AMOUNT_FONT_FAMILY =
+  'CoinbaseSans, var(--defaultFont-sans, system-ui), system-ui, sans-serif'
+
+function sanitizeHomeAmountInput(raw: string): string {
+  let v = raw.replace(/[^\d.]/g, "")
+  const firstDot = v.indexOf(".")
+  if (firstDot !== -1) {
+    v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, "")
+  }
+  if (v.startsWith(".")) v = `0${v}`
+  if (v === "") return "0"
+
+  const dot = v.indexOf(".")
+  const intRaw = dot === -1 ? v : v.slice(0, dot)
+  const fracRaw = dot === -1 ? undefined : v.slice(dot + 1)
+  let intPart = intRaw.replace(/^0+/, "")
+  if (intPart === "") intPart = "0"
+  if (fracRaw === undefined) return intPart
+
+  const frac = fracRaw.replace(/\D/g, "").slice(0, 6)
+  if (frac.length === 0) return `${intPart}.`
+  return `${intPart}.${frac}`
+}
 
 function validateCreatorReceiverAddress(raw: string):
   | { ok: true; normalized: string }
@@ -413,7 +440,7 @@ function HomeLinkActionRow({
 export default function Home() {
   const { t } = useTranslation()
   const isWide = useMediaQuery("(min-width: 960px)")
-  const [amount, setAmount] = useState("5.00")
+  const [amount, setAmount] = useState("0")
   const [label, setLabel] = useState("Exclusive video")
   /** Optional custom slug; empty means server generates on create. */
   const [slug, setSlug] = useState("")
@@ -481,6 +508,37 @@ export default function Home() {
     setPaymentUrl("")
     setCreateError(null)
   }, [])
+
+  const homeAmountDisplay = amount.trim() || "0"
+
+  const homeAmountDigitCount = useMemo(() => {
+    const m = homeAmountDisplay.match(/\d/g)
+    return Math.min(14, Math.max(1, m?.length ?? 1))
+  }, [homeAmountDisplay])
+
+  const homeRailHeroAmountFontPx = useMemo(
+    () =>
+      Math.max(
+        28,
+        Math.min(80, Math.round(82 / (1 + (homeAmountDigitCount - 1) * 0.11))),
+      ),
+    [homeAmountDigitCount],
+  )
+
+  const homeRailHeroUsdFontPx = useMemo(() => {
+    const ratio =
+      homeAmountDigitCount <= 2 ? 1 : homeAmountDigitCount <= 5 ? 0.93 : 0.82
+    return Math.round(homeRailHeroAmountFontPx * ratio)
+  }, [homeAmountDigitCount, homeRailHeroAmountFontPx])
+
+  const homeAmountMeasureRef = useRef<HTMLSpanElement>(null)
+  const [homeAmountInputWidthPx, setHomeAmountInputWidthPx] = useState(48)
+
+  useLayoutEffect(() => {
+    const el = homeAmountMeasureRef.current
+    if (!el) return
+    setHomeAmountInputWidthPx(Math.ceil(el.getBoundingClientRect().width) + 10)
+  }, [homeAmountDisplay, homeRailHeroAmountFontPx])
 
   const handleGenerateRandomSlug = useCallback(() => {
     const next = nextUniqueSlugFromLabel(
@@ -801,48 +859,89 @@ export default function Home() {
         {t("home.amount")}
       </Box>
       <HStack
-        gap={3}
-        alignItems="center"
+        gap={0}
+        alignItems="baseline"
         width="100%"
         minWidth={0}
         paddingY={2}
       >
-        <Box position="relative" flexGrow={1} minWidth={0}>
+        <Box
+          position="relative"
+          display="inline-flex"
+          alignItems="baseline"
+          minWidth={0}
+          maxWidth="calc(100% - 3.25rem)"
+          flexShrink={1}
+        >
+          <Box
+            as="span"
+            ref={homeAmountMeasureRef}
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              visibility: "hidden",
+              whiteSpace: "pre",
+              pointerEvents: "none",
+              fontFamily: HERO_AMOUNT_FONT_FAMILY,
+              fontSize: homeRailHeroAmountFontPx,
+              fontWeight: 400,
+              letterSpacing: "-0.03em",
+              lineHeight: 1,
+            }}
+          >
+            {homeAmountDisplay}
+          </Box>
           <Box
             as="input"
             id="home-rail-amount"
             value={amount}
             onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              setAmount(e.target.value)
+              setAmount(sanitizeHomeAmountInput(e.target.value))
               invalidateQrIfFormChanged()
             }}
             inputMode="decimal"
             autoComplete="off"
             style={{
               display: "block",
-              width: "100%",
+              width: homeAmountInputWidthPx,
+              maxWidth: "100%",
               margin: 0,
               padding: 0,
               border: "none",
               outline: "none",
               background: "transparent",
-              fontFamily:
-                'CoinbaseSans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
-              fontSize: "80px",
+              fontFamily: HERO_AMOUNT_FONT_FAMILY,
+              fontSize: homeRailHeroAmountFontPx,
+              fontWeight: 400,
+              letterSpacing: "-0.03em",
+              lineHeight: 1,
               textAlign: "left",
               color: "var(--color-fg)",
               caretColor: "var(--color-fgPrimary)",
-              height: "68px",
             }}
           />
         </Box>
-        <TextTitle3
+        <Box
           as="span"
-          color="fgMuted"
-          style={{ flexShrink: 0, lineHeight: 1 }}
+          aria-hidden
+          color="bgSecondary"
+          display="inline-block"
+          style={{
+            flexShrink: 0,
+            margin: 0,
+            padding: 0,
+            paddingLeft: "0.04em",
+            fontFamily: HERO_AMOUNT_FONT_FAMILY,
+            fontSize: homeRailHeroUsdFontPx,
+            fontWeight: 400,
+            letterSpacing: "-0.03em",
+            lineHeight: 1,
+          }}
         >
           USD
-        </TextTitle3>
+        </Box>
       </HStack>
     </Box>
   )
@@ -1126,11 +1225,19 @@ export default function Home() {
       <Box width="100%" {...rightColumnInnerPad}>
         <VStack gap={5} alignItems="stretch" width="100%">
           {homeRailSegmentedControl}
-          {homeRailFlowSelector}
-          {homeRailAmountHero}
-          {homeRailStackedFields}
-          {homeFormSubmit}
-          {homeRailResultSection}
+          {activeTab.id === "sell" ? (
+            <>
+              {homeRailFlowSelector}
+              {homeRailAmountHero}
+              {homeRailStackedFields}
+              {homeFormSubmit}
+              {homeRailResultSection}
+            </>
+          ) : activeTab.id === "buy" ? (
+            <BuyFlowPanel variant="rail" />
+          ) : activeTab.id === "api" ? (
+            <ApiDocsPanel variant="rail" />
+          ) : null}
         </VStack>
       </Box>
     </Box>

@@ -63,3 +63,19 @@ body {
   outline: 2px solid var(--color-fgPrimary);
   outline-offset: 2px;
 }
+
+@keyframes buy-flow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#root .buy-flow-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--color-fgMuted);
+  border-top-color: var(--color-fgPrimary);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: buy-flow-spin 0.75s linear infinite;
+}

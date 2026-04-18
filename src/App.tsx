@@ -5,6 +5,8 @@ import Home from "./pages/Home"
 import Demo from "./pages/Demo"
 import HowItWorks from "./pages/HowItWorks"
 import LegalDocumentPage from "./pages/LegalDocumentPage"
+import ApiDocs from "./pages/ApiDocs"
+import Buy from "./pages/Buy"
 import Pay from "./pages/Pay"
 import Success from "./pages/Success"
 
@@ -39,6 +41,8 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/buy" element={<Buy />} />
+        <Route path="/api" element={<ApiDocs />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/demo" element={<Demo />} />
         <Route

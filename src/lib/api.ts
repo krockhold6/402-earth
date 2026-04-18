@@ -175,6 +175,30 @@ export type VerifyX402Input = {
   paymentSignature?: string
 }
 
+/** Body from `GET /x402/pay/:slug?attemptId=…` after payment (or idempotent replay). */
+export type X402PaidResourceBody = {
+  ok: boolean
+  status?: string
+  slug?: string
+  attemptId?: string
+  resource?: { type: string; value: unknown }
+  error?: string
+  code?: string
+}
+
+export async function fetchPaidX402Resource(
+  slug: string,
+  attemptId: string,
+): Promise<{ response: Response; data: X402PaidResourceBody | null }> {
+  const res = await fetch(
+    apiUrl(
+      `/x402/pay/${encodeURIComponent(slug)}?attemptId=${encodeURIComponent(attemptId)}`,
+    ),
+  )
+  const data = (await res.json().catch(() => null)) as X402PaidResourceBody | null
+  return { response: res, data }
+}
+
 export async function verifyX402Payment(
   input: VerifyX402Input,
 ): Promise<{ response: Response; data: X402VerifyResponse | null }> {

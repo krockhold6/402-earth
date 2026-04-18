@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Dropdown, MenuItem } from "@coinbase/cds-web/dropdown"
 import { useA11yControlledVisibility } from "@coinbase/cds-web/hooks/useA11yControlledVisibility"
@@ -61,6 +61,7 @@ const MOBILE_NAV_MAX = "(max-width: 959px)"
 
 export function AppNavbar() {
   const { t, i18n } = useTranslation()
+  const { pathname } = useLocation()
   const isCompactNav = useMediaQuery(MOBILE_NAV_MAX)
   const { colorScheme, toggleColorScheme } = useCdsColorScheme()
   const [translatorOpen, setTranslatorOpen] = useState(false)
@@ -73,6 +74,9 @@ export function AppNavbar() {
       ? resolved
       : "en"
   const activeLangLabel = LANGUAGE_MENU_LABELS[activeLangCode] ?? "English"
+
+  const pathSell = pathname === "/" || pathname === ""
+  const pathApi = pathname === "/api"
 
   const {
     triggerAccessibilityProps: translatorTriggerA11y,
@@ -134,6 +138,33 @@ export function AppNavbar() {
             <EarthLogo />
           </Box>
           {!isCompactNav ? (
+            <>
+              <Button
+                as={Link}
+                to="/"
+                compact
+                variant={pathSell ? "primary" : "secondary"}
+                minWidth="auto"
+                paddingX={3}
+                paddingStart={1}
+                type="button"
+              >
+                {t("nav.menuSell")}
+              </Button>
+              <Button
+                as={Link}
+                to="/api"
+                compact
+                variant={pathApi ? "primary" : "secondary"}
+                minWidth="auto"
+                paddingX={3}
+                type="button"
+              >
+                {t("nav.menuApi")}
+              </Button>
+            </>
+          ) : null}
+          {!isCompactNav ? (
             <Dropdown
               accessibilityLabel={t("nav.languageMenu")}
               content={translatorContent}
@@ -165,140 +196,139 @@ export function AppNavbar() {
         </HStack>
       }
       end={
-        <HStack gap={2} alignItems="center">
-          {isCompactNav ? (
-            <>
-              <Box display="inline-flex">
-                <IconButton
-                  name="appSwitcher"
-                  variant="secondary"
-                  type="button"
-                  accessibilityLabel={t("nav.openAppMenu")}
-                  {...appMenuTriggerA11y}
-                  onClick={() => setAppMenuOpen(true)}
-                />
-              </Box>
-              {appMenuOpen ? (
-                <Tray
-                  accessibilityLabel={t("nav.appMenu")}
-                  id={appMenuControlledA11y.id}
-                  pin="right"
-                  title={t("nav.appMenu")}
-                  onCloseComplete={() => setAppMenuOpen(false)}
-                >
-                  {({ handleClose }) => (
-                    <VStack
-                      gap={2}
-                      paddingX={3}
-                      paddingY={2}
+        isCompactNav ? (
+          <>
+            <Box display="inline-flex">
+              <IconButton
+                name="appSwitcher"
+                variant="secondary"
+                type="button"
+                accessibilityLabel={t("nav.openAppMenu")}
+                {...appMenuTriggerA11y}
+                onClick={() => setAppMenuOpen(true)}
+              />
+            </Box>
+            {appMenuOpen ? (
+              <Tray
+                accessibilityLabel={t("nav.appMenu")}
+                id={appMenuControlledA11y.id}
+                pin="right"
+                title={t("nav.appMenu")}
+                onCloseComplete={() => setAppMenuOpen(false)}
+              >
+                {({ handleClose }) => (
+                  <VStack
+                    gap={2}
+                    paddingX={3}
+                    paddingY={2}
+                    width="100%"
+                    alignItems="stretch"
+                  >
+                    <Button
+                      as={Link}
+                      to="/"
+                      variant={pathSell ? "primary" : "secondary"}
+                      type="button"
                       width="100%"
-                      alignItems="stretch"
+                      onClick={handleClose}
                     >
-                      <Button
-                        as={Link}
-                        to="/demo"
-                        variant="secondary"
-                        type="button"
-                        width="100%"
-                        onClick={handleClose}
-                      >
-                        {t("nav.menuDemo")}
-                      </Button>
-                      <Button
-                        as={Link}
-                        to="/how-it-works"
-                        variant="secondary"
-                        type="button"
-                        width="100%"
-                        onClick={handleClose}
-                      >
-                        {t("nav.menuHowItWorks")}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        type="button"
-                        width="100%"
-                        startIcon={
-                          colorScheme === "light" ? "moon" : "sun"
-                        }
-                        onClick={() => {
-                          toggleColorScheme()
+                      {t("nav.menuSell")}
+                    </Button>
+                    <Button
+                      as={Link}
+                      to="/api"
+                      variant={pathApi ? "primary" : "secondary"}
+                      type="button"
+                      width="100%"
+                      onClick={handleClose}
+                    >
+                      {t("nav.menuApi")}
+                    </Button>
+                    <Button
+                      as={Link}
+                      to="/how-it-works"
+                      variant="secondary"
+                      type="button"
+                      width="100%"
+                      onClick={handleClose}
+                    >
+                      {t("nav.menuHowItWorks")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      width="100%"
+                      startIcon={
+                        colorScheme === "light" ? "moon" : "sun"
+                      }
+                      onClick={() => {
+                        toggleColorScheme()
+                      }}
+                    >
+                      {colorScheme === "light"
+                        ? t("nav.themeSwitchToDark")
+                        : t("nav.themeSwitchToLight")}
+                    </Button>
+                    <Box paddingTop={1} width="100%">
+                      <TextCaption color="fgMuted" paddingBottom={1}>
+                        {t("nav.languageMenu")}
+                      </TextCaption>
+                      <Dropdown
+                        accessibilityLabel={t("nav.languageMenu")}
+                        content={translatorContent}
+                        contentPosition={{
+                          placement: "bottom-start",
+                          gap: 1,
                         }}
+                        controlledElementAccessibilityProps={
+                          translatorControlledA11y
+                        }
+                        maxHeight={320}
+                        minWidth={200}
+                        width="100%"
+                        onChange={(key: string) => {
+                          if (!isAppLocale(key) || key === activeLangCode)
+                            return
+                          handleTranslatorChange(key)
+                          handleClose()
+                        }}
+                        onCloseMenu={() => setTranslatorOpen(false)}
+                        onOpenMenu={() => setTranslatorOpen(true)}
                       >
-                        {colorScheme === "light"
-                          ? t("nav.themeSwitchToDark")
-                          : t("nav.themeSwitchToLight")}
-                      </Button>
-                      <Box paddingTop={1} width="100%">
-                        <TextCaption color="fgMuted" paddingBottom={1}>
-                          {t("nav.languageMenu")}
-                        </TextCaption>
-                        <Dropdown
-                          accessibilityLabel={t("nav.languageMenu")}
-                          content={translatorContent}
-                          contentPosition={{
-                            placement: "bottom-start",
-                            gap: 1,
-                          }}
-                          controlledElementAccessibilityProps={
-                            translatorControlledA11y
-                          }
-                          maxHeight={320}
-                          minWidth={200}
-                          width="100%"
-                          onChange={(key: string) => {
-                            if (!isAppLocale(key) || key === activeLangCode)
-                              return
-                            handleTranslatorChange(key)
-                            handleClose()
-                          }}
-                          onCloseMenu={() => setTranslatorOpen(false)}
-                          onOpenMenu={() => setTranslatorOpen(true)}
-                        >
-                          <Box display="flex" width="100%">
-                            <Button
-                              compact
-                              variant="secondary"
-                              width="100%"
-                              type="button"
-                              endIcon="caretDown"
-                              accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
-                              {...translatorTriggerA11y}
-                            >
-                              {activeLangLabel}
-                            </Button>
-                          </Box>
-                        </Dropdown>
-                      </Box>
-                    </VStack>
-                  )}
-                </Tray>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <Button
-                as={Link}
-                to="/demo"
-                compact
-                variant="secondary"
-                minWidth="auto"
-                paddingX={3}
-                type="button"
-              >
-                {t("nav.menuDemo")}
-              </Button>
-              <Button
-                as={Link}
-                to="/how-it-works"
-                compact
-                variant="secondary"
-                minWidth="auto"
-                paddingX={3}
-                type="button"
-              >
-                {t("nav.menuHowItWorks")}
-              </Button>
+                        <Box display="flex" width="100%">
+                          <Button
+                            compact
+                            variant="secondary"
+                            width="100%"
+                            type="button"
+                            endIcon="caretDown"
+                            accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
+                            {...translatorTriggerA11y}
+                          >
+                            {activeLangLabel}
+                          </Button>
+                        </Box>
+                      </Dropdown>
+                    </Box>
+                  </VStack>
+                )}
+              </Tray>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Button
+              as={Link}
+              to="/how-it-works"
+              compact
+              variant="secondary"
+              minWidth="auto"
+              paddingX={3}
+              type="button"
+            >
+              {t("nav.menuHowItWorks")}
+            </Button>
+            <Box display="inline-flex" paddingStart={2}>
               <IconButton
                 name={colorScheme === "light" ? "moon" : "sun"}
                 variant="secondary"
@@ -306,9 +336,9 @@ export function AppNavbar() {
                 accessibilityLabel={t("nav.menuTheme")}
                 onClick={toggleColorScheme}
               />
-            </>
-          )}
-        </HStack>
+            </Box>
+          </>
+        )
       }
     />
   )
