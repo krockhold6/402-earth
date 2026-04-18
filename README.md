@@ -14,7 +14,7 @@ From repo root:
 |--------|---------|
 | `npm run dev` | Vite dev server (proxies `/api` and `/x402` to `http://127.0.0.1:8787`) |
 | `npm run build` | Production bundle (Vite `base` defaults to `/`; see `vite.config.ts`) |
-| `npm run preview` | Preview production build locally |
+| `npm run preview` | Preview production build at **`http://localhost:4173/`** (runs a build first if `dist/index.html` is missing). Port **4173** is fixed (`strictPort`); if you see “port already in use”, stop the other process (often a leftover `vite preview`) or run `lsof -i :4173`. |
 
 **Static hosting:** Default `base` is **`/`** so scripts load as **`/assets/…`** on apex and on **custom domains at site root** (e.g. `https://402.earth/pay/...` hard-refresh works). A relative base (`./`) breaks those routes because the browser resolves `./assets/…` under `/pay/…`. For the raw **GitHub project** URL (`https://<user>.github.io/<repo>/`), build with `VITE_BASE_PATH=/<repo>/ npm run build` so assets live under `/<repo>/assets/…`. React Router basename on `*.github.io` still comes from `src/lib/appUrl.ts`.
 

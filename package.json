@@ -11,6 +11,7 @@
     "worker:dev": "npm run dev --prefix worker",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "prepreview": "sh -c '[ -f dist/index.html ] || npm run build'",
     "preview": "vite preview",
     "locales:sync": "node scripts/sync-locale-keys.mjs",
     "agent:x402": "tsx scripts/agent-x402.ts",

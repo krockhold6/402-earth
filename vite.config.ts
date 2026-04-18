@@ -61,4 +61,10 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    port: 4173,
+    // If 4173 is taken, fail loudly instead of moving to 4174 (easy to open the wrong URL).
+    strictPort: true,
+    host: true,
+  },
 })
