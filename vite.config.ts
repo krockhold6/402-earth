@@ -3,11 +3,13 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-// Default `./` so one build works at both apex (402.earth/) and GitHub project Pages
-// (…/github.io/<repo>/): asset URLs stay relative to the loaded HTML. Router basename +
-// pay URLs use runtime detection in `src/lib/appUrl.ts` for *.github.io hosts.
+// Default `/` so script/CSS URLs are always `/assets/…` on apex (402.earth). A relative
+// base (`./`) breaks any non-root path: e.g. `/pay/x` resolves `./assets/index.js` to
+// `/pay/assets/…` (404 HTML → MIME error → stuck on index.html "Loading…").
 //
-// Override when needed: VITE_BASE_PATH or VITE_PUBLIC_BASE (e.g. `/` or `/402-earth/`).
+// GitHub **project** Pages (`…/github.io/<repo>/`) needs `VITE_BASE_PATH=/<repo>/`
+// (set in `.github/workflows/deploy-pages.yml`). Override with VITE_BASE_PATH or
+// VITE_PUBLIC_BASE when needed.
 function normalizeViteBase(raw: string): string {
   const t = raw.trim()
   if (t === "" || t === "/") return "/"
@@ -17,7 +19,7 @@ function normalizeViteBase(raw: string): string {
 }
 
 const rawBase =
-  process.env.VITE_BASE_PATH ?? process.env.VITE_PUBLIC_BASE ?? "./"
+  process.env.VITE_BASE_PATH ?? process.env.VITE_PUBLIC_BASE ?? "/"
 const base = normalizeViteBase(rawBase)
 
 // https://vite.dev/config/

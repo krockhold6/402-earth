@@ -13,10 +13,10 @@ From repo root:
 | Command | Purpose |
 |--------|---------|
 | `npm run dev` | Vite dev server (proxies `/api` and `/x402` to `http://127.0.0.1:8787`) |
-| `npm run build` | Production bundle (Vite `base` defaults to `./`; see `vite.config.ts`) |
+| `npm run build` | Production bundle (Vite `base` defaults to `/`; see `vite.config.ts`) |
 | `npm run preview` | Preview production build locally |
 
-**Static hosting:** The default build uses **relative asset URLs** (`base: './'`) so the **same** `dist/` works at both `https://<user>.github.io/<repo>/` and an apex domain like `https://402.earth/`. React Router’s basename and pay/QR URLs add the `/<repo>` segment automatically on `*.github.io` (see `src/lib/appUrl.ts`). You can still override with `VITE_BASE_PATH` or `VITE_PUBLIC_BASE` (e.g. force `/` for a root-only host).
+**Static hosting:** Default `base` is **`/`** so scripts load as **`/assets/…`** on apex and on **custom domains at site root** (e.g. `https://402.earth/pay/...` hard-refresh works). A relative base (`./`) breaks those routes because the browser resolves `./assets/…` under `/pay/…`. For the raw **GitHub project** URL (`https://<user>.github.io/<repo>/`), build with `VITE_BASE_PATH=/<repo>/ npm run build` so assets live under `/<repo>/assets/…`. React Router basename on `*.github.io` still comes from `src/lib/appUrl.ts`.
 
 After `npm run build && npm run preview`, open the printed `localhost` URL; routing matches production for apex-style URLs (`basename` is inferred only on `*.github.io`).
 
@@ -62,7 +62,7 @@ SQL: `worker/seeds/demo_resource.sql` (slug `demo-001`). Requires the v3 migrati
 
 | Surface | How |
 |--------|-----|
-| **Frontend** (GitHub Pages + apex) | Push to `main` — CI runs `npm run build` with default `./` base; one artifact for `https://<user>.github.io/<repo>/` and custom domains at `/`. |
+| **Frontend** (GitHub Pages + apex) | Push to `main` — CI runs `npm run build` with default `/` base (apex + custom domain at `/`). Raw `github.io/<user>/<repo>/` preview needs a subpath build (`VITE_BASE_PATH=/<repo>/`) if you rely on that URL. |
 | **Worker + D1 binding** | From `worker/`: `npx wrangler deploy` (or `npm run deploy`). |
 
 Apply remote migrations / seeds when schema or catalog data changes in production.

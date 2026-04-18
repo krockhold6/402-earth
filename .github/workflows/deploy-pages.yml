@@ -25,11 +25,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      # Default Vite base is `./` (see vite.config.ts): one artifact works at both
-      # https://<user>.github.io/<repo>/ and apex custom domains. Do not set
-      # VITE_BASE_PATH=/402-earth/ here unless that deploy is *only* for the
-      # github.io subpath—otherwise apex hosts will request /402-earth/assets/…
-      # and the app will not boot.
+      # Default Vite base is `/` (see vite.config.ts): correct for apex + custom domains
+      # at site root. To preview `https://<user>.github.io/<repo>/` locally, build with
+      # `VITE_BASE_PATH=/<repo>/ npm run build` (assets must live under that subpath).
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
