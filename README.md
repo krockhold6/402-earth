@@ -13,17 +13,12 @@ From repo root:
 | Command | Purpose |
 |--------|---------|
 | `npm run dev` | Vite dev server (proxies `/api` and `/x402` to `http://127.0.0.1:8787`) |
-| `npm run build` | Production bundle (`VITE_BASE_PATH` defaults to `/`) |
+| `npm run build` | Production bundle (Vite `base` defaults to `./`; see `vite.config.ts`) |
 | `npm run preview` | Preview production build locally |
 
-**Static host base path:** GitHub *project* Pages needs `/<repo>/` (e.g. `VITE_BASE_PATH=/402-earth/ npm run build`). The GitHub Actions workflow sets this automatically. For an apex site (e.g. 402.earth on Cloudflare Pages), build with `VITE_BASE_PATH=/` (or unset). `VITE_PUBLIC_BASE` is accepted as an alias for `VITE_BASE_PATH` at build time only.
+**Static hosting:** The default build uses **relative asset URLs** (`base: './'`) so the **same** `dist/` works at both `https://<user>.github.io/<repo>/` and an apex domain like `https://402.earth/`. React Router’s basename and pay/QR URLs add the `/<repo>` segment automatically on `*.github.io` (see `src/lib/appUrl.ts`). You can still override with `VITE_BASE_PATH` or `VITE_PUBLIC_BASE` (e.g. force `/` for a root-only host).
 
-Verify a subpath build locally:
-
-```bash
-VITE_BASE_PATH=/402-earth/ npm run build && VITE_BASE_PATH=/402-earth/ npm run preview
-# open http://localhost:4173/402-earth/
-```
+After `npm run build && npm run preview`, open the printed `localhost` URL; routing matches production for apex-style URLs (`basename` is inferred only on `*.github.io`).
 
 Optional: `VITE_API_ORIGIN=https://api.402.earth npm run dev` — point the UI at the live API while developing locally.
 
@@ -67,8 +62,7 @@ SQL: `worker/seeds/demo_resource.sql` (slug `demo-001`). Requires the v3 migrati
 
 | Surface | How |
 |--------|-----|
-| **Frontend** (GitHub Pages project URL) | Push to `main` — CI builds with `VITE_BASE_PATH=/<repo>/` so `https://<user>.github.io/<repo>/` loads assets correctly. |
-| **Frontend** (apex / custom domain, e.g. 402.earth) | Use a deploy whose build sets `VITE_BASE_PATH=/` (this repo’s GitHub Pages workflow is tuned for the project path only). |
+| **Frontend** (GitHub Pages + apex) | Push to `main` — CI runs `npm run build` with default `./` base; one artifact for `https://<user>.github.io/<repo>/` and custom domains at `/`. |
 | **Worker + D1 binding** | From `worker/`: `npx wrangler deploy` (or `npm run deploy`). |
 
 Apply remote migrations / seeds when schema or catalog data changes in production.

@@ -13,12 +13,10 @@ import { RootErrorBoundary } from "./RootErrorBoundary"
 
 import App from "./App"
 import "./index.css"
+import { appBasePath } from "@/lib/appUrl"
 
-const baseUrl =
-  typeof import.meta.env.BASE_URL === "string"
-    ? import.meta.env.BASE_URL
-    : "/"
-const routerBasename = baseUrl.replace(/\/$/, "") || undefined
+const routerPrefix = appBasePath()
+const routerBasename = routerPrefix === "" ? undefined : routerPrefix
 
 const rootEl = document.getElementById("root")
 if (!rootEl) {

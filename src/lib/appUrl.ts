@@ -1,11 +1,26 @@
 /**
- * Vite `base` without trailing slash, or "" when the app is served from the site root.
- * QR codes and shared links must include this so deep links work on GitHub Pages / subpaths.
+ * First URL path segment for GitHub **project** Pages (`<user>.github.io/<repo>/…`).
+ * Empty on apex hosts and during SSR. Keeps one `./` Vite build working on both.
+ */
+export function githubProjectPathPrefix(): string {
+  if (typeof window === "undefined") return ""
+  const { host, pathname } = window.location
+  if (!host.toLowerCase().endsWith(".github.io")) return ""
+  const segments = pathname.split("/").filter(Boolean)
+  if (segments.length < 1) return ""
+  return `/${segments[0]}`
+}
+
+/**
+ * Prefix for same-origin SPA paths (pay links, QR codes). Matches React Router basename
+ * when using Vite `base: './'`.
  */
 export function appBasePath(): string {
   const raw = import.meta.env.BASE_URL ?? "/"
-  if (raw === "/" || raw === "") return ""
-  return raw.replace(/\/$/, "")
+  if (raw !== "/" && raw !== "" && raw !== "./" && raw !== ".") {
+    return raw.replace(/\/$/, "")
+  }
+  return githubProjectPathPrefix()
 }
 
 /**

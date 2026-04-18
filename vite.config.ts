@@ -3,14 +3,22 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-// Public path for built assets (Vite `base`). Examples:
-// - Apex / custom domain at site root → "/" (e.g. Cloudflare Pages for 402.earth).
-// - GitHub project Pages → "/<repo>/" (e.g. /402-earth/ for krockhold6.github.io/402-earth/).
-// Set at build time: VITE_BASE_PATH (preferred) or VITE_PUBLIC_BASE (alias).
+// Default `./` so one build works at both apex (402.earth/) and GitHub project Pages
+// (…/github.io/<repo>/): asset URLs stay relative to the loaded HTML. Router basename +
+// pay URLs use runtime detection in `src/lib/appUrl.ts` for *.github.io hosts.
+//
+// Override when needed: VITE_BASE_PATH or VITE_PUBLIC_BASE (e.g. `/` or `/402-earth/`).
+function normalizeViteBase(raw: string): string {
+  const t = raw.trim()
+  if (t === "" || t === "/") return "/"
+  if (t === "." || t === "./") return "./"
+  const withSlash = t.endsWith("/") ? t : `${t}/`
+  return withSlash.startsWith("/") ? withSlash : `/${withSlash}`
+}
+
 const rawBase =
-  process.env.VITE_BASE_PATH ?? process.env.VITE_PUBLIC_BASE ?? "/"
-const base =
-  rawBase === "/" ? "/" : rawBase.endsWith("/") ? rawBase : `${rawBase}/`
+  process.env.VITE_BASE_PATH ?? process.env.VITE_PUBLIC_BASE ?? "./"
+const base = normalizeViteBase(rawBase)
 
 // https://vite.dev/config/
 export default defineConfig({
