@@ -373,7 +373,13 @@ export default function Pay() {
 
   const showAdvancedOnlyPanel = manualAdvancedOpen && resource != null
 
-  const showMethodSelector = loadState === "done" && !showResourceSkeleton
+  /** Primary wallet CTA only when we have a payable resource and no active attempt flow. */
+  const showWalletPrimarySection =
+    loadState === "done" &&
+    !showResourceSkeleton &&
+    resource != null &&
+    !attemptId &&
+    !manualAdvancedOpen
 
   const showAdvancedTxToggle =
     loadState === "done" && !showResourceSkeleton && !manualAdvancedOpen
@@ -503,7 +509,9 @@ export default function Pay() {
                 <Box
                   bordered
                   borderRadius={400}
-                  background="bgSecondary"
+                  background={
+                    resource && !showResourceError ? "bgElevation1" : "bgSecondary"
+                  }
                   padding={{ base: 3, desktop: 4 }}
                 >
                   <VStack gap={2} alignItems="stretch">
@@ -519,7 +527,16 @@ export default function Pay() {
                         background="bgNegativeWash"
                         padding={3}
                       >
-                        <TextBody color="fgNegative">{loadError}</TextBody>
+                        <VStack gap={2} alignItems="stretch">
+                          <TextBody color="fgNegative">{loadError}</TextBody>
+                          <Button
+                            variant="secondary"
+                            onClick={() => void load()}
+                            block
+                          >
+                            {t("pay.retryLoad")}
+                          </Button>
+                        </VStack>
                       </Box>
                     ) : resource ? (
                       <>
@@ -588,17 +605,8 @@ export default function Pay() {
                   </Box>
                 )}
 
-                {showMethodSelector ? (
-                  <VStack gap={2} alignItems="stretch">
-                    <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                      {t("pay.method")}
-                    </TextCaption>
-                    <Button variant="secondary" disabled block>
-                      {t("pay.payWithCard")}
-                    </Button>
-                    <TextCaption color="fgMuted" as="p">
-                      {t("pay.cardSoon")}
-                    </TextCaption>
+                {showWalletPrimarySection ? (
+                  <VStack gap={3} alignItems="stretch">
                     <Button
                       variant="primary"
                       onClick={handlePayWithWallet}
@@ -614,12 +622,12 @@ export default function Pay() {
                         : t("pay.payWithWallet")}
                     </Button>
                     {walletPayHref ? (
-                      <TextCaption color="fgMuted" as="p">
+                      <TextCaption color="fgMuted" textAlign="center" as="p">
                         {t("pay.payWithWalletHint")}
                       </TextCaption>
                     ) : null}
                     {!walletPayHref && resource ? (
-                      <TextCaption color="fgMuted" as="p">
+                      <TextCaption color="fgMuted" textAlign="center" as="p">
                         {t("pay.walletLinksUnavailable")}
                       </TextCaption>
                     ) : null}
@@ -789,12 +797,7 @@ export default function Pay() {
                 ) : null}
 
                 <TextCaption color="fgMuted" textAlign="center" as="p">
-                  <Trans
-                    i18nKey="pay.statusApiNote"
-                    components={{
-                      mono: <TextBody as="span" mono color="fgMuted" />,
-                    }}
-                  />
+                  {t("pay.statusApiNote")}
                 </TextCaption>
               </VStack>
             </ContentCardBody>
