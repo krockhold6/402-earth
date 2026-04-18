@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next"
-import { Box, VStack } from "@coinbase/cds-web/layout"
+import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
 import {
   TextBody,
   TextCaption,
   TextTitle2,
   TextTitle3,
+  TextTitle4,
 } from "@coinbase/cds-web/typography"
 
 export type ApiDocsPanelVariant = "page" | "rail"
@@ -19,7 +20,6 @@ function CodeBlock({
   return (
     <Box
       as="pre"
-      bordered
       borderRadius={300}
       background="bgSecondary"
       padding={compact ? 2 : 3}
@@ -32,6 +32,8 @@ function CodeBlock({
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
         whiteSpace: "pre-wrap",
         wordBreak: "break-word",
+        border: "none",
+        outline: "none",
       }}
     >
       {children}
@@ -60,7 +62,9 @@ export function ApiDocsPanel({ variant = "page" }: ApiDocsPanelProps) {
   "resource": {
     "type": "json",
     "value": {
-      "title": "Exclusive video"
+      "title": "Exclusive video",
+      "kind": "video",
+      "deliveryUrl": "https://402.earth/demo/exclusive-video"
     }
   }
 }`
@@ -68,6 +72,91 @@ export function ApiDocsPanel({ variant = "page" }: ApiDocsPanelProps) {
   const gapMain = isRail ? 4 : 5
   const gapSection = isRail ? 3 : 4
   const gapStep = isRail ? 2 : 2
+
+  const replacesBlock = (
+    <Box width="100%" minWidth={0}>
+      <TextTitle4 color="fg" as="p" style={{ margin: "0 0 10px" }}>
+        {t("api.replacesTitle")}
+      </TextTitle4>
+      <HStack
+        gap={4}
+        alignItems="flex-start"
+        width="100%"
+        minWidth={0}
+        flexWrap="wrap"
+      >
+        <Box minWidth={0} style={{ flex: "1 1 140px", minWidth: 0 }}>
+          <TextCaption color="fgMuted" as="p" style={{ margin: "0 0 6px" }}>
+            {t("api.replacesTraditional")}
+          </TextCaption>
+          <Box
+            as="ul"
+            margin={0}
+            paddingStart={4}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              listStyleType: "disc",
+            }}
+          >
+            <Box as="li" style={{ margin: 0 }}>
+              <TextCaption color="fgMuted" as="span" style={{ lineHeight: 1.45 }}>
+                {t("api.replacesTraditional1")}
+              </TextCaption>
+            </Box>
+            <Box as="li" style={{ margin: 0 }}>
+              <TextCaption color="fgMuted" as="span" style={{ lineHeight: 1.45 }}>
+                {t("api.replacesTraditional2")}
+              </TextCaption>
+            </Box>
+            <Box as="li" style={{ margin: 0 }}>
+              <TextCaption color="fgMuted" as="span" style={{ lineHeight: 1.45 }}>
+                {t("api.replacesTraditional3")}
+              </TextCaption>
+            </Box>
+            <Box as="li" style={{ margin: 0 }}>
+              <TextCaption color="fgMuted" as="span" style={{ lineHeight: 1.45 }}>
+                {t("api.replacesTraditional4")}
+              </TextCaption>
+            </Box>
+          </Box>
+        </Box>
+        <Box minWidth={0} style={{ flex: "1 1 140px", minWidth: 0 }}>
+          <TextCaption color="fgMuted" as="p" style={{ margin: "0 0 6px" }}>
+            {t("api.replaces402")}
+          </TextCaption>
+          <Box
+            as="ul"
+            margin={0}
+            paddingStart={4}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              listStyleType: "disc",
+            }}
+          >
+            <Box as="li" style={{ margin: 0 }}>
+              <TextCaption color="fg" as="span" style={{ lineHeight: 1.45 }}>
+                {t("api.replaces402_1")}
+              </TextCaption>
+            </Box>
+            <Box as="li" style={{ margin: 0 }}>
+              <TextCaption color="fg" as="span" style={{ lineHeight: 1.45 }}>
+                {t("api.replaces402_2")}
+              </TextCaption>
+            </Box>
+            <Box as="li" style={{ margin: 0 }}>
+              <TextCaption color="fg" as="span" style={{ lineHeight: 1.45 }}>
+                {t("api.replaces402_3")}
+              </TextCaption>
+            </Box>
+          </Box>
+        </Box>
+      </HStack>
+    </Box>
+  )
 
   return (
     <VStack
@@ -134,14 +223,41 @@ export function ApiDocsPanel({ variant = "page" }: ApiDocsPanelProps) {
           {t("api.resultTitle")}
         </TextTitle3>
         <CodeBlock compact={isRail}>{resultJson}</CodeBlock>
-        <TextBody
-          color="fg"
-          as="p"
-          style={{ margin: 0, fontWeight: 600, letterSpacing: "-0.02em" }}
+        <Box
+          borderRadius={400}
+          background="bgSecondary"
+          padding={isRail ? 3 : 4}
+          width="100%"
+          style={{ border: "none", outline: "none" }}
         >
-          {t("api.killerLine")}
-        </TextBody>
+          <VStack gap={2} alignItems="stretch" width="100%">
+            <TextTitle3
+              color="fg"
+              as="p"
+              style={{
+                margin: 0,
+                letterSpacing: "-0.03em",
+                lineHeight: 1.25,
+              }}
+            >
+              {t("api.killerLine")}
+            </TextTitle3>
+            <VStack gap={0} alignItems="stretch">
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+                {t("api.killerSub1")}
+              </TextBody>
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+                {t("api.killerSub2")}
+              </TextBody>
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+                {t("api.killerSub3")}
+              </TextBody>
+            </VStack>
+          </VStack>
+        </Box>
       </VStack>
+
+      {replacesBlock}
     </VStack>
   )
 }

@@ -1224,6 +1224,18 @@ export default function Home() {
     >
       <Box width="100%" {...rightColumnInnerPad}>
         <VStack gap={5} alignItems="stretch" width="100%">
+          <TextCaption
+            color="fgMuted"
+            as="p"
+            style={{
+              margin: 0,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              fontSize: 11,
+            }}
+          >
+            {t("home.railPanelEyebrow")}
+          </TextCaption>
           {homeRailSegmentedControl}
           {activeTab.id === "sell" ? (
             <>

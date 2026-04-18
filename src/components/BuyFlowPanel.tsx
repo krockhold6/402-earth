@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
 import {
@@ -14,6 +13,7 @@ import {
   TextCaption,
   TextTitle2,
   TextTitle3,
+  TextTitle4,
 } from "@coinbase/cds-web/typography"
 import {
   createPaymentAttempt,
@@ -25,7 +25,9 @@ import {
 
 const DEV_MOCK_SIGNATURE = "browser-mock-signature"
 
-type BuyFlowState = "idle" | "loading" | "loaded" | "paying" | "paid"
+type BuyFlowState = "idle" | "loading" | "loaded" | "paying" | "paid" | "error"
+
+type BuyErrorPhase = "load" | "pay"
 
 export type BuyFlowPanelVariant = "page" | "rail"
 
@@ -51,8 +53,23 @@ function extractSlugFrom402Input(raw: string): string | null {
   return slug || null
 }
 
+function paidPayloadForDisplay(type: string, value: unknown): unknown {
+  if (type.toLowerCase() === "json" && value !== null && typeof value === "object") {
+    return value
+  }
+  return value
+}
+
 function openPaidResource(type: string, value: unknown): void {
   const t = type.toLowerCase()
+  if (t === "json" && value !== null && typeof value === "object") {
+    const o = value as Record<string, unknown>
+    const url = o.deliveryUrl
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) {
+      window.open(url, "_blank", "noopener,noreferrer")
+      return
+    }
+  }
   if (t === "link" && typeof value === "string") {
     window.open(value, "_blank", "noopener,noreferrer")
     return
@@ -82,28 +99,43 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
   const isRail = variant === "rail"
   const [paste, setPaste] = useState("")
   const [state, setState] = useState<BuyFlowState>("idle")
+  const [errorPhase, setErrorPhase] = useState<BuyErrorPhase | null>(null)
+  const [errorMessage, setErrorMessage] = useState("")
   const [slug, setSlug] = useState<string | null>(null)
   const [resource, setResource] = useState<ApiResource | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [payError, setPayError] = useState<string | null>(null)
   const [paidValue, setPaidValue] = useState<unknown>(null)
   const [paidType, setPaidType] = useState<string>("json")
 
-  const resetErrors = useCallback(() => {
-    setLoadError(null)
-    setPayError(null)
+  const clearErrors = useCallback(() => {
+    setErrorPhase(null)
+    setErrorMessage("")
   }, [])
 
+  const setFlowError = useCallback((phase: BuyErrorPhase, message: string) => {
+    setErrorPhase(phase)
+    setErrorMessage(message)
+    setState("error")
+  }, [])
+
+  const resetToIdle = useCallback(() => {
+    clearErrors()
+    setState("idle")
+    setSlug(null)
+    setResource(null)
+    setPaidValue(null)
+    setPaidType("json")
+    setPaste("")
+  }, [clearErrors])
+
   const handleLoad = useCallback(async () => {
-    resetErrors()
+    clearErrors()
     const s = extractSlugFrom402Input(paste)
     if (!s) {
-      setLoadError(t("buy.slugInvalid"))
-      setState("idle")
       setResource(null)
       setSlug(null)
       setPaidValue(null)
       setPaidType("json")
+      setFlowError("load", t("buy.slugInvalid"))
       return
     }
 
@@ -111,12 +143,12 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     setResource(null)
     setSlug(s)
     setPaidValue(null)
+    setPaidType("json")
 
     try {
       const data = await fetchResource(s)
       if (!data.ok || !data.resource) {
-        setLoadError(data.error?.trim() || t("buy.loadFailed"))
-        setState("idle")
+        setFlowError("load", data.error?.trim() || t("buy.loadFailed"))
         setResource(null)
         setSlug(null)
         return
@@ -124,16 +156,15 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
       setResource(data.resource)
       setState("loaded")
     } catch {
-      setLoadError(t("buy.loadFailed"))
-      setState("idle")
+      setFlowError("load", t("buy.loadFailed"))
       setResource(null)
       setSlug(null)
     }
-  }, [paste, resetErrors, t])
+  }, [clearErrors, paste, setFlowError, t])
 
   const handlePay = useCallback(async () => {
     if (!slug || !resource) return
-    resetErrors()
+    clearErrors()
     setState("paying")
 
     try {
@@ -203,15 +234,19 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
       setState("paid")
     } catch (err) {
       const message = err instanceof Error ? err.message : t("buy.payFailed")
-      setPayError(message)
-      setState("loaded")
+      setFlowError("pay", message)
     }
-  }, [resource, resetErrors, slug, t])
+  }, [clearErrors, resource, setFlowError, slug, t])
 
-  const payPath =
-    slug != null
-      ? `/pay/${encodeURIComponent(slug)}`
-      : "/pay/"
+  const handleRetry = useCallback(() => {
+    if (errorPhase === "load") {
+      void handleLoad()
+      return
+    }
+    if (errorPhase === "pay") {
+      void handlePay()
+    }
+  }, [errorPhase, handleLoad, handlePay])
 
   const preMaxHeight = isRail ? 220 : 360
 
@@ -226,19 +261,25 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         onChange={(e) => setPaste(e.target.value)}
         autoComplete="off"
       />
-      <HStack gap={2} alignItems="center" justifyContent="flex-end">
-        {state === "loading" ? (
-          <Box className="buy-flow-spinner" aria-hidden />
-        ) : null}
-        <Button
-          type="button"
-          variant="primary"
-          onClick={() => void handleLoad()}
-          disabled={state === "loading"}
+      <Button
+        type="button"
+        variant="primary"
+        onClick={() => void handleLoad()}
+        disabled={state === "loading"}
+        block
+      >
+        <HStack
+          gap={2}
+          alignItems="center"
+          justifyContent="center"
+          width="100%"
         >
+          {state === "loading" ? (
+            <Box className="buy-flow-spinner" aria-hidden />
+          ) : null}
           {t("buy.load")}
-        </Button>
-      </HStack>
+        </HStack>
+      </Button>
     </VStack>
   ) : (
     <ContentCard>
@@ -271,6 +312,141 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     </ContentCard>
   )
 
+  const errorBlock =
+    state === "error" && errorPhase && errorMessage ? (
+      <Box
+        bordered
+        borderRadius={400}
+        background="bgSecondary"
+        padding={4}
+        width="100%"
+      >
+        <VStack gap={3} alignItems="stretch" width="100%">
+          <TextBody color="fgNegative" as="p" style={{ margin: 0 }}>
+            {errorMessage}
+          </TextBody>
+          {errorPhase === "pay" && resource ? (
+            <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+              {resource.label}
+            </TextCaption>
+          ) : null}
+          <HStack gap={2} alignItems="center" flexWrap="wrap">
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => void handleRetry()}
+              block={isRail}
+            >
+              {t("buy.errorRetry")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={resetToIdle}
+              block={isRail}
+            >
+              {t("buy.errorStartOver")}
+            </Button>
+          </HStack>
+        </VStack>
+      </Box>
+    ) : null
+
+  const previewCard =
+    state === "loaded" || state === "paying" ? (
+      <ContentCard>
+        <ContentCardHeader
+          title={
+            <TextTitle3 color="fg">{resource?.label ?? ""}</TextTitle3>
+          }
+        />
+        <ContentCardBody>
+          <VStack gap={4} alignItems="stretch">
+            <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
+              {resource
+                ? `${resource.amount} ${resource.currency} • ${resource.network}`
+                : ""}
+            </TextBody>
+            {state === "paying" ? (
+              <HStack gap={2} alignItems="center">
+                <Box className="buy-flow-spinner" aria-hidden />
+                <TextCaption color="fgMuted" as="span">
+                  {t("buy.paying")}
+                </TextCaption>
+              </HStack>
+            ) : (
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => void handlePay()}
+                block={isRail}
+              >
+                {t("buy.payUnlock")}
+              </Button>
+            )}
+          </VStack>
+        </ContentCardBody>
+      </ContentCard>
+    ) : null
+
+  const displayJson = JSON.stringify(
+    paidPayloadForDisplay(paidType, paidValue),
+    null,
+    2,
+  )
+
+  const paidBlock =
+    state === "paid" ? (
+      <ContentCard>
+        <ContentCardHeader
+          title={<TextTitle3 color="fg">{t("buy.unlocked")}</TextTitle3>}
+        />
+        <ContentCardBody>
+          <VStack gap={3} alignItems="stretch">
+            <Box
+              as="pre"
+              bordered
+              borderRadius={300}
+              background="bgSecondary"
+              padding={3}
+              style={{
+                margin: 0,
+                overflow: "auto",
+                maxHeight: preMaxHeight,
+                fontSize: 13,
+                lineHeight: 1.45,
+                fontFamily:
+                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              }}
+            >
+              {displayJson}
+            </Box>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => openPaidResource(paidType, paidValue)}
+              block={isRail}
+            >
+              {t("buy.openResource")}
+            </Button>
+            <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+              {t("buy.unlockedSub")}
+            </TextCaption>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={resetToIdle}
+              block={isRail}
+            >
+              {t("buy.unlockAnother")}
+            </Button>
+          </VStack>
+        </ContentCardBody>
+      </ContentCard>
+    ) : null
+
+  const showIdleChrome = state !== "paid"
+
   return (
     <VStack
       gap={isRail ? 4 : 5}
@@ -281,125 +457,32 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         ? { style: { maxWidth: 560, marginLeft: "auto", marginRight: "auto" } }
         : {})}
     >
-      {!isRail ? (
-        <VStack gap={2} alignItems="stretch">
-          <TextTitle2 as="h1" color="fg" style={{ margin: 0 }}>
-            {t("buy.heroTitle")}
-          </TextTitle2>
-          <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
-            {t("buy.heroSub")}
-          </TextBody>
-        </VStack>
-      ) : (
-        <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
-          {t("buy.heroSub")}
-        </TextCaption>
-      )}
-
-      {inputBlock}
-
-      {loadError ? (
-        <TextBody color="fgNegative" as="p" style={{ margin: 0 }}>
-          {loadError}
-        </TextBody>
+      {showIdleChrome ? (
+        !isRail ? (
+          <VStack gap={2} alignItems="stretch">
+            <TextTitle2 as="h1" color="fg" style={{ margin: 0 }}>
+              {t("buy.heroTitle")}
+            </TextTitle2>
+            <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
+              {t("buy.heroSub")}
+            </TextBody>
+          </VStack>
+        ) : (
+          <TextTitle4
+            color="fg"
+            as="p"
+            style={{ margin: 0, lineHeight: 1.4, letterSpacing: "-0.02em" }}
+          >
+            {t("buy.railHeadline")}
+          </TextTitle4>
+        )
       ) : null}
 
-      {state === "loaded" || state === "paying" ? (
-        <ContentCard>
-          <ContentCardHeader
-            title={
-              <TextTitle3 color="fg">{resource?.label ?? ""}</TextTitle3>
-            }
-          />
-          <ContentCardBody>
-            <VStack gap={4} alignItems="stretch">
-              <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
-                {resource
-                  ? `${resource.amount} ${resource.currency} • ${resource.network}`
-                  : ""}
-              </TextBody>
-              {payError ? (
-                <VStack gap={2} alignItems="stretch">
-                  <TextBody color="fgNegative" as="p" style={{ margin: 0 }}>
-                    {payError}
-                  </TextBody>
-                  <Button
-                    as={Link}
-                    to={payPath}
-                    variant="secondary"
-                    type="button"
-                  >
-                    {t("buy.openPayPage")}
-                  </Button>
-                </VStack>
-              ) : null}
-              {state === "paying" ? (
-                <HStack gap={2} alignItems="center">
-                  <Box className="buy-flow-spinner" aria-hidden />
-                  <TextCaption color="fgMuted" as="span">
-                    {t("buy.paying")}
-                  </TextCaption>
-                </HStack>
-              ) : (
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={() => void handlePay()}
-                  block={isRail}
-                >
-                  {t("buy.payUnlock")}
-                </Button>
-              )}
-            </VStack>
-          </ContentCardBody>
-        </ContentCard>
-      ) : null}
+      {showIdleChrome ? inputBlock : null}
 
-      {state === "paid" ? (
-        <ContentCard>
-          <ContentCardHeader
-            title={<TextTitle3 color="fg">{t("buy.unlocked")}</TextTitle3>}
-            subtitle={
-              <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
-                {t("buy.unlockedSub")}
-              </TextCaption>
-            }
-          />
-          <ContentCardBody>
-            <VStack gap={3} alignItems="stretch">
-              <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
-                {t("buy.codeBlockLabel")}
-              </TextCaption>
-              <Box
-                as="pre"
-                bordered
-                borderRadius={300}
-                background="bgSecondary"
-                padding={3}
-                style={{
-                  margin: 0,
-                  overflow: "auto",
-                  maxHeight: preMaxHeight,
-                  fontSize: 13,
-                  lineHeight: 1.45,
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                }}
-              >
-                {JSON.stringify(paidValue, null, 2)}
-              </Box>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() => openPaidResource(paidType, paidValue)}
-                block={isRail}
-              >
-                {t("buy.openResource")}
-              </Button>
-            </VStack>
-          </ContentCardBody>
-        </ContentCard>
-      ) : null}
+      {errorBlock}
+      {previewCard}
+      {paidBlock}
     </VStack>
   )
 }
