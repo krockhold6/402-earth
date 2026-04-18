@@ -34,7 +34,6 @@ import {
   TextBody,
   TextCaption,
   TextLabel1,
-  TextTitle2,
   TextTitle3,
   TextTitle4,
 } from "@coinbase/cds-web/typography"
@@ -42,6 +41,15 @@ import i18n from "@/i18n/config"
 
 const HERO_AMOUNT_FONT_FAMILY =
   'CoinbaseSans, var(--defaultFont-sans, system-ui), system-ui, sans-serif'
+
+/** Matches hero main title; reused for the “Why 402 exists” heading. */
+const HOME_HERO_HEADLINE_TEXT_STYLE: CSSProperties = {
+  fontSize: "clamp(48px, 8vw, 85px)",
+  fontWeight: 700,
+  lineHeight: 1.05,
+  letterSpacing: "-0.03em",
+  margin: 0,
+}
 
 /** Icons for `home.why402Examples` lines (retail → … → machine). */
 const HOME_WHY402_EXAMPLE_ICONS = [
@@ -682,11 +690,7 @@ export default function Home() {
           color="fg"
           font="headline"
           style={{
-            fontSize: "clamp(48px, 8vw, 85px)",
-            fontWeight: 700,
-            lineHeight: 1.05,
-            letterSpacing: "-0.03em",
-            margin: 0,
+            ...HOME_HERO_HEADLINE_TEXT_STYLE,
             paddingBottom: 60,
           }}
         >
@@ -1031,13 +1035,11 @@ export default function Home() {
     <VStack gap={2} alignItems="stretch" width="100%">
       <Button
         block
-        compact
         variant="primary"
         type="button"
         onClick={handleCreatePaymentLink}
         disabled={isCreating || !canCreateOnRail}
-        minHeight={48}
-        borderRadius={500}
+        style={{ borderRadius: "100px" }}
         title={
           canCreateOnRail ? undefined : t("home.railCreateDisabledHint")
         }
@@ -1124,18 +1126,20 @@ export default function Home() {
       minWidth={0}
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
+      paddingTop={6}
       paddingBottom={6}
     >
       <Box width="100%" maxWidth={680} minWidth={0}>
         <VStack gap={6} alignItems="stretch" width="100%">
           <VStack gap={3} alignItems="stretch" width="100%">
-            <TextTitle2
+            <Box
+              as="h1"
               color="fg"
-              as="h2"
-              style={{ margin: 0, letterSpacing: "-0.02em" }}
+              font="headline"
+              style={HOME_HERO_HEADLINE_TEXT_STYLE}
             >
               {t("home.why402Heading")}
-            </TextTitle2>
+            </Box>
             <TextTitle4 color="fg" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
               {t("home.why402Tagline")}
             </TextTitle4>
@@ -1154,29 +1158,43 @@ export default function Home() {
           >
             {why402ExampleLines.map((line, i) => (
               <Box as="li" key={i} style={{ margin: 0 }}>
-                <Button
-                  as="div"
-                  compact
-                  transparent
-                  variant="secondary"
-                  block
-                  startIcon={HOME_WHY402_EXAMPLE_ICONS[i] ?? "circleCheckmark"}
-                  style={{
-                    justifyContent: "flex-start",
-                    textAlign: "start",
-                    height: "auto",
-                    minHeight: 44,
-                    whiteSpace: "normal",
-                  }}
+                <HStack
+                  gap={3}
+                  alignItems="center"
+                  width="100%"
+                  minWidth={0}
                 >
-                  <TextBody
-                    color="fgMuted"
-                    as="span"
-                    style={{ lineHeight: 1.55, textAlign: "start" }}
+                  <Box
+                    aria-hidden
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    flexShrink={0}
+                    width={40}
+                    height={40}
+                    borderRadius={1000}
+                    background="bgPrimary"
                   >
-                    {line}
-                  </TextBody>
-                </Button>
+                    <Icon
+                      name={HOME_WHY402_EXAMPLE_ICONS[i] ?? "circleCheckmark"}
+                      size="s"
+                      color="fgInverse"
+                    />
+                  </Box>
+                  <Box flexGrow={1} minWidth={0}>
+                    <TextBody
+                      color="fgMuted"
+                      as="p"
+                      style={{
+                        margin: 0,
+                        lineHeight: 1.55,
+                        textAlign: "start",
+                      }}
+                    >
+                      {line}
+                    </TextBody>
+                  </Box>
+                </HStack>
               </Box>
             ))}
           </VStack>

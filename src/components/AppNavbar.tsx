@@ -209,7 +209,7 @@ export function AppNavbar() {
                       type="button"
                       width="100%"
                       startIcon={
-                        colorScheme === "light" ? "moon" : "sun"
+                        colorScheme === "light" ? "moon" : "light"
                       }
                       onClick={() => {
                         toggleColorScheme()
@@ -280,7 +280,7 @@ export function AppNavbar() {
             </Button>
             <Box display="inline-flex" paddingStart={2}>
               <IconButton
-                name={colorScheme === "light" ? "moon" : "sun"}
+                name={colorScheme === "light" ? "moon" : "light"}
                 variant="secondary"
                 type="button"
                 accessibilityLabel={t("nav.menuTheme")}

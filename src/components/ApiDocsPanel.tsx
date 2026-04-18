@@ -1,4 +1,9 @@
 import { useTranslation } from "react-i18next"
+import Prism from "prismjs"
+import "prismjs/components/prism-bash"
+import "prismjs/components/prism-json"
+import { Highlight, themes } from "prism-react-renderer"
+import { useTheme } from "@coinbase/cds-web/hooks/useTheme"
 import { Box, VStack } from "@coinbase/cds-web/layout"
 import {
   TextBody,
@@ -13,30 +18,68 @@ export type ApiDocsPanelVariant = "page" | "rail"
 function CodeBlock({
   children,
   compact,
+  language,
 }: {
   children: string
   compact?: boolean
+  language: "bash" | "json"
 }) {
+  const cdsTheme = useTheme()
+  const prismTheme =
+    cdsTheme.activeColorScheme === "dark" ? themes.vsDark : themes.github
+  const fontSize = compact ? 12 : 13
+
   return (
     <Box
-      as="pre"
       borderRadius={300}
       background="bgSecondary"
       padding={compact ? 2 : 3}
       style={{
         margin: 0,
         overflow: "auto",
-        maxHeight: compact ? 200 : undefined,
-        fontSize: compact ? 12 : 13,
+        maxHeight: compact ? 300 : undefined,
+        fontSize,
         lineHeight: 1.45,
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
         border: "none",
         outline: "none",
       }}
     >
-      {children}
+      <Highlight
+        prism={Prism}
+        theme={prismTheme}
+        code={children.replace(/\n$/, "")}
+        language={language}
+      >
+        {({ className, style, tokens, getLineProps, getTokenProps }) => {
+          const preStyle = { ...style }
+          delete preStyle.background
+          delete preStyle.backgroundColor
+          return (
+          <pre
+            className={className}
+            style={{
+              ...preStyle,
+              margin: 0,
+              backgroundColor: "rgba(246, 248, 250, 0)",
+              fontFamily: "inherit",
+              fontSize: "inherit",
+              lineHeight: "inherit",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {tokens.map((line, i) => (
+              <div key={i} {...getLineProps({ line })}>
+                {line.map((token, key) => (
+                  <span key={key} {...getTokenProps({ token })} />
+                ))}
+              </div>
+            ))}
+          </pre>
+          )
+        }}
+      </Highlight>
     </Box>
   )
 }
@@ -211,14 +254,18 @@ export function ApiDocsPanel({ variant = "page" }: ApiDocsPanelProps) {
           <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
             {t("api.step1Title")}
           </TextCaption>
-          <CodeBlock compact={isRail}>{step1}</CodeBlock>
+          <CodeBlock compact={isRail} language="bash">
+            {step1}
+          </CodeBlock>
         </VStack>
 
         <VStack gap={gapStep} alignItems="stretch">
           <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
             {t("api.step2Title")}
           </TextCaption>
-          <CodeBlock compact={isRail}>{step2}</CodeBlock>
+          <CodeBlock compact={isRail} language="bash">
+            {step2}
+          </CodeBlock>
           <VStack gap={0} paddingStart={1}>
             <TextBody color="fg" as="p" style={{ margin: 0 }}>
               {t("api.step2Status")}
@@ -233,7 +280,9 @@ export function ApiDocsPanel({ variant = "page" }: ApiDocsPanelProps) {
           <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
             {t("api.step3Title")}
           </TextCaption>
-          <CodeBlock compact={isRail}>{step3}</CodeBlock>
+          <CodeBlock compact={isRail} language="bash">
+            {step3}
+          </CodeBlock>
         </VStack>
       </VStack>
 
@@ -241,7 +290,9 @@ export function ApiDocsPanel({ variant = "page" }: ApiDocsPanelProps) {
         <TextTitle3 as="h2" color="fg" style={{ margin: 0 }}>
           {t("api.resultTitle")}
         </TextTitle3>
-        <CodeBlock compact={isRail}>{resultJson}</CodeBlock>
+        <CodeBlock compact={isRail} language="json">
+          {resultJson}
+        </CodeBlock>
         <Box
           borderRadius={400}
           background="bgSecondary"
