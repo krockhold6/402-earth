@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react"
 import { useTranslation } from "react-i18next"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
+import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import {
   ContentCard,
   ContentCardBody,
@@ -15,19 +24,13 @@ import {
   TextTitle3,
   TextTitle4,
 } from "@coinbase/cds-web/typography"
-import {
-  createPaymentAttempt,
-  fetchPaidX402Resource,
-  fetchResource,
-  verifyX402Payment,
-  type ApiResource,
-} from "@/lib/api"
+import { createPaymentAttempt, fetchResource, type ApiResource } from "@/lib/api"
+import { buildBaseUsdcEip681Link } from "@/lib/baseUsdcPayLink"
+import { decodeQrFromImageFile } from "@/lib/decodeQrFromImageFile"
 import {
   openPaidResource,
   resolvePaidNavigateUrl,
 } from "@/lib/paidResourceUnlock"
-
-const DEV_MOCK_SIGNATURE = "browser-mock-signature"
 
 type BuyFlowState = "idle" | "loading" | "loaded" | "paying" | "paid" | "error"
 
@@ -76,7 +79,11 @@ type BuyFlowPanelProps = {
 
 export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const isRail = variant === "rail"
+  const showMobileQrScan = useMediaQuery("(max-width: 767px)")
+  const qrFileInputRef = useRef<HTMLInputElement>(null)
+  const [qrScanError, setQrScanError] = useState<string | null>(null)
   const [paste, setPaste] = useState("")
   const [state, setState] = useState<BuyFlowState>("idle")
   const [errorPhase, setErrorPhase] = useState<BuyErrorPhase | null>(null)
@@ -121,10 +128,37 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     setPaidValue(null)
     setPaidType("json")
     setPaste("")
+    setQrScanError(null)
   }, [clearErrors])
+
+  const onPasteChange = useCallback((value: string) => {
+    setQrScanError(null)
+    setPaste(value)
+  }, [])
+
+  const handleQrFileChange = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ""
+      if (!file) return
+      setQrScanError(null)
+      try {
+        const text = await decodeQrFromImageFile(file)
+        if (!text) {
+          setQrScanError(t("buy.qrScanFailed"))
+          return
+        }
+        setPaste(text)
+      } catch {
+        setQrScanError(t("buy.qrScanFailed"))
+      }
+    },
+    [t],
+  )
 
   const handleLoad = useCallback(async () => {
     clearErrors()
+    setQrScanError(null)
     const s = extractSlugFrom402Input(paste)
     if (!s) {
       setResource(null)
@@ -161,6 +195,13 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
   const handlePay = useCallback(async () => {
     if (!slug || !resource) return
     clearErrors()
+
+    const walletHref = buildBaseUsdcEip681Link(resource)
+    if (!walletHref) {
+      setFlowError("pay", t("pay.payBaseUnavailable"))
+      return
+    }
+
     setState("paying")
 
     try {
@@ -175,64 +216,17 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
       }
 
       const attemptId = attemptData.attemptId
-
-      const { response: verifyRes, data: verifyData } = await verifyX402Payment(
-        {
-          attemptId,
-          slug,
-          paymentSignature: DEV_MOCK_SIGNATURE,
-        },
+      navigate(
+        `/pay/${encodeURIComponent(slug)}?attemptId=${encodeURIComponent(attemptId)}`,
+        { replace: true },
       )
-
-      const verifyPaid =
-        verifyRes.ok &&
-        verifyData?.ok === true &&
-        verifyData.status === "paid"
-
-      if (!verifyPaid) {
-        const { response: payRes, data: payData } = await fetchPaidX402Resource(
-          slug,
-          attemptId,
-        )
-        if (
-          payRes.ok &&
-          payData?.ok === true &&
-          payData.status === "paid" &&
-          payData.resource
-        ) {
-          setPaidType(payData.resource.type)
-          setPaidValue(payData.resource.value)
-          setState("paid")
-          return
-        }
-        throw new Error(
-          (verifyData?.error && verifyData.error.trim()) ||
-            t("buy.payFailed"),
-        )
-      }
-
-      const { response: payRes, data: payData } = await fetchPaidX402Resource(
-        slug,
-        attemptId,
-      )
-
-      if (
-        !payRes.ok ||
-        !payData?.ok ||
-        payData.status !== "paid" ||
-        !payData.resource
-      ) {
-        throw new Error(payData?.error?.trim() || t("buy.payFailed"))
-      }
-
-      setPaidType(payData.resource.type)
-      setPaidValue(payData.resource.value)
-      setState("paid")
+      window.location.href = walletHref
     } catch (err) {
       const message = err instanceof Error ? err.message : t("buy.payFailed")
       setFlowError("pay", message)
+      setState("loaded")
     }
-  }, [clearErrors, resource, setFlowError, slug, t])
+  }, [clearErrors, navigate, resource, setFlowError, slug, t])
 
   const handleRetry = useCallback(() => {
     if (errorPhase === "load") {
@@ -246,64 +240,120 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
 
   const preMaxHeight = isRail ? 220 : 360
 
+  const mobileQrCaptureBlock =
+    showMobileQrScan ? (
+      <VStack gap={2} alignItems="stretch" width="100%">
+        <input
+          ref={qrFileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={(e) => void handleQrFileChange(e)}
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0, 0, 0, 0)",
+            clipPath: "inset(50%)",
+            whiteSpace: "nowrap",
+            border: 0,
+          }}
+          tabIndex={-1}
+          aria-hidden
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          startIcon="scanQrCode"
+          onClick={() => qrFileInputRef.current?.click()}
+          disabled={state === "loading"}
+          block
+        >
+          {t("buy.scanQrWithCamera")}
+        </Button>
+        {qrScanError ? (
+          <TextCaption color="fgNegative" as="p" style={{ margin: 0 }}>
+            {qrScanError}
+          </TextCaption>
+        ) : null}
+      </VStack>
+    ) : null
+
   const inputBlock = isRail ? (
-    <VStack gap={3} alignItems="stretch" width="100%">
+    <VStack gap={4} alignItems="stretch" width="100%">
       <TextInput
         compact
         {...railInputSurface}
         label={t("buy.railFieldLabel")}
         placeholder={t("buy.inputPlaceholder")}
         value={paste}
-        onChange={(e) => setPaste(e.target.value)}
+        onChange={(e) => onPasteChange(e.target.value)}
         autoComplete="off"
       />
-      <Button
-        type="button"
-        variant="primary"
-        onClick={() => void handleLoad()}
-        disabled={state === "loading"}
-        block
-      >
-        <HStack
-          gap={2}
-          alignItems="center"
-          justifyContent="center"
-          width="100%"
+      {mobileQrCaptureBlock}
+      <VStack gap={2} alignItems="stretch" width="100%">
+        <Button
+          type="button"
+          variant="primary"
+          onClick={() => void handleLoad()}
+          disabled={state === "loading"}
+          block
         >
-          {state === "loading" ? (
-            <Box className="buy-flow-spinner" aria-hidden />
-          ) : null}
-          {t("buy.load")}
-        </HStack>
-      </Button>
+          <HStack
+            gap={2}
+            alignItems="center"
+            justifyContent="center"
+            width="100%"
+          >
+            {state === "loading" ? (
+              <Box className="buy-flow-spinner" aria-hidden />
+            ) : null}
+            {t("buy.load")}
+          </HStack>
+        </Button>
+        <TextCaption color="fgMuted" as="p" style={{ margin: 0, textAlign: "center" }}>
+          {t("buy.loadSupporting")}
+        </TextCaption>
+      </VStack>
     </VStack>
   ) : (
     <ContentCard>
       <ContentCardBody>
-        <HStack gap={2} alignItems="flex-end" width="100%">
-          <Box flexGrow={1} minWidth={0}>
-            <TextInput
-              label=""
-              placeholder={t("buy.inputPlaceholder")}
-              value={paste}
-              onChange={(e) => setPaste(e.target.value)}
-              autoComplete="off"
-            />
-          </Box>
-          <HStack gap={2} alignItems="center">
-            {state === "loading" ? (
-              <Box className="buy-flow-spinner" aria-hidden />
-            ) : null}
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => void handleLoad()}
-              disabled={state === "loading"}
+        <VStack gap={4} alignItems="stretch" width="100%">
+          <TextInput
+            label=""
+            placeholder={t("buy.inputPlaceholder")}
+            value={paste}
+            onChange={(e) => onPasteChange(e.target.value)}
+            autoComplete="off"
+          />
+          {mobileQrCaptureBlock}
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => void handleLoad()}
+            disabled={state === "loading"}
+            block
+          >
+            <HStack
+              gap={2}
+              alignItems="center"
+              justifyContent="center"
+              width="100%"
             >
+              {state === "loading" ? (
+                <Box className="buy-flow-spinner" aria-hidden />
+              ) : null}
               {t("buy.load")}
-            </Button>
-          </HStack>
-        </HStack>
+            </HStack>
+          </Button>
+          <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+            {t("buy.loadSupporting")}
+          </TextCaption>
+        </VStack>
       </ContentCardBody>
     </ContentCard>
   )
@@ -462,7 +512,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
 
   return (
     <VStack
-      gap={isRail ? 4 : 5}
+      gap={isRail ? 5 : 7}
       alignItems="stretch"
       width="100%"
       minWidth={0}
@@ -472,7 +522,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     >
       {showIdleChrome ? (
         !isRail ? (
-          <VStack gap={2} alignItems="stretch">
+          <VStack gap={3} alignItems="stretch">
             <TextTitle2 as="h1" color="fg" style={{ margin: 0 }}>
               {t("buy.heroTitle")}
             </TextTitle2>

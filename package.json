@@ -23,6 +23,7 @@
     "@coinbase/cds-web": "^8.62.1",
     "framer-motion": "^10.18.0",
     "i18next": "^26.0.4",
+    "jsqr": "^1.4.0",
     "prism-react-renderer": "^2.4.1",
     "prismjs": "^1.30.0",
     "qrcode.react": "^4.2.0",
