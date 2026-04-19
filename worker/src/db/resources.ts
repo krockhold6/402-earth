@@ -84,7 +84,7 @@ export async function insertResourceDefinition(
         slug, label, amount, currency, network, receiver_address, active, unlock_type,
         unlock_value, delivery_mode, protected_ttl_seconds, one_time_unlock,
         content_type, success_redirect_path, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.slug,
