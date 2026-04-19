@@ -42,9 +42,9 @@ body {
   min-width: 1px;
 }
 
-/* Home protected TTL Select: value text color from browser preview (CDS Text uses fg token on `p`). */
+/* Home protected TTL Select: CDS control value uses `fg` on the inner `p`; align with primary accent. */
 #root .home-protected-ttl-select-value p {
-  color: rgba(2, 82, 255, 1) !important;
+  color: var(--color-fgPrimary) !important;
 }
 
 /* How it works footer: RouterLink is a bare <a> and picks up browser serif otherwise. */

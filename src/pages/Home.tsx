@@ -86,6 +86,14 @@ function sanitizeHomeAmountInput(raw: string): string {
   return `${intPart}.${frac}`
 }
 
+/** After blur: whole USDC amounts show without a decimal; fractional amounts keep needed digits (trim trailing zeros). */
+function formatHomeAmountNormalized(n: number): string {
+  if (!Number.isFinite(n)) return "0"
+  const s = n.toFixed(6).replace(/\.?0+$/, "")
+  if (s === "" || s === "-0") return "0"
+  return s
+}
+
 function validateCreatorReceiverAddress(raw: string):
   | { ok: true; normalized: string }
   | { ok: false; message: string } {
@@ -401,8 +409,8 @@ function HomeLinkActionRow({
 export default function Home() {
   const { t } = useTranslation()
   const isWide = useMediaQuery("(min-width: 960px)")
-  const [amount, setAmount] = useState("0.00")
-  const [label, setLabel] = useState("Exclusive video")
+  const [amount, setAmount] = useState("0")
+  const [label, setLabel] = useState("")
   /** Optional custom slug; empty means server generates on create. */
   const [slug, setSlug] = useState("")
   /** Creator payout wallet (USDC on Base); normalized to lowercase on submit. */
@@ -485,7 +493,7 @@ export default function Home() {
   )
 
   const [activeDeliveryTab, setActiveDeliveryTab] = useState<HomeDeliveryTab>(
-    () => ({ id: "protected", label: "" }),
+    () => ({ id: "direct", label: "" }),
   )
 
   useEffect(() => {
@@ -889,13 +897,13 @@ export default function Home() {
       <Box as="span" style={visuallyHidden}>
         {t("home.amount")}
       </Box>
-      <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+      <VStack gap={0} alignItems="stretch" width="100%" minWidth={0}>
         <HStack
           gap={0}
           alignItems="baseline"
           width="100%"
           minWidth={0}
-          paddingY={2}
+          paddingTop={2}
         >
           <Box
             position="relative"
@@ -936,17 +944,17 @@ export default function Home() {
               onBlur={() => {
                 const raw = amount.trim()
                 if (raw === "" || raw === ".") {
-                  setAmount("0.00")
+                  setAmount("0")
                   invalidateQrIfFormChanged()
                   return
                 }
                 const n = parseFloat(raw)
                 if (!Number.isFinite(n)) {
-                  setAmount("0.00")
+                  setAmount("0")
                   invalidateQrIfFormChanged()
                   return
                 }
-                setAmount(n.toFixed(2))
+                setAmount(formatHomeAmountNormalized(n))
                 invalidateQrIfFormChanged()
               }}
               inputMode="decimal"
@@ -1014,6 +1022,7 @@ export default function Home() {
           invalidateQrIfFormChanged()
         }}
         autoComplete="off"
+        placeholder={t("home.labelPlaceholder")}
       />
       <VStack gap={1} alignItems="stretch">
         <TextInput
@@ -1040,6 +1049,7 @@ export default function Home() {
         compact
         {...homeFormTextInputSurface}
         label={t("home.postPaymentOpens")}
+        helperText={t("home.postPaymentOpensHelper")}
         value={protectedLinkUrl}
         onChange={(e) => {
           setProtectedLinkUrl(e.target.value)
@@ -1074,6 +1084,10 @@ export default function Home() {
             {t("home.deliveryProtectedBlurb2")}
           </TextBody>
         </VStack>
+      ) : activeDeliveryTab.id === "direct" ? (
+        <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+          {t("home.deliveryDirectBlurb")}
+        </TextBody>
       ) : null}
     </VStack>
   )
