@@ -11,7 +11,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { QRCodeCanvas } from "qrcode.react"
-import { Button } from "@coinbase/cds-web/buttons"
+import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Select } from "@coinbase/cds-web/alpha/select"
 import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
@@ -1044,14 +1044,16 @@ export default function Home() {
               placeholder={t("home.slugPlaceholder")}
             />
           </Box>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleGenerateRandomSlug}
-            style={{ flexShrink: 0 }}
-          >
-            {t("home.generateRandom")}
-          </Button>
+          <Box display="inline-flex" style={{ flexShrink: 0 }}>
+            <IconButton
+              name="convert"
+              variant="secondary"
+              type="button"
+              compact
+              accessibilityLabel={t("home.generateRandom")}
+              onClick={handleGenerateRandomSlug}
+            />
+          </Box>
         </HStack>
       </VStack>
       <VStack gap={1} alignItems="stretch">
