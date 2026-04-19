@@ -12,7 +12,13 @@ const STATIC_PATHS = new Set([
 
 function isAllowedPath(path: string): boolean {
   if (STATIC_PATHS.has(path)) return true
-  if (path.startsWith("/pay/") || path.startsWith("/success/")) return true
+  if (
+    path.startsWith("/unlock/") ||
+    path.startsWith("/pay/") ||
+    path.startsWith("/success/")
+  ) {
+    return true
+  }
   return false
 }
 
@@ -45,7 +51,7 @@ export function registerWebMcpTools(): void {
         name: "earth402.navigate",
         title: "Navigate",
         description:
-          "Go to a public 402.earth page (/, /buy, /api, /how-it-works, /demo, /terms, /privacy, /pay/:slug, /success/:slug).",
+          "Go to a public 402.earth page (/, /buy, /api, /how-it-works, /demo, /terms, /privacy, /unlock/:slug, /pay/:slug alias, /success/:slug).",
         inputSchema: {
           type: "object",
           additionalProperties: false,

@@ -5,6 +5,7 @@ import {
 import { corsAllowOrigin, withCors } from './lib/cors'
 import { json } from './lib/response'
 import { handleGetResource, handlePostResource } from './routes/resource'
+import { handlePostResourceEmailReceipt } from './routes/resourceEmailReceipt'
 import { handlePostPaymentAttempt } from './routes/paymentAttempt'
 import { handleGetPaymentAttemptById } from './routes/paymentAttemptById'
 import { handleGetUnlock } from './routes/unlock'
@@ -39,6 +40,15 @@ export default {
 
     if (req.method === 'POST' && url.pathname === '/api/resource') {
       res = await handlePostResource(env, req)
+      return withCors(req, res)
+    }
+
+    const resourceEmailReceiptPost =
+      req.method === 'POST' &&
+      /^\/api\/resource\/([^/]+)\/email-receipt$/.exec(url.pathname)
+    if (resourceEmailReceiptPost) {
+      const slug = decodeURIComponent(resourceEmailReceiptPost[1])
+      res = await handlePostResourceEmailReceipt(env, slug, req)
       return withCors(req, res)
     }
 

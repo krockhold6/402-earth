@@ -24,4 +24,8 @@ export interface Env {
    * Use only in local/dev via `.dev.vars` — do not enable in production.
    */
   X402_MOCK_VERIFY?: string
+  /** Resend API key (secret). Used for creator receipt email; never expose to browsers. */
+  RESEND_API_KEY?: string
+  /** Verified sender in Resend, e.g. `402 <mail@yourdomain.com>`. */
+  RESEND_FROM?: string
 }

@@ -57,6 +57,35 @@ export type CreateResourceResponse = {
   error?: string
 }
 
+export type CreatorReceiptEmailResponse = {
+  ok: boolean
+  error?: string
+}
+
+/** Creator receipt — uses Worker + Resend; safe to call only after a resource exists. */
+export async function sendCreatorReceiptEmail(input: {
+  slug: string
+  email: string
+}): Promise<{
+  response: Response
+  data: CreatorReceiptEmailResponse | null
+}> {
+  const res = await fetch(
+    apiUrl(
+      `/api/resource/${encodeURIComponent(input.slug.trim())}/email-receipt`,
+    ),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: input.email.trim() }),
+    },
+  )
+  const data = (await res.json().catch(() => null)) as
+    | CreatorReceiptEmailResponse
+    | null
+  return { response: res, data }
+}
+
 export async function createResource(input: {
   label: string
   amount: string

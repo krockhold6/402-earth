@@ -1,4 +1,11 @@
-import { Outlet, Route, Routes } from "react-router-dom"
+import {
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useParams,
+  useSearchParams,
+} from "react-router-dom"
 import { Box } from "@coinbase/cds-web/layout"
 import { AppNavbar } from "@/components/AppNavbar"
 import Home from "./pages/Home"
@@ -9,6 +16,20 @@ import ApiDocs from "./pages/ApiDocs"
 import Buy from "./pages/Buy"
 import Pay from "./pages/Pay"
 import Success from "./pages/Success"
+
+/** `/pay/:slug` is a permanent alias; canonical buyer entry is `/unlock/:slug`. */
+function RedirectLegacyPayRouteToUnlock() {
+  const { slug } = useParams()
+  const [searchParams] = useSearchParams()
+  if (!slug) return <Navigate to="/" replace />
+  const q = searchParams.toString()
+  return (
+    <Navigate
+      to={`/unlock/${encodeURIComponent(slug)}${q ? `?${q}` : ""}`}
+      replace
+    />
+  )
+}
 
 function AppLayout() {
   return (
@@ -53,7 +74,8 @@ function App() {
           path="/privacy"
           element={<LegalDocumentPage variant="privacy" />}
         />
-        <Route path="/pay/:slug" element={<Pay />} />
+        <Route path="/unlock/:slug" element={<Pay />} />
+        <Route path="/pay/:slug" element={<RedirectLegacyPayRouteToUnlock />} />
         <Route path="/success/:slug" element={<Success />} />
       </Route>
     </Routes>

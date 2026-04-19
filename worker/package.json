@@ -10,9 +10,11 @@
     "db:seed:remote": "wrangler d1 execute 402-earth-payments --remote --yes --file=./seeds/demo_resource.sql"
   },
   "dependencies": {
-    "jose": "^5.9.6"
+    "jose": "^5.9.6",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "wrangler": "^4.54.0"
   }
 }

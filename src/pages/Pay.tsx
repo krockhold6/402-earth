@@ -1,20 +1,27 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Trans, useTranslation } from "react-i18next"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
 import {
   createPaymentAttempt,
+  fetchPaidX402Resource,
   fetchPaymentAttempt,
   fetchResource,
   verifyX402Payment,
   type ApiResource,
+  type PaymentAttemptPayload,
 } from "@/lib/api"
 import {
   buildBaseUsdcEip681Link,
   formatUsdcAmountDisplay,
   isZeroUsdcAmount,
 } from "@/lib/baseUsdcPayLink"
+import { unlockPagePath } from "@/lib/appUrl"
+import {
+  openPaidResource,
+  resolvePaidNavigateUrl,
+} from "@/lib/paidResourceUnlock"
 import { Box, VStack } from "@coinbase/cds-web/layout"
 import {
   TextBody,
@@ -24,10 +31,67 @@ import {
 } from "@coinbase/cds-web/typography"
 
 const DEV_MOCK_SIGNATURE = "browser-mock-signature"
+const POLL_MS = 2500
+
+const attemptStorageKey = (slug: string) => `402-earth:unlockAttempt:${slug}`
+const walletHandoffKey = (attemptId: string) =>
+  `402-earth:walletHandoff:${attemptId}`
+
+function persistUnlockAttempt(slug: string, attemptId: string) {
+  try {
+    sessionStorage.setItem(attemptStorageKey(slug), attemptId)
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearUnlockAttempt(slug: string) {
+  try {
+    sessionStorage.removeItem(attemptStorageKey(slug))
+  } catch {
+    /* ignore */
+  }
+}
+
+function setWalletHandoff(attemptId: string) {
+  try {
+    sessionStorage.setItem(walletHandoffKey(attemptId), "1")
+  } catch {
+    /* ignore */
+  }
+}
+
+function readWalletHandoff(attemptId: string): boolean {
+  try {
+    return sessionStorage.getItem(walletHandoffKey(attemptId)) === "1"
+  } catch {
+    return false
+  }
+}
+
+function clearWalletHandoff(attemptId: string) {
+  try {
+    sessionStorage.removeItem(walletHandoffKey(attemptId))
+  } catch {
+    /* ignore */
+  }
+}
 
 function isLikelyTxHash(value: string): boolean {
   return /^0x[a-fA-F0-9]{64}$/.test(value.trim())
 }
+
+function terminalUnpaidStatus(status: string): boolean {
+  return status === "failed" || status === "expired" || status === "cancelled"
+}
+
+type UnlockPhase =
+  | "loading"
+  | "awaiting_payment"
+  | "payment_detected"
+  | "confirming_unlock"
+  | "access_granted"
+  | "session_failed"
 
 export default function Pay() {
   const { t } = useTranslation()
@@ -35,22 +99,37 @@ export default function Pay() {
   const { slug } = useParams()
   const [searchParams] = useSearchParams()
   const attemptIdFromUrl = searchParams.get("attemptId")?.trim() || null
+
   const [resource, setResource] = useState<ApiResource | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadState, setLoadState] = useState<"idle" | "loading" | "done">(
     "idle",
   )
 
+  const [sessionStarting, setSessionStarting] = useState(false)
+  const [sessionError, setSessionError] = useState<string | null>(null)
+
+  const [polledAttempt, setPolledAttempt] = useState<PaymentAttemptPayload | null>(
+    null,
+  )
+
+  const [paidPayload, setPaidPayload] = useState<{
+    type: string
+    value: unknown
+  } | null>(null)
+  const [paidPayloadLoading, setPaidPayloadLoading] = useState(false)
+  const [paidPayloadError, setPaidPayloadError] = useState<string | null>(null)
+  const [deliveryRetryKey, setDeliveryRetryKey] = useState(0)
+
   const [manualAdvancedOpen, setManualAdvancedOpen] = useState(false)
   const [advancedHelpOpen, setAdvancedHelpOpen] = useState(false)
   const [cryptoAdvancedOpen, setCryptoAdvancedOpen] = useState(false)
-  const [attemptId, setAttemptId] = useState<string | null>(null)
   const [txHash, setTxHash] = useState("")
 
-  const [isCreatingAttempt, setIsCreatingAttempt] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
-  const [attemptError, setAttemptError] = useState<string | null>(null)
   const [verifyError, setVerifyError] = useState<string | null>(null)
+
+  const autoOpenIssuedRef = useRef(false)
 
   const load = useCallback(async () => {
     if (!slug) {
@@ -86,55 +165,263 @@ export default function Pay() {
     setManualAdvancedOpen(false)
     setAdvancedHelpOpen(false)
     setCryptoAdvancedOpen(false)
-    setAttemptId(null)
     setTxHash("")
-    setAttemptError(null)
     setVerifyError(null)
+    setSessionError(null)
+    setSessionStarting(false)
+    setPolledAttempt(null)
+    setPaidPayload(null)
+    setPaidPayloadError(null)
+    setPaidPayloadLoading(false)
+    setDeliveryRetryKey(0)
+    autoOpenIssuedRef.current = false
   }, [slug])
 
+  /** Create / resume payment attempt and sync ?attemptId= */
   useEffect(() => {
-    if (
-      !attemptIdFromUrl ||
-      !slug ||
-      loadState !== "done" ||
-      !resource ||
-      loadError
-    ) {
+    if (loadState !== "done" || !slug || !resource || loadError) {
       return
     }
 
     let cancelled = false
+
     ;(async () => {
-      const data = await fetchPaymentAttempt(attemptIdFromUrl)
+      setSessionError(null)
+
+      if (attemptIdFromUrl) {
+        const data = await fetchPaymentAttempt(attemptIdFromUrl)
+        if (cancelled) return
+        if (!data.ok || !data.attempt || data.attempt.slug !== slug) {
+          navigate(unlockPagePath(slug), { replace: true })
+          return
+        }
+        if (terminalUnpaidStatus(data.attempt.status)) {
+          clearUnlockAttempt(slug)
+          clearWalletHandoff(attemptIdFromUrl)
+          navigate(unlockPagePath(slug), { replace: true })
+          return
+        }
+        persistUnlockAttempt(slug, attemptIdFromUrl)
+        setPolledAttempt(data.attempt)
+        return
+      }
+
+      setSessionStarting(true)
+
+      const stored = (() => {
+        try {
+          return sessionStorage.getItem(attemptStorageKey(slug))?.trim() || null
+        } catch {
+          return null
+        }
+      })()
+
+      if (stored) {
+        const data = await fetchPaymentAttempt(stored)
+        if (cancelled) return
+        if (
+          data.ok &&
+          data.attempt &&
+          data.attempt.slug === slug &&
+          !terminalUnpaidStatus(data.attempt.status)
+        ) {
+          persistUnlockAttempt(slug, stored)
+          navigate(unlockPagePath(slug, stored), { replace: true })
+          setPolledAttempt(data.attempt)
+          setSessionStarting(false)
+          return
+        }
+        clearUnlockAttempt(slug)
+        if (stored) clearWalletHandoff(stored)
+      }
+
+      const { response: attemptRes, data: attemptData } =
+        await createPaymentAttempt({
+          slug,
+          clientType: "browser",
+        })
       if (cancelled) return
-      if (!data.ok || !data.attempt) {
-        setAttemptError(
-          data.error?.trim() || t("pay.attemptInvalid"),
+      if (!attemptRes.ok || !attemptData?.ok || !attemptData.attemptId) {
+        setSessionError(
+          attemptData?.error?.trim() || t("pay.createAttemptFailed"),
         )
+        setSessionStarting(false)
         return
       }
-      if (data.attempt.slug !== slug) {
-        setAttemptError(t("pay.attemptSlugMismatch"))
-        return
-      }
-      setAttemptError(null)
-      setAttemptId(attemptIdFromUrl)
+      const id = attemptData.attemptId
+      persistUnlockAttempt(slug, id)
+      navigate(unlockPagePath(slug, id), { replace: true })
+      setPolledAttempt({
+        id,
+        slug,
+        label: resource.label,
+        amount: resource.amount,
+        currency: resource.currency,
+        network: resource.network,
+        status: attemptData.status ?? "payment_required",
+        clientType: "browser",
+        paymentMethod: "x402",
+        payerAddress: null,
+        paymentSignatureHash: null,
+        txHash: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        paidAt: null,
+        expiresAt: null,
+        paymentReceiverAddress: resource.receiverAddress ?? null,
+      })
+      setSessionStarting(false)
     })()
 
     return () => {
       cancelled = true
     }
-  }, [attemptIdFromUrl, loadError, loadState, resource, slug, t])
+  }, [attemptIdFromUrl, loadError, loadState, navigate, resource, slug, t])
 
-  const goToSuccess = useCallback(
-    (id: string) => {
-      if (!slug) return
-      navigate(
-        `/success/${encodeURIComponent(slug)}?attemptId=${encodeURIComponent(id)}`,
+  /** Poll attempt while session is active */
+  useEffect(() => {
+    if (!attemptIdFromUrl || !slug || !resource || loadError || sessionStarting) {
+      return
+    }
+
+    let cancelled = false
+    let timer: ReturnType<typeof setInterval> | undefined
+
+    const tick = async () => {
+      const data = await fetchPaymentAttempt(attemptIdFromUrl)
+      if (cancelled) return
+      if (!data.ok || !data.attempt || data.attempt.slug !== slug) {
+        return
+      }
+      setPolledAttempt(data.attempt)
+      if (
+        data.attempt.status === "paid" ||
+        terminalUnpaidStatus(data.attempt.status)
+      ) {
+        if (timer !== undefined) {
+          window.clearInterval(timer)
+          timer = undefined
+        }
+      }
+    }
+
+    void tick()
+    timer = window.setInterval(tick, POLL_MS)
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearInterval(timer)
+    }
+  }, [
+    attemptIdFromUrl,
+    loadError,
+    resource,
+    sessionStarting,
+    slug,
+  ])
+
+  /** Load paid resource once attempt is paid */
+  useEffect(() => {
+    if (
+      !attemptIdFromUrl ||
+      !slug ||
+      !polledAttempt ||
+      polledAttempt.status !== "paid"
+    ) {
+      setPaidPayload(null)
+      setPaidPayloadError(null)
+      setPaidPayloadLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setPaidPayload(null)
+    setPaidPayloadError(null)
+    setPaidPayloadLoading(true)
+
+    ;(async () => {
+      const { response, data } = await fetchPaidX402Resource(
+        slug,
+        attemptIdFromUrl,
       )
-    },
-    [navigate, slug],
-  )
+      if (cancelled) return
+      setPaidPayloadLoading(false)
+      if (
+        response.ok &&
+        data?.ok === true &&
+        data.status === "paid" &&
+        data.resource
+      ) {
+        setPaidPayload({
+          type: data.resource.type,
+          value: data.resource.value,
+        })
+        return
+      }
+      setPaidPayload(null)
+      setPaidPayloadError(
+        data?.error?.trim() ||
+          t("pay.session.loadDeliveryFailed", { status: response.status }),
+      )
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [attemptIdFromUrl, deliveryRetryKey, polledAttempt?.status, slug, t])
+
+  useEffect(() => {
+    if (polledAttempt?.status === "paid" && attemptIdFromUrl) {
+      clearWalletHandoff(attemptIdFromUrl)
+    }
+  }, [attemptIdFromUrl, polledAttempt?.status])
+
+  const deliveryUrl = useMemo(() => {
+    if (!paidPayload) return null
+    return resolvePaidNavigateUrl(paidPayload.type, paidPayload.value)
+  }, [paidPayload])
+
+  const unlockPhase: UnlockPhase = useMemo(() => {
+    if (loadState !== "done" || loadError || !resource) return "loading"
+    if (sessionError) return "session_failed"
+    if (sessionStarting || !attemptIdFromUrl) return "loading"
+    if (!polledAttempt) return "loading"
+
+    const st = polledAttempt.status
+
+    if (terminalUnpaidStatus(st)) return "session_failed"
+
+    if (st === "paid") {
+      if (paidPayloadLoading || paidPayloadError) return "confirming_unlock"
+      if (!paidPayload) return "confirming_unlock"
+      return "access_granted"
+    }
+
+    if (readWalletHandoff(attemptIdFromUrl)) return "payment_detected"
+
+    return "awaiting_payment"
+  }, [
+    attemptIdFromUrl,
+    loadError,
+    loadState,
+    paidPayload,
+    paidPayloadError,
+    paidPayloadLoading,
+    polledAttempt,
+    resource,
+    sessionError,
+    sessionStarting,
+  ])
+
+  /** Auto-open delivery URL when access is ready */
+  useEffect(() => {
+    if (unlockPhase !== "access_granted" || !deliveryUrl || !paidPayload) return
+    if (autoOpenIssuedRef.current) return
+    autoOpenIssuedRef.current = true
+    const id = window.setTimeout(() => {
+      window.location.assign(deliveryUrl)
+    }, 450)
+    return () => window.clearTimeout(id)
+  }, [deliveryUrl, paidPayload, unlockPhase])
 
   const resetToPaymentChoice = useCallback(() => {
     setManualAdvancedOpen(false)
@@ -142,87 +429,38 @@ export default function Pay() {
     setCryptoAdvancedOpen(false)
     setTxHash("")
     setVerifyError(null)
-    setAttemptError(null)
-    if (slug && attemptIdFromUrl) {
-      navigate(`/pay/${encodeURIComponent(slug)}`, { replace: true })
+    if (slug) {
+      if (attemptIdFromUrl) clearWalletHandoff(attemptIdFromUrl)
+      clearUnlockAttempt(slug)
     }
-    setAttemptId(null)
+    setPolledAttempt(null)
+    setPaidPayload(null)
+    setPaidPayloadError(null)
+    autoOpenIssuedRef.current = false
+    if (slug) navigate(unlockPagePath(slug), { replace: true })
   }, [attemptIdFromUrl, navigate, slug])
 
-  const createAttempt = useCallback(async (): Promise<string | null> => {
-    if (!slug || !resource) return null
-    if (attemptId) return attemptId
-
-    setIsCreatingAttempt(true)
-    setAttemptError(null)
-    setVerifyError(null)
-
-    try {
-      const { response: attemptRes, data: attemptData } =
-        await createPaymentAttempt({
-          slug,
-          clientType: "browser",
-        })
-
-      if (!attemptRes.ok || !attemptData?.ok || !attemptData.attemptId) {
-        throw new Error(
-          attemptData?.error || t("pay.createAttemptFailed"),
-        )
-      }
-
-      const id = attemptData.attemptId
-      setAttemptId(id)
-      return id
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t("pay.unexpectedAttemptError")
-      setAttemptError(message)
-      return null
-    } finally {
-      setIsCreatingAttempt(false)
-    }
-  }, [attemptId, resource, slug, t])
-
-  const openPayUrlWithAttempt = useCallback(
-    (id: string) => {
-      if (!slug) return
-      navigate(
-        `/pay/${encodeURIComponent(slug)}?attemptId=${encodeURIComponent(id)}`,
-        { replace: true },
-      )
-    },
-    [navigate, slug],
-  )
-
-  /** [EIP-681](https://eips.ethereum.org/EIPS/eip-681) — Base + USDC + amount + recipient; works with MetaMask, Coinbase Wallet, Base app, and other compatible wallets. */
-  const handlePayWithWallet = async () => {
-    if (!canInteract || !resource) return
+  const handlePayWithWallet = () => {
+    if (!canInteract || !resource || !attemptIdFromUrl) return
     setManualAdvancedOpen(false)
     const href = buildBaseUsdcEip681Link(resource)
     if (!href) {
-      setAttemptError(t("pay.payBaseUnavailable"))
+      setSessionError(t("pay.payBaseUnavailable"))
       return
     }
-    const id = await createAttempt()
-    if (!id) return
-    openPayUrlWithAttempt(id)
+    setWalletHandoff(attemptIdFromUrl)
     window.location.href = href
   }
 
   const handleOpenAdvancedManual = () => {
     setVerifyError(null)
-    setAttemptError(null)
+    setSessionError(null)
     setAdvancedHelpOpen(false)
     setManualAdvancedOpen(true)
   }
 
-  const handleManualPanelCreateAttempt = async () => {
-    if (!canInteract) return
-    await createAttempt()
-  }
-
   const handleVerifyWithTxHash = async () => {
-    if (!slug || !attemptId || isVerifying) return
+    if (!slug || !attemptIdFromUrl || isVerifying) return
 
     const trimmed = txHash.trim()
     if (!trimmed) {
@@ -240,7 +478,7 @@ export default function Pay() {
     try {
       const { response: verifyRes, data: verifyData } = await verifyX402Payment(
         {
-          attemptId,
+          attemptId: attemptIdFromUrl,
           slug,
           txHash: trimmed,
         },
@@ -262,7 +500,10 @@ export default function Pay() {
         throw new Error(`${detail}${code}`.trim())
       }
 
-      goToSuccess(attemptId)
+      const refreshed = await fetchPaymentAttempt(attemptIdFromUrl)
+      if (refreshed.ok && refreshed.attempt) {
+        setPolledAttempt(refreshed.attempt)
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : t("pay.unexpectedVerifyError")
@@ -273,7 +514,7 @@ export default function Pay() {
   }
 
   const handleDevMockVerify = async () => {
-    if (!slug || !attemptId || isVerifying) return
+    if (!slug || !attemptIdFromUrl || isVerifying) return
 
     setIsVerifying(true)
     setVerifyError(null)
@@ -281,7 +522,7 @@ export default function Pay() {
     try {
       const { response: verifyRes, data: verifyData } = await verifyX402Payment(
         {
-          attemptId,
+          attemptId: attemptIdFromUrl,
           slug,
           paymentSignature: DEV_MOCK_SIGNATURE,
         },
@@ -303,7 +544,10 @@ export default function Pay() {
         throw new Error(`${detail}${code}`.trim())
       }
 
-      goToSuccess(attemptId)
+      const refreshed = await fetchPaymentAttempt(attemptIdFromUrl)
+      if (refreshed.ok && refreshed.attempt) {
+        setPolledAttempt(refreshed.attempt)
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : t("pay.unexpectedVerifyError")
@@ -313,21 +557,21 @@ export default function Pay() {
     }
   }
 
+  const handleOpenResource = () => {
+    if (!paidPayload) return
+    openPaidResource(paidPayload.type, paidPayload.value)
+  }
+
   const showResourceSkeleton = loadState === "loading"
   const showResourceError = loadState === "done" && loadError
-  const linkValidationPending =
-    attemptIdFromUrl != null &&
-    loadState === "done" &&
-    resource != null &&
-    attemptId == null &&
-    attemptError == null
 
   const canInteract =
     Boolean(slug && resource && resource.active) &&
     loadState === "done" &&
     !loadError &&
-    !(attemptIdFromUrl && attemptError) &&
-    !linkValidationPending
+    !sessionStarting &&
+    Boolean(attemptIdFromUrl) &&
+    !sessionError
 
   const isDev = import.meta.env.DEV
 
@@ -336,19 +580,65 @@ export default function Pay() {
 
   const showAdvancedOnlyPanel = manualAdvancedOpen && resource != null
 
-  /** Primary wallet CTA only when we have a payable resource and no active attempt flow. */
-  const showWalletPrimarySection =
-    loadState === "done" &&
+  const centerMeta =
+    resource && !showResourceError && !showResourceSkeleton
+      ? {
+          isFree: isZeroUsdcAmount(resource.amount),
+          amountDisplay: formatUsdcAmountDisplay(resource.amount),
+        }
+      : null
+
+  const phaseCopy = useMemo(() => {
+    switch (unlockPhase) {
+      case "awaiting_payment":
+        return {
+          title: t("pay.session.phase.awaitingTitle"),
+          subtitle: t("pay.session.phase.awaitingSubtitle"),
+        }
+      case "payment_detected":
+        return {
+          title: t("pay.session.phase.detectedTitle"),
+          subtitle: t("pay.session.phase.detectedSubtitle"),
+        }
+      case "confirming_unlock":
+        return {
+          title: t("pay.session.phase.confirmingTitle"),
+          subtitle: t("pay.session.phase.confirmingSubtitle"),
+        }
+      case "access_granted":
+        return {
+          title: t("pay.session.phase.accessTitle"),
+          subtitle: t("pay.session.phase.accessSubtitle"),
+        }
+      case "session_failed":
+        return {
+          title: t("pay.session.phase.failedTitle"),
+          subtitle: t("pay.session.phase.failedSubtitle"),
+        }
+      default:
+        return {
+          title: t("pay.session.phase.connectingTitle"),
+          subtitle: t("pay.session.phase.connectingSubtitle"),
+        }
+    }
+  }, [t, unlockPhase])
+
+  const showSessionCard =
+    resource &&
+    !showResourceError &&
     !showResourceSkeleton &&
-    resource != null &&
-    !attemptId &&
-    !manualAdvancedOpen
+    !sessionError &&
+    (sessionStarting ||
+      attemptIdFromUrl ||
+      unlockPhase !== "loading")
 
-  const showAdvancedTxToggle =
-    loadState === "done" && !showResourceSkeleton && !manualAdvancedOpen
+  const showWalletPrimarySection =
+    unlockPhase === "awaiting_payment" &&
+    !manualAdvancedOpen &&
+    Boolean(walletPayHref)
 
-  const showWalletFollowUp =
-    Boolean(attemptId && resource && !manualAdvancedOpen)
+  const showVerifyFallbackLink =
+    unlockPhase === "awaiting_payment" && !manualAdvancedOpen
 
   const advancedTxForm = (opts: { showBackToMethods: boolean }) => (
     <VStack gap={{ base: 3, desktop: 4 }} alignItems="stretch">
@@ -382,17 +672,7 @@ export default function Pay() {
         </TextBody>
       ) : null}
 
-      {!attemptId ? (
-        <Button
-          onClick={handleManualPanelCreateAttempt}
-          disabled={!canInteract || isCreatingAttempt}
-          block
-        >
-          {isCreatingAttempt
-            ? t("pay.createAttemptLoading")
-            : t("pay.createAttempt")}
-        </Button>
-      ) : (
+      {attemptIdFromUrl ? (
         <VStack gap={3} alignItems="stretch">
           <Box
             background="bgElevation1"
@@ -413,12 +693,6 @@ export default function Pay() {
               <TextBody color="fg">
                 {t("pay.networkLabel", { network: resource!.network })}
               </TextBody>
-              <TextBody color="fg">
-                {t("pay.slugLabel", { slug: resource!.slug })}
-              </TextBody>
-              <TextBody mono as="code" color="fg" overflow="wrap">
-                {t("pay.attemptIdLabel", { id: attemptId })}
-              </TextBody>
             </VStack>
           </Box>
           <TextInput
@@ -436,7 +710,7 @@ export default function Pay() {
             {isVerifying ? t("pay.verifyTxLoading") : t("pay.verifyTx")}
           </Button>
         </VStack>
-      )}
+      ) : null}
 
       {opts.showBackToMethods ? (
         <Button
@@ -450,21 +724,6 @@ export default function Pay() {
       ) : null}
     </VStack>
   )
-
-  const showVerifyFallbackLink =
-    showAdvancedTxToggle &&
-    canInteract &&
-    !manualAdvancedOpen &&
-    !attemptIdFromUrl &&
-    !linkValidationPending
-
-  const centerMeta =
-    resource && !showResourceError && !showResourceSkeleton
-      ? {
-          isFree: isZeroUsdcAmount(resource.amount),
-          amountDisplay: formatUsdcAmountDisplay(resource.amount),
-        }
-      : null
 
   return (
     <Box
@@ -577,13 +836,57 @@ export default function Pay() {
                   )}
                 </VStack>
 
-                {linkValidationPending ? (
-                  <TextCaption color="fgMuted" as="p">
-                    {t("pay.confirmingLink")}
-                  </TextCaption>
+                {showSessionCard ? (
+                  <Box
+                    borderRadius={400}
+                    background={
+                      unlockPhase === "access_granted"
+                        ? "bgPositiveWash"
+                        : unlockPhase === "session_failed"
+                          ? "bgNegativeWash"
+                          : "bgSecondary"
+                    }
+                    padding={{ base: 3, desktop: 4 }}
+                    width="100%"
+                    maxWidth="26rem"
+                    alignSelf="center"
+                  >
+                    <VStack gap={2} alignItems="stretch">
+                      <TextCaption
+                        color="fgMuted"
+                        style={{
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {t("pay.session.eyebrow")}
+                      </TextCaption>
+                      {sessionStarting ? (
+                        <TextBody color="fgMuted" as="p">
+                          {t("pay.session.starting")}
+                        </TextBody>
+                      ) : (
+                        <>
+                          <TextTitle2
+                            color="fg"
+                            as="h2"
+                            style={{
+                              letterSpacing: "-0.02em",
+                              textAlign: "center",
+                            }}
+                          >
+                            {phaseCopy.title}
+                          </TextTitle2>
+                          <TextCaption color="fgMuted" as="p">
+                            {phaseCopy.subtitle}
+                          </TextCaption>
+                        </>
+                      )}
+                    </VStack>
+                  </Box>
                 ) : null}
 
-                {(attemptError || verifyError) && (
+                {(sessionError || verifyError) && (
                   <Box
                     borderRadius={400}
                     background="bgNegativeWash"
@@ -593,27 +896,50 @@ export default function Pay() {
                   >
                     <VStack gap={2} alignItems="stretch">
                       <TextBody color="fgNegative">
-                        {verifyError ?? attemptError}
+                        {verifyError ?? sessionError}
                       </TextBody>
-                      {attemptIdFromUrl && attemptError && slug ? (
+                      {sessionError && slug ? (
                         <Button
                           variant="secondary"
-                          onClick={() => {
-                            navigate(
-                              `/pay/${encodeURIComponent(slug)}`,
-                              { replace: true },
-                            )
-                            setAttemptError(null)
-                            setVerifyError(null)
-                          }}
+                          onClick={resetToPaymentChoice}
                           block
                         >
-                          {t("pay.openPayWithoutLink")}
+                          {t("pay.session.retrySession")}
                         </Button>
                       ) : null}
                     </VStack>
                   </Box>
                 )}
+
+                {paidPayloadError ? (
+                  <Box
+                    borderRadius={400}
+                    background="bgNegativeWash"
+                    padding={3}
+                    width="100%"
+                    style={{ textAlign: "left" }}
+                  >
+                    <VStack gap={2} alignItems="stretch">
+                      <TextBody color="fgNegative">{paidPayloadError}</TextBody>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setPaidPayloadError(null)
+                          setDeliveryRetryKey((k) => k + 1)
+                        }}
+                        block
+                      >
+                        {t("pay.session.retryDelivery")}
+                      </Button>
+                    </VStack>
+                  </Box>
+                ) : null}
+
+                {unlockPhase === "session_failed" && !sessionError ? (
+                  <Button variant="primary" onClick={resetToPaymentChoice} block>
+                    {t("pay.session.startNewUnlock")}
+                  </Button>
+                ) : null}
 
                 {showWalletPrimarySection ? (
                   <VStack
@@ -626,18 +952,12 @@ export default function Pay() {
                     <Button
                       variant="primary"
                       onClick={handlePayWithWallet}
-                      disabled={
-                        !canInteract ||
-                        isCreatingAttempt ||
-                        !walletPayHref
-                      }
+                      disabled={!canInteract || !walletPayHref}
                       block
                     >
-                      {isCreatingAttempt
-                        ? t("pay.working")
-                        : centerMeta?.isFree
-                          ? t("pay.unlockInWallet")
-                          : t("pay.payWithWallet")}
+                      {centerMeta?.isFree
+                        ? t("pay.unlockInWallet")
+                        : t("pay.payWithWallet")}
                     </Button>
                     {showVerifyFallbackLink ? (
                       <Button
@@ -655,7 +975,7 @@ export default function Pay() {
                       </TextCaption>
                     ) : null}
                     <TextCaption color="fgMuted" as="p">
-                      {t("pay.autoDetectFooter")}
+                      {t("pay.session.watchingHint")}
                     </TextCaption>
                     {walletPayHref ? (
                       <TextCaption color="fgMuted" as="p">
@@ -665,59 +985,29 @@ export default function Pay() {
                   </VStack>
                 ) : null}
 
-                {showWalletFollowUp ? (
+                {(unlockPhase === "payment_detected" ||
+                  unlockPhase === "confirming_unlock") &&
+                !manualAdvancedOpen ? (
                   <VStack
-                    gap={3}
+                    gap={2}
                     alignItems="stretch"
                     width="100%"
                     maxWidth="26rem"
                     alignSelf="center"
                   >
-                    <VStack gap={1} alignItems="center">
-                      <TextTitle2
-                        color="fg"
-                        as="h2"
-                        style={{ letterSpacing: "-0.02em" }}
-                      >
-                        {t("pay.inProgressTitle")}
-                      </TextTitle2>
-                      <TextCaption color="fgMuted" as="p">
-                        {t("pay.inProgressShort")}
-                      </TextCaption>
-                    </VStack>
-                    {attemptId ? (
-                      <TextCaption mono as="p" color="fgMuted" overflow="wrap">
-                        {t("pay.attemptIdLabel", { id: attemptId })}
-                      </TextCaption>
-                    ) : null}
-                    <Button
-                      variant="primary"
-                      onClick={() => attemptId && goToSuccess(attemptId)}
-                      disabled={!attemptId}
-                      block
-                    >
-                      {t("pay.viewStatus")}
-                    </Button>
+                    <TextCaption color="fgMuted" as="p">
+                      {t("pay.session.patienceHint")}
+                    </TextCaption>
                     <Button
                       variant="foregroundMuted"
-                      onClick={resetToPaymentChoice}
-                      disabled={isVerifying}
+                      onClick={() => setCryptoAdvancedOpen((o) => !o)}
                       block
                     >
-                      {t("pay.backToWalletPay")}
+                      {cryptoAdvancedOpen
+                        ? t("pay.hideAdvanced")
+                        : t("pay.verifySecondaryLink")}
                     </Button>
-                    {attemptId ? (
-                      <Button
-                        variant="foregroundMuted"
-                        onClick={() => setCryptoAdvancedOpen((o) => !o)}
-                        block
-                      >
-                        {cryptoAdvancedOpen
-                          ? t("pay.hideAdvanced")
-                          : t("pay.verifySecondaryLink")}
-                      </Button>
-                    ) : null}
-                    {cryptoAdvancedOpen && attemptId ? (
+                    {cryptoAdvancedOpen && attemptIdFromUrl ? (
                       <Box
                         background="bgElevation1"
                         borderRadius={400}
@@ -744,7 +1034,7 @@ export default function Pay() {
                         </VStack>
                       </Box>
                     ) : null}
-                    {isDev && attemptId ? (
+                    {isDev && attemptIdFromUrl ? (
                       <Box
                         background="bgElevation1"
                         borderRadius={400}
@@ -780,6 +1070,23 @@ export default function Pay() {
                         </VStack>
                       </Box>
                     ) : null}
+                  </VStack>
+                ) : null}
+
+                {unlockPhase === "access_granted" && paidPayload ? (
+                  <VStack
+                    gap={3}
+                    alignItems="stretch"
+                    width="100%"
+                    maxWidth="26rem"
+                    alignSelf="center"
+                  >
+                    <Button variant="primary" onClick={handleOpenResource} block>
+                      {t("pay.session.openResource")}
+                    </Button>
+                    <TextCaption color="fgMuted" as="p">
+                      {t("pay.session.autoOpenFallback")}
+                    </TextCaption>
                   </VStack>
                 ) : null}
 

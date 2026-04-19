@@ -15,6 +15,7 @@ import {
   type PaymentAttemptPayload,
   type PaymentAttemptStatus,
 } from "@/lib/api"
+import { unlockPagePath } from "@/lib/appUrl"
 import {
   openPaidResource,
   resolvePaidNavigateUrl,
@@ -271,7 +272,7 @@ export default function Success() {
 
   const payHref = useMemo(() => {
     const s = attempt?.slug ?? routeSlug
-    if (s && s !== "") return `/pay/${encodeURIComponent(s)}`
+    if (s && s !== "") return unlockPagePath(s)
     return "/"
   }, [attempt?.slug, routeSlug])
 
@@ -560,7 +561,7 @@ export default function Success() {
                 <NavButtons
                   payHref={
                     routeSlug && routeSlug !== ""
-                      ? `/pay/${encodeURIComponent(routeSlug)}`
+                      ? unlockPagePath(routeSlug)
                       : "/"
                   }
                 />

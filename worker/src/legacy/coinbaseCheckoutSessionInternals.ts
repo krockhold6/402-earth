@@ -78,7 +78,7 @@ export async function createCoinbaseCheckout(
 
   const origin = siteUrl(env)
   const successRedirectUrl = `${origin}/success/${encodeURIComponent(session.slug)}?sessionId=${encodeURIComponent(session.sessionId)}`
-  const failRedirectUrl = `${origin}/pay/${encodeURIComponent(session.slug)}?sessionId=${encodeURIComponent(session.sessionId)}&amount=${encodeURIComponent(session.amount)}&label=${encodeURIComponent(session.label)}`
+  const failRedirectUrl = `${origin}/unlock/${encodeURIComponent(session.slug)}?sessionId=${encodeURIComponent(session.sessionId)}&amount=${encodeURIComponent(session.amount)}&label=${encodeURIComponent(session.label)}`
 
   const res = await fetch(`https://business.coinbase.com${CHECKOUTS_PATH}`, {
     method: 'POST',

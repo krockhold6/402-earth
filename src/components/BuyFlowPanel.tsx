@@ -25,6 +25,7 @@ import {
   TextTitle4,
 } from "@coinbase/cds-web/typography"
 import { createPaymentAttempt, fetchResource, type ApiResource } from "@/lib/api"
+import { unlockPagePath } from "@/lib/appUrl"
 import { buildBaseUsdcEip681Link } from "@/lib/baseUsdcPayLink"
 import { decodeQrFromImageFile } from "@/lib/decodeQrFromImageFile"
 import {
@@ -217,7 +218,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
 
       const attemptId = attemptData.attemptId
       navigate(
-        `/pay/${encodeURIComponent(slug)}?attemptId=${encodeURIComponent(attemptId)}`,
+        unlockPagePath(slug, attemptId),
         { replace: true },
       )
       window.location.href = walletHref

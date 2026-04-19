@@ -12,7 +12,7 @@ export function githubProjectPathPrefix(): string {
 }
 
 /**
- * Prefix for same-origin SPA paths (pay links, QR codes). Matches React Router basename
+ * Prefix for same-origin SPA paths (unlock links, QR codes). Matches React Router basename
  * when using Vite `base: './'`.
  */
 export function appBasePath(): string {
@@ -24,20 +24,39 @@ export function appBasePath(): string {
 }
 
 /**
- * Absolute URL to the SPA pay page (for QR, share sheet, etc.).
- * When `attemptId` is set, the payer opens a session tied to that worker attempt.
+ * Same-origin path to the buyer unlock page (`/unlock/:slug`).
+ * Optional `attemptId` ties the tab to a worker payment attempt.
  */
-export function absolutePayPageUrl(
+export function unlockPagePath(
+  slug: string,
+  attemptId?: string | null,
+): string {
+  const base = appBasePath()
+  const prefix = `${base}/unlock/${encodeURIComponent(slug)}`
+  const qs =
+    attemptId != null && attemptId !== ""
+      ? `?attemptId=${encodeURIComponent(attemptId)}`
+      : ""
+  return `${prefix}${qs}`
+}
+
+/**
+ * Absolute URL to the buyer unlock page (QR, share sheet, deep links).
+ * Uses the current page origin so QR/copy always match the SPA the creator is on.
+ */
+export function absoluteUnlockPageUrl(
   slug: string,
   attemptId?: string | null,
 ): string {
   const origin =
     typeof window !== "undefined" ? window.location.origin : ""
-  const base = appBasePath()
-  const path = `${base}/pay/${encodeURIComponent(slug)}`
-  const qs =
-    attemptId != null && attemptId !== ""
-      ? `?attemptId=${encodeURIComponent(attemptId)}`
-      : ""
-  return `${origin}${path}${qs}`
+  return `${origin}${unlockPagePath(slug, attemptId)}`
+}
+
+/** @deprecated Use `unlockPagePath` — `/pay/:slug` redirects to `/unlock/:slug`. */
+export function absolutePayPageUrl(
+  slug: string,
+  attemptId?: string | null,
+): string {
+  return absoluteUnlockPageUrl(slug, attemptId)
 }

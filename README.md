@@ -16,7 +16,7 @@ From repo root:
 | `npm run build` | Production bundle (Vite `base` defaults to `/`; see `vite.config.ts`) |
 | `npm run preview` | Preview production build at **`http://localhost:4173/`** (runs a build first if `dist/index.html` is missing). Port **4173** is fixed (`strictPort`); if you see “port already in use”, stop the other process (often a leftover `vite preview`) or run `lsof -i :4173`. |
 
-**Static hosting:** Default `base` is **`/`** so scripts load as **`/assets/…`** on apex and on **custom domains at site root** (e.g. `https://402.earth/pay/...` hard-refresh works). A relative base (`./`) breaks those routes because the browser resolves `./assets/…` under `/pay/…`. For the raw **GitHub project** URL (`https://<user>.github.io/<repo>/`), build with `VITE_BASE_PATH=/<repo>/ npm run build` so assets live under `/<repo>/assets/…`. React Router basename on `*.github.io` still comes from `src/lib/appUrl.ts`.
+**Static hosting:** Default `base` is **`/`** so scripts load as **`/assets/…`** on apex and on **custom domains at site root** (e.g. `https://402.earth/unlock/...` hard-refresh works). A relative base (`./`) breaks those routes because the browser resolves `./assets/…` under `/unlock/…`. For the raw **GitHub project** URL (`https://<user>.github.io/<repo>/`), build with `VITE_BASE_PATH=/<repo>/ npm run build` so assets live under `/<repo>/assets/…`. React Router basename on `*.github.io` still comes from `src/lib/appUrl.ts`.
 
 **Public images / files in `public/`:** Use **`publicUrl()`** from `src/lib/publicUrl.ts` for URLs in React (Vite does not rewrite string literals; hardcoded `/img/…` misses the subpath when `base` is `/<repo>/`).
 
@@ -81,7 +81,7 @@ Apply remote migrations / seeds when schema or catalog data changes in productio
 
 **Legacy (Coinbase checkout era)** — still mounted after v3 routes: `GET`/`POST` `/api/payment-session`, `POST` `/api/webhooks/coinbase-business`, and `GET` `/x402/pay/:slug?sessionId=` (no `attemptId`).
 
-**Frontend routes:** `/`, `/pay/:slug`, `/success/:slug` (`?attemptId=` for v3; optional `?sessionId=` shows legacy checkout panel only).
+**Frontend routes:** `/`, `/unlock/:slug` (canonical buyer unlock page), `/pay/:slug` (redirects to `/unlock/:slug`), `/success/:slug` (`?attemptId=` for v3; optional `?sessionId=` shows legacy checkout panel only).
 
 ### 7. Mock / dev-only today
 

@@ -17,6 +17,7 @@ import {
   fetchLegacyPaymentSession,
   type LegacyPaymentSessionPayload,
 } from "@/lib/api"
+import { unlockPagePath } from "@/lib/appUrl"
 import i18n from "@/i18n/config"
 
 const cardPadding = { base: 3, desktop: 4 } as const
@@ -103,7 +104,7 @@ export function LegacyCheckoutSessionPanel({
 
   const paySlug = session?.slug ?? routeSlug ?? ""
   const payHref =
-    paySlug !== "" ? `/pay/${encodeURIComponent(paySlug)}` : "/"
+    paySlug !== "" ? unlockPagePath(paySlug) : "/"
 
   return (
     <ContentCard

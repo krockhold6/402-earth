@@ -83,7 +83,7 @@ export async function tryLegacyCoinbaseCheckoutRoutes(
     const createdAt = nowIso()
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString()
     const successUrl = `/success/${slug}?sessionId=${sessionId}`
-    const cancelUrl = `/pay/${slug}?sessionId=${sessionId}`
+    const cancelUrl = `/unlock/${encodeURIComponent(slug)}?sessionId=${sessionId}`
 
     const session: PaymentSession = {
       sessionId,

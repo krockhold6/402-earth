@@ -18,7 +18,11 @@ import { Icon } from "@coinbase/cds-web/icons"
 import { RemoteImage } from "@coinbase/cds-web/media"
 import { ApiDocsPanel } from "@/components/ApiDocsPanel"
 import { BuyFlowPanel } from "@/components/BuyFlowPanel"
-import { createResource } from "@/lib/api"
+import {
+  createResource,
+  sendCreatorReceiptEmail,
+  type ApiResource,
+} from "@/lib/api"
 import { publicUrl } from "@/lib/publicUrl"
 import { suggestResourceSlug } from "@/lib/suggestResourceSlug"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
@@ -422,6 +426,15 @@ export default function Home() {
   >(null)
   /** Set only after API confirms a resource exists (create). */
   const [paymentUrl, setPaymentUrl] = useState("")
+  /** Canonical unlock page + summary fields — kept when receipt send fails. */
+  const [createdResource, setCreatedResource] = useState<ApiResource | null>(
+    null,
+  )
+  const [receiptEmail, setReceiptEmail] = useState("")
+  const [receiptPhase, setReceiptPhase] = useState<
+    "idle" | "sending" | "success" | "failure"
+  >("idle")
+  const [receiptSentTo, setReceiptSentTo] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [protectedLinkUrl, setProtectedLinkUrl] = useState("")
@@ -475,10 +488,18 @@ export default function Home() {
 
   const canCreateOnRail = activeTab.id === "sell"
 
-  const invalidateQrIfFormChanged = useCallback(() => {
+  const clearPaymentSuccessState = useCallback(() => {
     setPaymentUrl("")
-    setCreateError(null)
+    setCreatedResource(null)
+    setReceiptEmail("")
+    setReceiptPhase("idle")
+    setReceiptSentTo(null)
   }, [])
+
+  const invalidateQrIfFormChanged = useCallback(() => {
+    clearPaymentSuccessState()
+    setCreateError(null)
+  }, [clearPaymentSuccessState])
 
   const handleGenerateRandomSlug = useCallback(() => {
     setSlug(suggestResourceSlug())
@@ -590,14 +611,14 @@ export default function Home() {
           }
         } catch {
           setCreateError(t("home.errorProtectedUrl"))
-          setPaymentUrl("")
+          clearPaymentSuccessState()
           setIsCreating(false)
           return
         }
         const ttl = protectedTtlSeconds
         if (!Number.isFinite(ttl) || ttl < 60 || ttl > 604800) {
           setCreateError(t("home.errorProtectedTtl"))
-          setPaymentUrl("")
+          clearPaymentSuccessState()
           setIsCreating(false)
           return
         }
@@ -617,7 +638,7 @@ export default function Home() {
           }
         } catch {
           setCreateError(t("home.errorPostPaymentUrl"))
-          setPaymentUrl("")
+          clearPaymentSuccessState()
           setIsCreating(false)
           return
         }
@@ -635,7 +656,7 @@ export default function Home() {
           data?.error?.trim() ||
           t("home.createErrorHttp", { status: response.status })
         setCreateError(msg)
-        setPaymentUrl("")
+        clearPaymentSuccessState()
         return
       }
 
@@ -644,12 +665,16 @@ export default function Home() {
         pickResourceReceiver(data.resource).toLowerCase() ||
           recvResult.normalized,
       )
-      setPaymentUrl(data.paymentUrl)
+      setCreatedResource(data.resource)
+      setPaymentUrl(data.paymentUrl.trim())
+      setReceiptEmail("")
+      setReceiptPhase("idle")
+      setReceiptSentTo(null)
       setCreateError(null)
       setReceiverAddressError(null)
     } catch {
       setCreateError(t("home.createErrorNetwork"))
-      setPaymentUrl("")
+      clearPaymentSuccessState()
     } finally {
       setIsCreating(false)
     }
@@ -682,9 +707,37 @@ export default function Home() {
     if (!canvas) return
     const a = document.createElement("a")
     a.href = canvas.toDataURL("image/png")
-    a.download = `402-${slugKey || i18n.t("home.qrFilenamePayment")}.png`
+    const slugPart =
+      createdResource?.slug?.trim() ||
+      slugKey.trim() ||
+      i18n.t("home.qrFilenamePayment")
+    a.download = `402-${slugPart}.png`
     a.click()
-  }, [slugKey])
+  }, [createdResource?.slug, slugKey])
+
+  const handleSendReceipt = useCallback(async () => {
+    if (!createdResource?.slug || receiptPhase === "sending") return
+    const trimmed = receiptEmail.trim()
+    if (trimmed.length < 5 || !trimmed.includes("@")) return
+
+    setReceiptPhase("sending")
+    try {
+      const { response, data } = await sendCreatorReceiptEmail({
+        slug: createdResource.slug,
+        email: trimmed,
+      })
+      if (response.ok && data?.ok) {
+        setReceiptPhase("success")
+        setReceiptSentTo(trimmed)
+        return
+      }
+      setReceiptPhase("failure")
+      setReceiptSentTo(null)
+    } catch {
+      setReceiptPhase("failure")
+      setReceiptSentTo(null)
+    }
+  }, [createdResource?.slug, receiptEmail, receiptPhase])
 
   /** Viewport / outer edge inset for text and controls */
   const edgePad = { base: 3, desktop: 6 } as const
@@ -1239,64 +1292,310 @@ export default function Home() {
     </VStack>
   )
 
-  const homeRailResultSection = hasQr ? (
-    <VStack gap={3} alignItems="stretch" width="100%">
-      <TextTitle4 color="fgMuted" as="p" style={{ margin: 0 }}>
-        {t("home.railResultHeading")}
-      </TextTitle4>
-      <Box display="flex" justifyContent="center" width="100%">
-        <QRCodeCanvas
-          ref={qrCanvasRef}
-          value={paymentUrl}
-          size={isWide ? 220 : 200}
-          marginSize={2}
-          bgColor="#ffffff"
-          fgColor="#000000"
-        />
-      </Box>
-      <Box
-        borderRadius={400}
-        background="bgSecondary"
-        padding={4}
-        width="100%"
-        minWidth={0}
-      >
-        <VStack gap={2} alignItems="stretch" width="100%" minWidth={0}>
-          <TextLabel1 color="fg" as="p" style={{ margin: 0 }}>
-            {t("home.paymentUrlTitle")}
-          </TextLabel1>
-          <Box
-            minWidth={0}
-            style={{
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-            }}
-          >
-            <TextBody mono as="p" color="fg" style={{ margin: 0 }}>
-              {paymentUrl}
-            </TextBody>
-          </Box>
-        </VStack>
-      </Box>
-      <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
-        <HomeLinkActionRow
-          iconName="copy"
-          label={t("home.copyPaymentUrl")}
-          onClick={copyPaymentUrl}
-        />
-        <HomeLinkActionRow
-          iconName="share"
-          label={t("home.share")}
-          onClick={sharePayment}
-        />
-        <HomeLinkActionRow
-          iconName="download"
-          label={t("home.download")}
-          onClick={downloadQr}
-        />
+  const homeRailResultSection =
+    hasQr && createdResource ? (
+      <VStack gap={4} alignItems="stretch" width="100%">
+        <Box
+          bordered
+          borderRadius={400}
+          background="bgSecondary"
+          padding={{ base: 4, desktop: 5 }}
+          width="100%"
+          minWidth={0}
+        >
+          <VStack gap={4} alignItems="stretch" width="100%">
+            <VStack gap={1} alignItems="stretch" width="100%">
+              <TextTitle3 color="fg" as="p" style={{ margin: 0 }}>
+                {t("home.successHeadline")}
+              </TextTitle3>
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+                {t("home.successSupporting")}
+              </TextBody>
+            </VStack>
+
+            <Box
+              borderRadius={400}
+              background="bg"
+              padding={3}
+              width="100%"
+              minWidth={0}
+            >
+              <VStack gap={2} alignItems="stretch" width="100%">
+                <HStack
+                  gap={3}
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                  width="100%"
+                  minWidth={0}
+                >
+                  <TextCaption color="fgMuted" as="span" style={{ flexShrink: 0 }}>
+                    {t("home.summaryItem")}
+                  </TextCaption>
+                  <TextBody
+                    as="p"
+                    color="fg"
+                    style={{
+                      margin: 0,
+                      textAlign: "end",
+                      lineHeight: 1.45,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {createdResource.label}
+                  </TextBody>
+                </HStack>
+                <HStack
+                  gap={3}
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                  width="100%"
+                  minWidth={0}
+                >
+                  <TextCaption color="fgMuted" as="span" style={{ flexShrink: 0 }}>
+                    {t("home.summaryPrice")}
+                  </TextCaption>
+                  <TextBody
+                    as="p"
+                    color="fg"
+                    style={{ margin: 0, textAlign: "end", lineHeight: 1.45 }}
+                  >
+                    {`${createdResource.amount} ${createdResource.currency}`}
+                  </TextBody>
+                </HStack>
+                <HStack
+                  gap={3}
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                  width="100%"
+                  minWidth={0}
+                >
+                  <TextCaption color="fgMuted" as="span" style={{ flexShrink: 0 }}>
+                    {t("home.summaryNetwork")}
+                  </TextCaption>
+                  <TextBody
+                    as="p"
+                    color="fg"
+                    style={{ margin: 0, textAlign: "end", lineHeight: 1.45 }}
+                  >
+                    {createdResource.network.trim().toLowerCase() === "base"
+                      ? "Base"
+                      : createdResource.network.trim()}
+                  </TextBody>
+                </HStack>
+                <HStack
+                  gap={3}
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                  width="100%"
+                  minWidth={0}
+                >
+                  <TextCaption color="fgMuted" as="span" style={{ flexShrink: 0 }}>
+                    {t("home.summaryDelivery")}
+                  </TextCaption>
+                  <TextBody
+                    as="p"
+                    color="fg"
+                    style={{
+                      margin: 0,
+                      textAlign: "end",
+                      lineHeight: 1.45,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {createdResource.deliveryMode === "protected"
+                      ? t("home.deliveryProtected")
+                      : t("home.deliveryDirect")}
+                  </TextBody>
+                </HStack>
+              </VStack>
+            </Box>
+
+            <Box display="flex" justifyContent="center" width="100%">
+              <QRCodeCanvas
+                ref={qrCanvasRef}
+                value={paymentUrl}
+                size={isWide ? 220 : 200}
+                marginSize={2}
+                bgColor="#ffffff"
+                fgColor="#000000"
+              />
+            </Box>
+
+            <Box
+              borderRadius={400}
+              background="bg"
+              padding={3}
+              width="100%"
+              minWidth={0}
+            >
+              <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+                <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+                  {t("home.paymentLinkLabel")}
+                </TextCaption>
+                <Box
+                  minWidth={0}
+                  style={{
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  <TextBody
+                    mono
+                    as="p"
+                    color="fg"
+                    style={{
+                      margin: 0,
+                      fontSize: 13,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {paymentUrl}
+                  </TextBody>
+                </Box>
+              </VStack>
+            </Box>
+
+            <VStack gap={2} alignItems="stretch" width="100%">
+              <Button
+                block
+                variant="primary"
+                type="button"
+                onClick={copyPaymentUrl}
+                style={{ borderRadius: "100px" }}
+              >
+                {t("home.primaryCopyPaymentLink")}
+              </Button>
+              <Button
+                block
+                variant="secondary"
+                type="button"
+                onClick={downloadQr}
+                style={{ borderRadius: "100px" }}
+              >
+                {t("home.downloadQrCode")}
+              </Button>
+              <HomeLinkActionRow
+                iconName="share"
+                label={t("home.share")}
+                onClick={sharePayment}
+              />
+            </VStack>
+          </VStack>
+        </Box>
+
+        <Box
+          bordered
+          borderRadius={400}
+          background="bgSecondary"
+          padding={{ base: 4, desktop: 4 }}
+          width="100%"
+          minWidth={0}
+        >
+          <VStack gap={3} alignItems="stretch" width="100%">
+            <TextLabel1 color="fg" as="p" style={{ margin: 0, fontWeight: 650 }}>
+              {t("home.keepCopyTitle")}
+            </TextLabel1>
+            <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+              {t("home.keepCopyHelper")}
+            </TextCaption>
+            {isWide ? (
+              <HStack
+                gap={2}
+                alignItems="flex-end"
+                width="100%"
+                minWidth={0}
+              >
+                <Box flexGrow={1} minWidth={0}>
+                  <TextInput
+                    compact
+                    {...homeFormTextInputSurface}
+                    label={t("home.receiptEmailLabel")}
+                    value={receiptEmail}
+                    onChange={(e) => {
+                      setReceiptEmail(e.target.value)
+                      if (
+                        receiptPhase === "success" ||
+                        receiptPhase === "failure"
+                      ) {
+                        setReceiptPhase("idle")
+                        setReceiptSentTo(null)
+                      }
+                    }}
+                    autoComplete="email"
+                    spellCheck={false}
+                    placeholder="you@email.com"
+                  />
+                </Box>
+                <Button
+                  variant="primary"
+                  type="button"
+                  compact
+                  onClick={handleSendReceipt}
+                  disabled={
+                    receiptPhase === "sending" ||
+                    receiptEmail.trim().length < 5 ||
+                    !receiptEmail.trim().includes("@")
+                  }
+                  style={{ borderRadius: "100px", flexShrink: 0 }}
+                >
+                  {receiptPhase === "sending"
+                    ? t("home.receiptSending")
+                    : t("home.sendReceipt")}
+                </Button>
+              </HStack>
+            ) : (
+              <VStack gap={2} alignItems="stretch" width="100%">
+                <TextInput
+                  compact
+                  {...homeFormTextInputSurface}
+                  label={t("home.receiptEmailLabel")}
+                  value={receiptEmail}
+                  onChange={(e) => {
+                    setReceiptEmail(e.target.value)
+                    if (
+                      receiptPhase === "success" ||
+                      receiptPhase === "failure"
+                    ) {
+                      setReceiptPhase("idle")
+                      setReceiptSentTo(null)
+                    }
+                  }}
+                  autoComplete="email"
+                  spellCheck={false}
+                  placeholder="you@email.com"
+                />
+                <Button
+                  block
+                  variant="primary"
+                  type="button"
+                  onClick={handleSendReceipt}
+                  disabled={
+                    receiptPhase === "sending" ||
+                    receiptEmail.trim().length < 5 ||
+                    !receiptEmail.trim().includes("@")
+                  }
+                  style={{ borderRadius: "100px" }}
+                >
+                  {receiptPhase === "sending"
+                    ? t("home.receiptSending")
+                    : t("home.sendReceipt")}
+                </Button>
+              </VStack>
+            )}
+            {receiptPhase === "success" && receiptSentTo ? (
+              <TextCaption color="fgPrimary" as="p" style={{ margin: 0 }}>
+                {t("home.receiptSent", { email: receiptSentTo })}
+              </TextCaption>
+            ) : null}
+            {receiptPhase === "failure" ? (
+              <TextCaption color="fgNegative" as="p" style={{ margin: 0 }}>
+                {t("home.receiptFailed")}
+              </TextCaption>
+            ) : null}
+          </VStack>
+        </Box>
       </VStack>
-    </VStack>
-  ) : null
+    ) : null
 
   const homeWhy402 = (
     <Box

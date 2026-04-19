@@ -7,6 +7,7 @@ import { parseUsdcMinorUnits, USDC_BASE } from '../lib/facilitator'
 import { createResourceSlug } from '../lib/ids'
 import { isPaidUnlockType } from '../lib/resourceDelivery'
 import { parseReceiverAddressForResource } from '../lib/receiverAddress'
+import { buyerUnlockPageUrl } from '../lib/siteUrl'
 import {
   badRequest,
   conflict,
@@ -73,12 +74,6 @@ function parseOptionalBool(raw: unknown): boolean | undefined {
     if (s === '0' || s === 'false' || s === 'no') return false
   }
   return undefined
-}
-
-function siteBaseUrl(env: Env): string {
-  const s = env.SITE_URL?.trim()
-  if (s) return s.replace(/\/$/, '')
-  return 'https://402.earth'
 }
 
 export async function handlePostResource(
@@ -276,7 +271,7 @@ export async function handlePostResource(
     )
   }
 
-  const paymentUrl = `${siteBaseUrl(env)}/pay/${encodeURIComponent(slug)}`
+  const paymentUrl = buyerUnlockPageUrl(env, slug)
 
   return json({
     ok: true,
