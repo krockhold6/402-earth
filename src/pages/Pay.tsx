@@ -10,17 +10,12 @@ import {
   verifyX402Payment,
   type ApiResource,
 } from "@/lib/api"
-import {
-  ContentCard,
-  ContentCardBody,
-  ContentCardHeader,
-} from "@coinbase/cds-web/cards/ContentCard"
 import { Box, VStack } from "@coinbase/cds-web/layout"
 import {
   TextBody,
   TextCaption,
   TextTitle1,
-  TextTitle3,
+  TextTitle2,
 } from "@coinbase/cds-web/typography"
 
 const DEV_MOCK_SIGNATURE = "browser-mock-signature"
@@ -44,6 +39,24 @@ function usdcAmountToUint256String(amountStr: string): string | null {
   } catch {
     return null
   }
+}
+
+/** True when parsed USDC minor units are exactly zero. */
+function isZeroUsdcAmount(amountStr: string): boolean {
+  return usdcAmountToUint256String(amountStr.trim()) === "0"
+}
+
+/** Human USDC display: trim trailing fractional zeros; keep at least two fraction digits when there is a fractional part. */
+function formatUsdcAmountDisplay(amountStr: string): string {
+  const minor = usdcAmountToUint256String(amountStr.trim())
+  if (minor === null) return amountStr.trim()
+  const n = BigInt(minor)
+  const whole = n / 1_000_000n
+  let frac = (n % 1_000_000n).toString().padStart(6, "0")
+  frac = frac.replace(/0+$/, "")
+  if (frac === "") return `${whole.toString()}.00`
+  if (frac.length < 2) frac = frac.padEnd(2, "0")
+  return `${whole.toString()}.${frac}`
 }
 
 function resourceReceiver(resource: ApiResource): string {
@@ -83,6 +96,7 @@ export default function Pay() {
   )
 
   const [manualAdvancedOpen, setManualAdvancedOpen] = useState(false)
+  const [advancedHelpOpen, setAdvancedHelpOpen] = useState(false)
   const [cryptoAdvancedOpen, setCryptoAdvancedOpen] = useState(false)
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [txHash, setTxHash] = useState("")
@@ -124,6 +138,7 @@ export default function Pay() {
 
   useEffect(() => {
     setManualAdvancedOpen(false)
+    setAdvancedHelpOpen(false)
     setCryptoAdvancedOpen(false)
     setAttemptId(null)
     setTxHash("")
@@ -177,6 +192,7 @@ export default function Pay() {
 
   const resetToPaymentChoice = useCallback(() => {
     setManualAdvancedOpen(false)
+    setAdvancedHelpOpen(false)
     setCryptoAdvancedOpen(false)
     setTxHash("")
     setVerifyError(null)
@@ -250,6 +266,7 @@ export default function Pay() {
   const handleOpenAdvancedManual = () => {
     setVerifyError(null)
     setAttemptError(null)
+    setAdvancedHelpOpen(false)
     setManualAdvancedOpen(true)
   }
 
@@ -387,20 +404,37 @@ export default function Pay() {
   const showWalletFollowUp =
     Boolean(attemptId && resource && !manualAdvancedOpen)
 
-  const advancedTxForm = (opts: {
-    title: string
-    showBackToMethods: boolean
-  }) => (
-    <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
-      <TextCaption color="fgMuted" fontWeight="label1" as="p">
-        {opts.title}
-      </TextCaption>
-      <TextBody color="fgMuted" as="p">
-        {t("pay.advancedInstruction", {
-          amount: resource!.amount,
-          currency: resource!.currency,
-        })}
-      </TextBody>
+  const advancedTxForm = (opts: { showBackToMethods: boolean }) => (
+    <VStack gap={{ base: 3, desktop: 4 }} alignItems="stretch">
+      <VStack gap={1} alignItems="stretch">
+        <TextTitle2 color="fg" as="h2" style={{ letterSpacing: "-0.02em" }}>
+          {t("pay.verifySectionTitle")}
+        </TextTitle2>
+        <TextCaption color="fgMuted" as="p">
+          {t("pay.verifyBrief")}
+        </TextCaption>
+      </VStack>
+
+      <Box style={{ textAlign: "left" }}>
+        <Button
+          variant="foregroundMuted"
+          onClick={() => setAdvancedHelpOpen((o) => !o)}
+          block
+        >
+          {advancedHelpOpen
+            ? t("pay.howItWorksHide")
+            : t("pay.howItWorksShow")}
+        </Button>
+      </Box>
+
+      {advancedHelpOpen ? (
+        <TextBody color="fgMuted" as="p" style={{ textAlign: "left" }}>
+          {t("pay.advancedInstructionDetail", {
+            amount: resource!.amount,
+            currency: resource!.currency,
+          })}
+        </TextBody>
+      ) : null}
 
       {!attemptId ? (
         <Button
@@ -413,14 +447,14 @@ export default function Pay() {
             : t("pay.createAttempt")}
         </Button>
       ) : (
-        <>
+        <VStack gap={3} alignItems="stretch">
           <Box
-            bordered
-            borderRadius={400}
             background="bgElevation1"
+            borderRadius={400}
             padding={3}
+            style={{ textAlign: "left" }}
           >
-            <VStack gap={1} alignItems="stretch">
+            <VStack gap={2} alignItems="stretch">
               <TextCaption color="fgMuted" fontWeight="label1">
                 {t("pay.paymentDetails")}
               </TextCaption>
@@ -455,21 +489,36 @@ export default function Pay() {
           >
             {isVerifying ? t("pay.verifyTxLoading") : t("pay.verifyTx")}
           </Button>
-        </>
+        </VStack>
       )}
 
       {opts.showBackToMethods ? (
         <Button
-          variant="secondary"
+          variant="foregroundMuted"
           onClick={resetToPaymentChoice}
           disabled={isVerifying}
           block
         >
-          {t("pay.backToOptions")}
+          {t("pay.backToWalletPay")}
         </Button>
       ) : null}
     </VStack>
   )
+
+  const showVerifyFallbackLink =
+    showAdvancedTxToggle &&
+    canInteract &&
+    !manualAdvancedOpen &&
+    !attemptIdFromUrl &&
+    !linkValidationPending
+
+  const centerMeta =
+    resource && !showResourceError && !showResourceSkeleton
+      ? {
+          isFree: isZeroUsdcAmount(resource.amount),
+          amountDisplay: formatUsdcAmountDisplay(resource.amount),
+        }
+      : null
 
   return (
     <Box
@@ -484,102 +533,117 @@ export default function Pay() {
     >
       <Box
         width="100%"
-        maxWidth="26rem"
-        paddingX={{ base: 2, desktop: 4 }}
-        paddingY={{ base: 3, desktop: 6 }}
+        maxWidth="34rem"
+        paddingX={{ base: 3, desktop: 5 }}
+        paddingY={{ base: 4, desktop: 6 }}
       >
-        <VStack gap={2} alignItems="stretch">
-          <ContentCard
-            width="100%"
-            bordered
-            background="bgSecondary"
-            padding={{ base: 3, desktop: 4 }}
-            gap={{ base: 3, desktop: 4 }}
+        <VStack gap={{ base: 4, desktop: 5 }} alignItems="stretch">
+          <VStack
+            gap={{ base: 4, desktop: 5 }}
+            alignItems="stretch"
+            style={{ textAlign: "center" }}
           >
-            <ContentCardHeader
-              title={<TextTitle3 color="fg">{t("pay.title")}</TextTitle3>}
-              subtitle={
-                <TextBody color="fgMuted" textAlign="center">
-                  {t("pay.subtitle")}
-                </TextBody>
-              }
-            />
-            <ContentCardBody>
-              <VStack gap={{ base: 3, desktop: 4 }} alignItems="stretch">
-                <Box
-                  bordered
-                  borderRadius={400}
-                  background={
-                    resource && !showResourceError ? "bgElevation1" : "bgSecondary"
-                  }
-                  padding={{ base: 3, desktop: 4 }}
-                >
-                  <VStack gap={2} alignItems="stretch">
-                    <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                      {t("pay.resource")}
-                    </TextCaption>
-                    {showResourceSkeleton ? (
-                      <TextBody color="fgMuted">{t("pay.loading")}</TextBody>
-                    ) : showResourceError ? (
-                      <Box
-                        bordered
-                        borderRadius={400}
-                        background="bgNegativeWash"
-                        padding={3}
+            {showResourceSkeleton ? (
+              <TextBody color="fgMuted">{t("pay.loading")}</TextBody>
+            ) : showResourceError ? (
+              <Box
+                borderRadius={400}
+                background="bgNegativeWash"
+                padding={3}
+              >
+                <VStack gap={3} alignItems="stretch">
+                  <TextBody color="fgNegative">{loadError}</TextBody>
+                  <Button
+                    variant="secondary"
+                    onClick={() => void load()}
+                    block
+                  >
+                    {t("pay.retryLoad")}
+                  </Button>
+                </VStack>
+              </Box>
+            ) : resource ? (
+              <VStack gap={{ base: 4, desktop: 5 }} alignItems="center">
+                <VStack gap={1} alignItems="center" maxWidth="28rem">
+                  <TextCaption
+                    color="fgMuted"
+                    style={{
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {t("pay.unlockEyebrow")}
+                  </TextCaption>
+                  <TextTitle2
+                    color="fg"
+                    as="h1"
+                    style={{
+                      letterSpacing: "-0.025em",
+                      lineHeight: 1.15,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {resource.label}
+                  </TextTitle2>
+                </VStack>
+
+                <VStack gap={1} alignItems="center">
+                  {centerMeta?.isFree ? (
+                    <>
+                      <TextTitle1
+                        color="fg"
+                        style={{
+                          fontSize: "clamp(1.85rem, 5.5vw, 2.65rem)",
+                          fontWeight: 600,
+                          letterSpacing: "-0.03em",
+                          lineHeight: 1.1,
+                        }}
                       >
-                        <VStack gap={2} alignItems="stretch">
-                          <TextBody color="fgNegative">{loadError}</TextBody>
-                          <Button
-                            variant="secondary"
-                            onClick={() => void load()}
-                            block
-                          >
-                            {t("pay.retryLoad")}
-                          </Button>
-                        </VStack>
-                      </Box>
-                    ) : resource ? (
-                      <>
-                        <TextTitle3 color="fg">{resource.label}</TextTitle3>
-                        <TextTitle1 color="fg">
-                          {resource.amount} {resource.currency}
-                        </TextTitle1>
-                        <VStack gap={1} alignItems="stretch">
-                          <TextBody color="fgMuted">
-                            {t("pay.networkInline")}{" "}
-                            <TextBody as="span" color="fg" fontWeight="label1">
-                              {resource.network}
-                            </TextBody>
-                          </TextBody>
-                          <TextCaption
-                            color="fgMuted"
-                            style={{
-                              letterSpacing: "0.12em",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            {t("pay.slugCaption")} {resource.slug}
-                          </TextCaption>
-                        </VStack>
-                      </>
-                    ) : (
-                      <TextBody color="fgMuted">{t("pay.noResource")}</TextBody>
-                    )}
-                  </VStack>
-                </Box>
+                        {t("pay.freeUnlockEmphasis")}
+                      </TextTitle1>
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.freeUnlockSupporting", {
+                          amount: centerMeta.amountDisplay,
+                          currency: resource.currency,
+                          network: resource.network,
+                        })}
+                      </TextCaption>
+                    </>
+                  ) : (
+                    <>
+                      <TextTitle1
+                        color="fg"
+                        style={{
+                          fontSize: "clamp(2rem, 6vw, 3.15rem)",
+                          fontWeight: 600,
+                          letterSpacing: "-0.035em",
+                          lineHeight: 1.08,
+                        }}
+                      >
+                        {centerMeta?.amountDisplay} {resource.currency}
+                      </TextTitle1>
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.onNetworkCaption", {
+                          network: resource.network,
+                        })}
+                      </TextCaption>
+                    </>
+                  )}
+                </VStack>
 
                 {linkValidationPending ? (
-                  <TextBody color="fgMuted" textAlign="center" as="p">
+                  <TextCaption color="fgMuted" as="p">
                     {t("pay.confirmingLink")}
-                  </TextBody>
+                  </TextCaption>
                 ) : null}
 
                 {(attemptError || verifyError) && (
                   <Box
-                    bordered
                     borderRadius={400}
                     background="bgNegativeWash"
                     padding={3}
+                    width="100%"
+                    style={{ textAlign: "left" }}
                   >
                     <VStack gap={2} alignItems="stretch">
                       <TextBody color="fgNegative">
@@ -606,7 +670,13 @@ export default function Pay() {
                 )}
 
                 {showWalletPrimarySection ? (
-                  <VStack gap={3} alignItems="stretch">
+                  <VStack
+                    gap={3}
+                    alignItems="stretch"
+                    width="100%"
+                    maxWidth="26rem"
+                    alignSelf="center"
+                  >
                     <Button
                       variant="primary"
                       onClick={handlePayWithWallet}
@@ -619,189 +689,169 @@ export default function Pay() {
                     >
                       {isCreatingAttempt
                         ? t("pay.working")
-                        : t("pay.payWithWallet")}
+                        : centerMeta?.isFree
+                          ? t("pay.unlockInWallet")
+                          : t("pay.payWithWallet")}
                     </Button>
-                    {walletPayHref ? (
-                      <TextCaption color="fgMuted" textAlign="center" as="p">
-                        {t("pay.payWithWalletHint")}
+                    {showVerifyFallbackLink ? (
+                      <Button
+                        variant="foregroundMuted"
+                        onClick={handleOpenAdvancedManual}
+                        disabled={!canInteract}
+                        block
+                      >
+                        {t("pay.verifySecondaryLink")}
+                      </Button>
+                    ) : null}
+                    {!walletPayHref ? (
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.walletLinksUnavailableShort")}
                       </TextCaption>
                     ) : null}
-                    {!walletPayHref && resource ? (
-                      <TextCaption color="fgMuted" textAlign="center" as="p">
-                        {t("pay.walletLinksUnavailable")}
+                    <TextCaption color="fgMuted" as="p">
+                      {t("pay.autoDetectFooter")}
+                    </TextCaption>
+                    {walletPayHref ? (
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.baseWalletsNote")}
                       </TextCaption>
                     ) : null}
                   </VStack>
                 ) : null}
 
                 {showWalletFollowUp ? (
-                  <Box
-                    bordered
-                    borderRadius={400}
-                    background="bgSecondary"
-                    padding={{ base: 3, desktop: 4 }}
+                  <VStack
+                    gap={3}
+                    alignItems="stretch"
+                    width="100%"
+                    maxWidth="26rem"
+                    alignSelf="center"
                   >
-                    <VStack gap={{ base: 2, desktop: 3 }} alignItems="stretch">
-                      <TextCaption color="fgMuted" fontWeight="label1" as="p">
-                        {t("pay.inProgress")}
+                    <VStack gap={1} alignItems="center">
+                      <TextTitle2
+                        color="fg"
+                        as="h2"
+                        style={{ letterSpacing: "-0.02em" }}
+                      >
+                        {t("pay.inProgressTitle")}
+                      </TextTitle2>
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.inProgressShort")}
                       </TextCaption>
-                      <TextBody color="fgMuted" as="p">
-                        {t("pay.inProgressBody")}
-                      </TextBody>
-                      {attemptId ? (
-                        <TextBody mono as="code" color="fgMuted" overflow="wrap">
-                          {t("pay.attemptIdLabel", { id: attemptId })}
-                        </TextBody>
-                      ) : null}
+                    </VStack>
+                    {attemptId ? (
+                      <TextCaption mono as="p" color="fgMuted" overflow="wrap">
+                        {t("pay.attemptIdLabel", { id: attemptId })}
+                      </TextCaption>
+                    ) : null}
+                    <Button
+                      variant="primary"
+                      onClick={() => attemptId && goToSuccess(attemptId)}
+                      disabled={!attemptId}
+                      block
+                    >
+                      {t("pay.viewStatus")}
+                    </Button>
+                    <Button
+                      variant="foregroundMuted"
+                      onClick={resetToPaymentChoice}
+                      disabled={isVerifying}
+                      block
+                    >
+                      {t("pay.backToWalletPay")}
+                    </Button>
+                    {attemptId ? (
                       <Button
-                        variant="primary"
-                        onClick={() => attemptId && goToSuccess(attemptId)}
-                        disabled={!attemptId}
+                        variant="foregroundMuted"
+                        onClick={() => setCryptoAdvancedOpen((o) => !o)}
                         block
                       >
-                        {t("pay.viewStatus")}
+                        {cryptoAdvancedOpen
+                          ? t("pay.hideAdvanced")
+                          : t("pay.verifySecondaryLink")}
                       </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={resetToPaymentChoice}
-                        disabled={isVerifying}
-                        block
+                    ) : null}
+                    {cryptoAdvancedOpen && attemptId ? (
+                      <Box
+                        background="bgElevation1"
+                        borderRadius={400}
+                        padding={3}
+                        style={{ textAlign: "left" }}
                       >
-                        {t("pay.backToOptions")}
-                      </Button>
-                      {attemptId ? (
-                        <Box paddingTop={1}>
+                        <VStack gap={2} alignItems="stretch">
+                          <TextInput
+                            compact
+                            label={t("pay.txHash")}
+                            value={txHash}
+                            onChange={(e) => setTxHash(e.target.value)}
+                            placeholder="0x…"
+                          />
                           <Button
-                            variant="secondary"
-                            onClick={() =>
-                              setCryptoAdvancedOpen((o) => !o)
-                            }
+                            onClick={handleVerifyWithTxHash}
+                            disabled={isVerifying}
                             block
                           >
-                            {cryptoAdvancedOpen
-                              ? t("pay.hideAdvanced")
-                              : t("pay.showAdvanced")}
+                            {isVerifying
+                              ? t("pay.verifyTxLoading")
+                              : t("pay.verifyTx")}
                           </Button>
-                        </Box>
-                      ) : null}
-                      {cryptoAdvancedOpen && attemptId ? (
-                        <Box
-                          bordered
-                          borderRadius={400}
-                          background="bgElevation1"
-                          padding={3}
-                        >
-                          <VStack gap={2} alignItems="stretch">
-                            <TextInput
-                              compact
-                              label={t("pay.txHash")}
-                              value={txHash}
-                              onChange={(e) => setTxHash(e.target.value)}
-                              placeholder="0x…"
+                        </VStack>
+                      </Box>
+                    ) : null}
+                    {isDev && attemptId ? (
+                      <Box
+                        background="bgElevation1"
+                        borderRadius={400}
+                        padding={3}
+                        style={{ textAlign: "left" }}
+                      >
+                        <VStack gap={2} alignItems="stretch">
+                          <TextCaption
+                            color="fgMuted"
+                            fontWeight="label1"
+                            as="p"
+                          >
+                            {t("pay.developerShortcut")}
+                          </TextCaption>
+                          <TextBody color="fgMuted">
+                            <Trans
+                              i18nKey="pay.devMockBody"
+                              components={{
+                                mono: (
+                                  <TextBody as="span" mono color="fgMuted" />
+                                ),
+                              }}
                             />
-                            <Button
-                              onClick={handleVerifyWithTxHash}
-                              disabled={isVerifying}
-                              block
-                            >
-                              {isVerifying
-                                ? t("pay.verifyTxLoading")
-                                : t("pay.verifyTx")}
-                            </Button>
-                          </VStack>
-                        </Box>
-                      ) : null}
-                      {isDev && attemptId ? (
-                        <Box
-                          bordered
-                          borderRadius={400}
-                          background="bgSecondary"
-                          padding={3}
-                        >
-                          <VStack gap={2} alignItems="stretch">
-                            <TextCaption
-                              color="fgMuted"
-                              fontWeight="label1"
-                              as="p"
-                            >
-                              {t("pay.developerShortcut")}
-                            </TextCaption>
-                            <TextBody color="fgMuted">
-                              <Trans
-                                i18nKey="pay.devMockBody"
-                                components={{
-                                  mono: (
-                                    <TextBody as="span" mono color="fgMuted" />
-                                  ),
-                                }}
-                              />
-                            </TextBody>
-                            <Button
-                              variant="secondary"
-                              onClick={handleDevMockVerify}
-                              disabled={isVerifying}
-                              block
-                            >
-                              {t("pay.devMockButton")}
-                            </Button>
-                          </VStack>
-                        </Box>
-                      ) : null}
-                    </VStack>
-                  </Box>
+                          </TextBody>
+                          <Button
+                            variant="secondary"
+                            onClick={handleDevMockVerify}
+                            disabled={isVerifying}
+                            block
+                          >
+                            {t("pay.devMockButton")}
+                          </Button>
+                        </VStack>
+                      </Box>
+                    ) : null}
+                  </VStack>
                 ) : null}
 
                 {showAdvancedOnlyPanel ? (
                   <Box
-                    bordered
-                    borderRadius={400}
-                    background="bgSecondary"
-                    padding={{ base: 3, desktop: 4 }}
+                    width="100%"
+                    maxWidth="26rem"
+                    alignSelf="center"
+                    style={{ textAlign: "left" }}
                   >
-                    {advancedTxForm({
-                      title: t("pay.advancedTitle"),
-                      showBackToMethods: true,
-                    })}
+                    {advancedTxForm({ showBackToMethods: true })}
                   </Box>
                 ) : null}
-
-                {showAdvancedTxToggle && canInteract ? (
-                  <Box paddingTop={1}>
-                    <Button
-                      variant="secondary"
-                      onClick={handleOpenAdvancedManual}
-                      disabled={!canInteract}
-                      block
-                    >
-                      {t("pay.advancedTitle")}
-                    </Button>
-                  </Box>
-                ) : null}
-
-                {manualAdvancedOpen ? (
-                  <Box paddingTop={1}>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setManualAdvancedOpen(false)
-                        setAttemptId(null)
-                        setTxHash("")
-                        setVerifyError(null)
-                      }}
-                      disabled={isCreatingAttempt}
-                      block
-                    >
-                      {t("pay.hideAdvancedBottom")}
-                    </Button>
-                  </Box>
-                ) : null}
-
-                <TextCaption color="fgMuted" textAlign="center" as="p">
-                  {t("pay.statusApiNote")}
-                </TextCaption>
               </VStack>
-            </ContentCardBody>
-          </ContentCard>
+            ) : (
+              <TextBody color="fgMuted">{t("pay.noResource")}</TextBody>
+            )}
+          </VStack>
         </VStack>
       </Box>
     </Box>

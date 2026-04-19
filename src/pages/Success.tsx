@@ -10,10 +10,15 @@ import {
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
 import { TextBody, TextCaption, TextTitle3 } from "@coinbase/cds-web/typography"
 import {
+  fetchPaidX402Resource,
   fetchPaymentAttempt,
   type PaymentAttemptPayload,
   type PaymentAttemptStatus,
 } from "@/lib/api"
+import {
+  openPaidResource,
+  resolvePaidNavigateUrl,
+} from "@/lib/paidResourceUnlock"
 import i18n from "@/i18n/config"
 import { LegacyCheckoutSessionPanel } from "@/legacy/LegacyCheckoutSessionPanel"
 import type { TFunction } from "i18next"
@@ -141,6 +146,13 @@ export default function Success() {
   const [attemptError, setAttemptError] = useState<string | null>(null)
   const [attemptInitialLoad, setAttemptInitialLoad] = useState(true)
 
+  const [paidPayload, setPaidPayload] = useState<{
+    type: string
+    value: unknown
+  } | null>(null)
+  const [paidPayloadLoading, setPaidPayloadLoading] = useState(false)
+  const [paidPayloadError, setPaidPayloadError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!attemptId) return
 
@@ -185,6 +197,72 @@ export default function Success() {
       if (timer !== undefined) window.clearInterval(timer)
     }
   }, [attemptId, t])
+
+  useEffect(() => {
+    if (!attemptId || !attempt || attempt.status !== "paid") {
+      setPaidPayload(null)
+      setPaidPayloadError(null)
+      setPaidPayloadLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setPaidPayload(null)
+    setPaidPayloadError(null)
+    setPaidPayloadLoading(true)
+
+    const slug = attempt.slug
+    ;(async () => {
+      const { response, data } = await fetchPaidX402Resource(slug, attemptId)
+      if (cancelled) return
+      setPaidPayloadLoading(false)
+      if (
+        response.ok &&
+        data?.ok === true &&
+        data.status === "paid" &&
+        data.resource
+      ) {
+        setPaidPayload({
+          type: data.resource.type,
+          value: data.resource.value,
+        })
+        return
+      }
+      setPaidPayload(null)
+      setPaidPayloadError(
+        data?.error?.trim() ||
+          t("success.loadPaidResourceFailed", { status: response.status }),
+      )
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [attemptId, attempt, t])
+
+  const successNavigableUrl = useMemo(() => {
+    if (!paidPayload) return null
+    return resolvePaidNavigateUrl(paidPayload.type, paidPayload.value)
+  }, [paidPayload])
+
+  const successPaidDisplayJson = useMemo(() => {
+    if (!paidPayload) return ""
+    const raw =
+      paidPayload.type.toLowerCase() === "json" &&
+      paidPayload.value !== null &&
+      typeof paidPayload.value === "object"
+        ? paidPayload.value
+        : paidPayload.value
+    return JSON.stringify(raw, null, 2)
+  }, [paidPayload])
+
+  useEffect(() => {
+    if (!successNavigableUrl || attempt?.status !== "paid") return
+    const id = window.setTimeout(() => {
+      window.location.assign(successNavigableUrl)
+    }, 500)
+    return () => window.clearTimeout(id)
+  }, [successNavigableUrl, attempt?.status])
 
   const slugMismatch = useMemo(() => {
     if (!routeSlug || !attempt) return false
@@ -335,6 +413,85 @@ export default function Success() {
                     <TextBody color="fgMuted">
                       {t("success.loadingAttempt")}
                     </TextBody>
+                  ) : null}
+
+                  {paid ? (
+                    <VStack gap={2} alignItems="stretch">
+                      {paidPayloadLoading ? (
+                        <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
+                          {t("success.loadingPaidResource")}
+                        </TextBody>
+                      ) : null}
+                      {paidPayloadError && !paidPayloadLoading ? (
+                        <Box
+                          bordered
+                          borderRadius={400}
+                          background="bgNegativeWash"
+                          padding={3}
+                        >
+                          <TextBody color="fgNegative">
+                            {paidPayloadError}
+                          </TextBody>
+                        </Box>
+                      ) : null}
+                      {paidPayload && !paidPayloadLoading ? (
+                        <VStack gap={2} alignItems="stretch">
+                          {successNavigableUrl ? (
+                            <>
+                              <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
+                                {t("buy.openingResource")}
+                              </TextBody>
+                              <TextCaption
+                                color="fgMuted"
+                                as="p"
+                                style={{ margin: 0, wordBreak: "break-word" }}
+                              >
+                                {successNavigableUrl}
+                              </TextCaption>
+                            </>
+                          ) : (
+                            <Box
+                              as="pre"
+                              bordered
+                              borderRadius={300}
+                              background="bgSecondary"
+                              padding={3}
+                              style={{
+                                margin: 0,
+                                overflow: "auto",
+                                maxHeight: 280,
+                                fontSize: 13,
+                                lineHeight: 1.45,
+                                fontFamily:
+                                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                              }}
+                            >
+                              {successPaidDisplayJson}
+                            </Box>
+                          )}
+                          <Button
+                            type="button"
+                            variant="primary"
+                            onClick={() =>
+                              openPaidResource(
+                                paidPayload.type,
+                                paidPayload.value,
+                              )
+                            }
+                            block
+                            height="auto"
+                            minHeight={44}
+                          >
+                            {t("buy.openResource")}
+                          </Button>
+                          <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+                            {successNavigableUrl
+                              ? t("buy.unlockedSubNavHint")
+                              : t("buy.unlockedSub")}
+                          </TextCaption>
+                        </VStack>
+                      ) : null}
+                    </VStack>
                   ) : null}
 
                   <NavButtons payHref={payHref} />

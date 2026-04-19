@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
@@ -22,6 +22,10 @@ import {
   verifyX402Payment,
   type ApiResource,
 } from "@/lib/api"
+import {
+  openPaidResource,
+  resolvePaidNavigateUrl,
+} from "@/lib/paidResourceUnlock"
 
 const DEV_MOCK_SIGNATURE = "browser-mock-signature"
 
@@ -60,30 +64,6 @@ function paidPayloadForDisplay(type: string, value: unknown): unknown {
   return value
 }
 
-function openPaidResource(type: string, value: unknown): void {
-  const t = type.toLowerCase()
-  if (t === "json" && value !== null && typeof value === "object") {
-    const o = value as Record<string, unknown>
-    const url = o.deliveryUrl
-    if (typeof url === "string" && /^https?:\/\//i.test(url)) {
-      window.open(url, "_blank", "noopener,noreferrer")
-      return
-    }
-  }
-  if (t === "link" && typeof value === "string") {
-    window.open(value, "_blank", "noopener,noreferrer")
-    return
-  }
-  if (t === "text" && typeof value === "string") {
-    const blob = new Blob([value], { type: "text/plain;charset=utf-8" })
-    window.open(URL.createObjectURL(blob), "_blank", "noopener,noreferrer")
-    return
-  }
-  const json = JSON.stringify(value, null, 2)
-  const blob = new Blob([json], { type: "application/json;charset=utf-8" })
-  window.open(URL.createObjectURL(blob), "_blank", "noopener,noreferrer")
-}
-
 const railInputSurface = {
   bordered: false,
   focusedBorderWidth: 100 as const,
@@ -105,6 +85,22 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
   const [resource, setResource] = useState<ApiResource | null>(null)
   const [paidValue, setPaidValue] = useState<unknown>(null)
   const [paidType, setPaidType] = useState<string>("json")
+
+  const paidNavigableUrl = useMemo(() => {
+    if (state !== "paid") return null
+    return resolvePaidNavigateUrl(paidType, paidValue)
+  }, [state, paidType, paidValue])
+
+  /** Brief success UI, then same-tab navigation (better on mobile than `window.open` after async pay). */
+  useEffect(() => {
+    if (state !== "paid") return
+    const url = resolvePaidNavigateUrl(paidType, paidValue)
+    if (!url) return
+    const id = window.setTimeout(() => {
+      window.location.assign(url)
+    }, 500)
+    return () => window.clearTimeout(id)
+  }, [state, paidType, paidValue])
 
   const clearErrors = useCallback(() => {
     setErrorPhase(null)
@@ -403,24 +399,39 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         />
         <ContentCardBody>
           <VStack gap={3} alignItems="stretch">
-            <Box
-              as="pre"
-              bordered
-              borderRadius={300}
-              background="bgSecondary"
-              padding={3}
-              style={{
-                margin: 0,
-                overflow: "auto",
-                maxHeight: preMaxHeight,
-                fontSize: 13,
-                lineHeight: 1.45,
-                fontFamily:
-                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-              }}
-            >
-              {displayJson}
-            </Box>
+            {paidNavigableUrl ? (
+              <>
+                <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
+                  {t("buy.openingResource")}
+                </TextBody>
+                <TextCaption
+                  color="fgMuted"
+                  as="p"
+                  style={{ margin: 0, wordBreak: "break-word" }}
+                >
+                  {paidNavigableUrl}
+                </TextCaption>
+              </>
+            ) : (
+              <Box
+                as="pre"
+                bordered
+                borderRadius={300}
+                background="bgSecondary"
+                padding={3}
+                style={{
+                  margin: 0,
+                  overflow: "auto",
+                  maxHeight: preMaxHeight,
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                }}
+              >
+                {displayJson}
+              </Box>
+            )}
             <Button
               type="button"
               variant="primary"
@@ -430,7 +441,9 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
               {t("buy.openResource")}
             </Button>
             <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
-              {t("buy.unlockedSub")}
+              {paidNavigableUrl
+                ? t("buy.unlockedSubNavHint")
+                : t("buy.unlockedSub")}
             </TextCaption>
             <Button
               type="button"
