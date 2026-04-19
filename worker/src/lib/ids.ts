@@ -12,6 +12,11 @@ export function createEventId(): string {
   return `pe_${randomSuffix()}`
 }
 
+/** Opaque bearer for `unlock_tokens` (path segment under `/unlock/…`). */
+export function createUnlockTokenValue(): string {
+  return `uk_${randomSuffix()}`
+}
+
 /** URL-safe slug for `resource_definitions` when the client omits `slug`. */
 export function createResourceSlug(): string {
   const bytes = new Uint8Array(6)

@@ -2,6 +2,7 @@ import {
   getResourceBySlug,
   insertResourceDefinition,
 } from '../db/resources'
+import { normalizeDeliveryMode } from '../lib/deliveryMode'
 import { parseUsdcMinorUnits, USDC_BASE } from '../lib/facilitator'
 import { createResourceSlug } from '../lib/ids'
 import { isPaidUnlockType } from '../lib/resourceDelivery'
@@ -29,6 +30,9 @@ export function publicResourceDefinition(resource: ResourceDefinition) {
     network: resource.network,
     active: resource.active,
     unlockType: resource.unlockType,
+    deliveryMode: resource.deliveryMode,
+    protectedTtlSeconds: resource.protectedTtlSeconds,
+    oneTimeUnlock: resource.oneTimeUnlock,
     /** True when a non-empty `unlock_value` is stored (payload is never exposed here). */
     hasPaidPayload,
     contentType: resource.contentType,
@@ -57,6 +61,19 @@ export async function handleGetResource(
 }
 
 const SLUG_CUSTOM_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+
+function parseOptionalBool(raw: unknown): boolean | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (typeof raw === 'boolean') return raw
+  if (typeof raw === 'number') return raw !== 0
+  if (typeof raw === 'string') {
+    const s = raw.trim().toLowerCase()
+    if (s === '') return undefined
+    if (s === '1' || s === 'true' || s === 'yes') return true
+    if (s === '0' || s === 'false' || s === 'no') return false
+  }
+  return undefined
+}
 
 function siteBaseUrl(env: Env): string {
   const s = env.SITE_URL?.trim()
@@ -143,6 +160,51 @@ export async function handlePostResource(
     return badRequest('unlockValue must be non-empty for unlockType text')
   }
 
+  const deliveryModeRaw =
+    typeof o.deliveryMode === 'string'
+      ? o.deliveryMode.trim().toLowerCase()
+      : typeof o.delivery_mode === 'string'
+        ? o.delivery_mode.trim().toLowerCase()
+        : ''
+  const deliveryMode = normalizeDeliveryMode(deliveryModeRaw || 'direct')
+
+  if (deliveryMode === 'protected' && unlockType !== 'link') {
+    return json(
+      {
+        ok: false,
+        error: 'Protected delivery is only available when unlockType is link.',
+        code: 'PROTECTED_REQUIRES_LINK',
+        fields: {
+          deliveryMode: [
+            'Use unlockType "link" with unlockValue set to the final destination URL.',
+          ],
+        },
+      },
+      { status: 400 },
+    )
+  }
+
+  let protectedTtlSeconds: number | null = null
+  const ttlRaw = o.protectedTtlSeconds ?? o.protected_ttl_seconds
+  if (ttlRaw !== undefined && ttlRaw !== null && ttlRaw !== '') {
+    const n =
+      typeof ttlRaw === 'number' ? ttlRaw : parseInt(String(ttlRaw).trim(), 10)
+    if (!Number.isFinite(n) || n < 60 || n > 604800) {
+      return badRequest(
+        'protectedTtlSeconds must be an integer from 60 to 604800 (1 minute to 7 days)',
+      )
+    }
+    protectedTtlSeconds = Math.floor(n)
+  }
+
+  const oneTimeUnlockRaw = parseOptionalBool(
+    o.oneTimeUnlock ?? o.one_time_unlock,
+  )
+  const oneTimeUnlock =
+    deliveryMode === 'protected' ? Boolean(oneTimeUnlockRaw) : false
+  const protectedTtlStored =
+    deliveryMode === 'protected' ? protectedTtlSeconds : null
+
   if (!labelRaw) {
     return badRequest('label is required')
   }
@@ -197,6 +259,9 @@ export async function handlePostResource(
     receiverAddress,
     unlockType,
     unlockValue: unlockValueStr,
+    deliveryMode,
+    protectedTtlSeconds: protectedTtlStored,
+    oneTimeUnlock,
     contentType: null,
     successRedirectPath,
     createdAt: t,

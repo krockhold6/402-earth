@@ -1,6 +1,14 @@
 import type { ResourceDefinition } from '../types/resource'
 
+import { normalizeDeliveryMode } from '../lib/deliveryMode'
+
 function rowToResource(row: Record<string, unknown>): ResourceDefinition {
+  const pts = row.protected_ttl_seconds
+  let protectedTtlSeconds: number | null = null
+  if (pts != null && pts !== '') {
+    const n = Number(pts)
+    if (Number.isFinite(n)) protectedTtlSeconds = Math.floor(n)
+  }
   return {
     slug: String(row.slug),
     label: String(row.label),
@@ -14,6 +22,11 @@ function rowToResource(row: Record<string, unknown>): ResourceDefinition {
       row.unlock_value != null && String(row.unlock_value) !== ''
         ? String(row.unlock_value)
         : null,
+    deliveryMode: normalizeDeliveryMode(
+      row.delivery_mode != null ? String(row.delivery_mode) : undefined,
+    ),
+    protectedTtlSeconds,
+    oneTimeUnlock: Number(row.one_time_unlock) === 1,
     contentType:
       row.content_type != null && row.content_type !== ''
         ? String(row.content_type)
@@ -34,7 +47,8 @@ export async function getResourceBySlug(
   const row = await db
     .prepare(
       `SELECT slug, label, amount, currency, network, receiver_address, active, unlock_type,
-              unlock_value, content_type, success_redirect_path, created_at, updated_at
+              unlock_value, delivery_mode, protected_ttl_seconds, one_time_unlock,
+              content_type, success_redirect_path, created_at, updated_at
        FROM resource_definitions WHERE slug = ?`,
     )
     .bind(slug)
@@ -51,6 +65,9 @@ export type InsertResourceDefinitionInput = {
   receiverAddress: string
   unlockType: string
   unlockValue: string | null
+  deliveryMode: 'direct' | 'protected'
+  protectedTtlSeconds: number | null
+  oneTimeUnlock: boolean
   contentType: string | null
   successRedirectPath: string | null
   createdAt: string
@@ -65,8 +82,9 @@ export async function insertResourceDefinition(
     .prepare(
       `INSERT INTO resource_definitions (
         slug, label, amount, currency, network, receiver_address, active, unlock_type,
-        unlock_value, content_type, success_redirect_path, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
+        unlock_value, delivery_mode, protected_ttl_seconds, one_time_unlock,
+        content_type, success_redirect_path, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.slug,
@@ -77,6 +95,9 @@ export async function insertResourceDefinition(
       input.receiverAddress,
       input.unlockType,
       input.unlockValue,
+      input.deliveryMode,
+      input.protectedTtlSeconds,
+      input.oneTimeUnlock ? 1 : 0,
       input.contentType,
       input.successRedirectPath,
       input.createdAt,

@@ -6,7 +6,7 @@ import {
   readPaymentSignatureHeader,
   type ParsedPaymentSignature,
 } from '../lib/paymentHeaders'
-import { resolvePaidResourceDelivery } from '../lib/resourceDelivery'
+import { buildPaidSuccessPayload } from '../lib/paidResourcePayload'
 import {
   resolveExpectedReceiver,
   resolveExpectedReceiverForResource,
@@ -14,8 +14,6 @@ import {
 import { paymentRequiredResponse } from '../lib/x402'
 import { verifyAndSettlePaymentAttempt } from '../lib/x402VerificationFlow'
 import type { Env } from '../types/env'
-import type { PaymentAttempt } from '../types/payment'
-import type { ResourceDefinition } from '../types/resource'
 import { publicResourceDefinition } from './resource'
 
 const VERIFY_SOURCE = 'x402_pay_get'
@@ -79,45 +77,6 @@ function payeeMisconfiguredResponse(slug: string): Response {
   )
 }
 
-function paidSuccessOrError(input: {
-  resource: ResourceDefinition
-  attempt: PaymentAttempt | null
-  attemptIdInQuery: string | null
-}):
-  | { ok: true; body: Record<string, unknown> }
-  | { ok: false; body: Record<string, unknown>; status: number } {
-  const delivery = resolvePaidResourceDelivery(input.resource)
-  if (!delivery.ok) {
-    const errBody: Record<string, unknown> = {
-      ok: false,
-      error: delivery.message,
-      code: delivery.code,
-      slug: input.resource.slug,
-    }
-    if (input.attempt) {
-      errBody.attemptId = input.attempt.id
-    } else if (input.attemptIdInQuery) {
-      errBody.attemptId = input.attemptIdInQuery
-    }
-    return { ok: false, body: errBody, status: delivery.httpStatus }
-  }
-
-  const body: Record<string, unknown> = {
-    ok: true,
-    status: 'paid' as const,
-    slug: input.resource.slug,
-    resource: {
-      type: delivery.resourceType,
-      value: delivery.value,
-    },
-  }
-  if (input.attempt) {
-    body.attemptId = input.attempt.id
-  } else if (input.attemptIdInQuery) {
-    body.attemptId = input.attemptIdInQuery
-  }
-  return { ok: true, body }
-}
 
 export async function handleX402Pay(
   env: Env,
@@ -190,7 +149,7 @@ export async function handleX402Pay(
     }
 
     if (attempt.status === 'paid') {
-      const paid = paidSuccessOrError({
+      const paid = await buildPaidSuccessPayload(env, {
         resource,
         attempt,
         attemptIdInQuery: aid,
@@ -212,7 +171,7 @@ export async function handleX402Pay(
     })
 
     if (settle.kind === 'paid_idempotent' || settle.kind === 'settled') {
-      const paid = paidSuccessOrError({
+      const paid = await buildPaidSuccessPayload(env, {
         resource,
         attempt,
         attemptIdInQuery: aid,
@@ -289,7 +248,7 @@ export async function handleX402Pay(
   }
 
   if (attempt.status === 'paid') {
-    const paid = paidSuccessOrError({
+    const paid = await buildPaidSuccessPayload(env, {
       resource,
       attempt,
       attemptIdInQuery: attemptId,

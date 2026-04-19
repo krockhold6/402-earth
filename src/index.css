@@ -42,6 +42,11 @@ body {
   min-width: 1px;
 }
 
+/* Home protected TTL Select: value text color from browser preview (CDS Text uses fg token on `p`). */
+#root .home-protected-ttl-select-value p {
+  color: rgba(2, 82, 255, 1) !important;
+}
+
 /* How it works footer: RouterLink is a bare <a> and picks up browser serif otherwise. */
 #root .how-it-works-footer-link {
   font-family: var(--fontFamily-caption);

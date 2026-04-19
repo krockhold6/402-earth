@@ -7,6 +7,7 @@ import { json } from './lib/response'
 import { handleGetResource, handlePostResource } from './routes/resource'
 import { handlePostPaymentAttempt } from './routes/paymentAttempt'
 import { handleGetPaymentAttemptById } from './routes/paymentAttemptById'
+import { handleGetUnlock } from './routes/unlock'
 import { handleX402Pay } from './routes/x402Pay'
 import { handleX402Verify } from './routes/x402Verify'
 import { tryDiscoveryRoutes } from './routes/discovery'
@@ -79,6 +80,14 @@ export default {
 
     if (req.method === 'POST' && url.pathname === '/x402/verify') {
       res = await handleX402Verify(env, req)
+      return withCors(req, res)
+    }
+
+    const unlockGet =
+      req.method === 'GET' && /^\/unlock\/([^/]+)$/.exec(url.pathname)
+    if (unlockGet) {
+      const token = decodeURIComponent(unlockGet[1])
+      res = await handleGetUnlock(env, token)
       return withCors(req, res)
     }
 

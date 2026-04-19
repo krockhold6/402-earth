@@ -11,8 +11,9 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { QRCodeCanvas } from "qrcode.react"
-import { Button, IconButton } from "@coinbase/cds-web/buttons"
-import { TextInput } from "@coinbase/cds-web/controls"
+import { Button } from "@coinbase/cds-web/buttons"
+import { Select } from "@coinbase/cds-web/alpha/select"
+import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
 import { RemoteImage } from "@coinbase/cds-web/media"
 import { ApiDocsPanel } from "@/components/ApiDocsPanel"
@@ -61,6 +62,8 @@ const HOME_WHY402_EXAMPLE_ICONS = [
   "api",
   "robot",
 ] as const satisfies readonly IconName[]
+
+const PROTECTED_TTL_PRESETS = [900, 3600, 86400, 604800] as const
 
 function sanitizeHomeAmountInput(raw: string): string {
   let v = raw.replace(/[^\d.]/g, "")
@@ -119,67 +122,6 @@ function pickResourceReceiver(resource: {
   if (a) return a
   const b = resource.paymentReceiverAddress?.trim()
   return b ?? ""
-}
-
-/** Same rule as worker `resource.ts` for custom slugs. */
-const SLUG_CUSTOM_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
-
-function randomHexChars(byteLength: number): string {
-  const bytes = new Uint8Array(byteLength)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
-}
-
-function slugPrefixFromLabel(raw: string): string {
-  let p = raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-  if (!p) p = "link"
-  if (!SLUG_CUSTOM_RE.test(p)) p = "link"
-  return p
-}
-
-function fitSlugPrefix(prefix: string, suffix: string): string {
-  const maxPrefix = 64 - 1 - suffix.length
-  if (maxPrefix < 1) return "x"
-  let p = prefix
-  if (p.length > maxPrefix) {
-    p = prefix.slice(0, maxPrefix).replace(/-+$/g, "")
-    if (!p) p = "link"
-  }
-  if (!SLUG_CUSTOM_RE.test(p)) p = "link"
-  if (p.length > maxPrefix) p = p.slice(0, maxPrefix).replace(/-+$/g, "") || "x"
-  if (!SLUG_CUSTOM_RE.test(p)) return "pay"
-  return p
-}
-
-function randomSlugFromLabel(labelRaw: string): string {
-  const suffix = randomHexChars(4)
-  const prefix = fitSlugPrefix(slugPrefixFromLabel(labelRaw), suffix)
-  const candidate = `${prefix}-${suffix}`
-  return SLUG_CUSTOM_RE.test(candidate) ? candidate : `pay-${randomHexChars(6)}`
-}
-
-function nextUniqueSlugFromLabel(
-  labelRaw: string,
-  used: Set<string>,
-  currentField: string,
-): string {
-  const current = currentField.trim().toLowerCase()
-  for (let i = 0; i < 48; i++) {
-    const c = randomSlugFromLabel(labelRaw)
-    if (used.has(c) || c === current) continue
-    used.add(c)
-    return c
-  }
-  let fallback: string
-  do {
-    fallback = `pay-${randomHexChars(8)}`
-  } while (used.has(fallback) || fallback === current)
-  used.add(fallback)
-  return fallback
 }
 
 /** Golden ratio φ; left column : right column = φ : 1 (messaging side is wider). */
@@ -459,7 +401,7 @@ function HomeLinkActionRow({
 export default function Home() {
   const { t } = useTranslation()
   const isWide = useMediaQuery("(min-width: 960px)")
-  const [amount, setAmount] = useState("0")
+  const [amount, setAmount] = useState("0.00")
   const [label, setLabel] = useState("Exclusive video")
   /** Optional custom slug; empty means server generates on create. */
   const [slug, setSlug] = useState("")
@@ -473,6 +415,9 @@ export default function Home() {
   const [paymentUrl, setPaymentUrl] = useState("")
   const [createError, setCreateError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [protectedLinkUrl, setProtectedLinkUrl] = useState("")
+  const [protectedTtlSeconds, setProtectedTtlSeconds] = useState(900)
+  const [protectedOneTime, setProtectedOneTime] = useState(false)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
   /** Slugs produced by "Generate Random" (and successful creates) — never reused by the generator. */
   const usedGeneratedSlugsRef = useRef<Set<string>>(new Set())
@@ -528,6 +473,40 @@ export default function Home() {
     setCreateError(null)
   }, [])
 
+  type HomeDeliveryTabId = "direct" | "protected"
+  type HomeDeliveryTab = { id: HomeDeliveryTabId; label: string }
+
+  const deliveryTabs = useMemo<HomeDeliveryTab[]>(
+    () => [
+      { id: "direct", label: t("home.deliveryDirect") },
+      { id: "protected", label: t("home.deliveryProtected") },
+    ],
+    [t],
+  )
+
+  const [activeDeliveryTab, setActiveDeliveryTab] = useState<HomeDeliveryTab>(
+    () => ({ id: "protected", label: "" }),
+  )
+
+  useEffect(() => {
+    setActiveDeliveryTab((cur) => {
+      const next = deliveryTabs.find((tab) => tab.id === cur.id)
+      return next ?? deliveryTabs[0]!
+    })
+  }, [deliveryTabs])
+
+  const handleDeliveryTabsChange = useCallback(
+    (next: TabValue<HomeDeliveryTabId> | null) => {
+      if (!next) return
+      const resolved = deliveryTabs.find((tab) => tab.id === next.id)
+      if (resolved) {
+        setActiveDeliveryTab(resolved)
+        invalidateQrIfFormChanged()
+      }
+    },
+    [deliveryTabs, invalidateQrIfFormChanged],
+  )
+
   const homeAmountDisplay = amount.trim() || "0"
 
   const homeAmountDigitCount = useMemo(() => {
@@ -559,16 +538,6 @@ export default function Home() {
     setHomeAmountInputWidthPx(Math.ceil(el.getBoundingClientRect().width) + 10)
   }, [homeAmountDisplay, homeRailHeroAmountFontPx])
 
-  const handleGenerateRandomSlug = useCallback(() => {
-    const next = nextUniqueSlugFromLabel(
-      label,
-      usedGeneratedSlugsRef.current,
-      slug,
-    )
-    setSlug(next)
-    invalidateQrIfFormChanged()
-  }, [invalidateQrIfFormChanged, label, slug])
-
   const handleCreatePaymentLink = async () => {
     setCreateError(null)
     setReceiverAddressError(null)
@@ -592,12 +561,61 @@ export default function Home() {
 
     setIsCreating(true)
     try {
-      const { response, data } = await createResource({
+      const basePayload = {
         label: labelT,
         amount: amountT,
         receiverAddress: recvResult.normalized,
         slug: slugKey || undefined,
-      })
+      }
+      let createPayload: Parameters<typeof createResource>[0] = basePayload
+      const urlT = protectedLinkUrl.trim()
+      if (activeDeliveryTab.id === "protected") {
+        try {
+          const u = new URL(urlT)
+          if (u.protocol !== "https:" && u.protocol !== "http:") {
+            throw new Error("bad scheme")
+          }
+        } catch {
+          setCreateError(t("home.errorProtectedUrl"))
+          setPaymentUrl("")
+          setIsCreating(false)
+          return
+        }
+        const ttl = protectedTtlSeconds
+        if (!Number.isFinite(ttl) || ttl < 60 || ttl > 604800) {
+          setCreateError(t("home.errorProtectedTtl"))
+          setPaymentUrl("")
+          setIsCreating(false)
+          return
+        }
+        createPayload = {
+          ...basePayload,
+          unlockType: "link",
+          unlockValue: urlT,
+          deliveryMode: "protected",
+          protectedTtlSeconds: ttl,
+          oneTimeUnlock: protectedOneTime,
+        }
+      } else if (urlT) {
+        try {
+          const u = new URL(urlT)
+          if (u.protocol !== "https:" && u.protocol !== "http:") {
+            throw new Error("bad scheme")
+          }
+        } catch {
+          setCreateError(t("home.errorPostPaymentUrl"))
+          setPaymentUrl("")
+          setIsCreating(false)
+          return
+        }
+        createPayload = {
+          ...basePayload,
+          unlockType: "link",
+          unlockValue: urlT,
+          deliveryMode: "direct",
+        }
+      }
+      const { response, data } = await createResource(createPayload)
 
       if (!response.ok || !data?.ok || !data.resource || !data.paymentUrl) {
         const msg =
@@ -674,7 +692,7 @@ export default function Home() {
 
   /** Horizontal inset for the workflow column body (divider sits outside this for full bleed). */
   const rightColumnInnerPad = isWide
-    ? { paddingStart: ruleGap, paddingEnd: edgePad }
+    ? { paddingStart: ruleGap, paddingEnd: { base: 3, desktop: 3 } as const }
     : { paddingStart: edgePad, paddingEnd: edgePad }
 
   /** Headline only; audience blocks sit below `HomeHorizontalRule` like `homeWhy402`. */
@@ -825,25 +843,6 @@ export default function Home() {
     />
   )
 
-  const homeRailFlowSelector = (
-    <HStack
-      gap={1}
-      alignItems="center"
-      alignSelf="flex-start"
-      borderRadius={500}
-      background="bgSecondary"
-      paddingY={2}
-      paddingX={3}
-      width="auto"
-      maxWidth="100%"
-    >
-      <TextLabel1 color="fg" as="span">
-        {t("home.flowOneTimePayment")}
-      </TextLabel1>
-      <Icon name="caretDown" size="s" color="fgMuted" />
-    </HStack>
-  )
-
   const visuallyHidden: CSSProperties = {
     position: "absolute",
     width: 1,
@@ -855,6 +854,28 @@ export default function Home() {
     whiteSpace: "nowrap",
     border: 0,
   }
+
+  const homeUsdApproxDisplay = useMemo(() => {
+    const n = parseFloat(amount.trim())
+    const v = Number.isFinite(n) ? n : 0
+    return v.toLocaleString("en-US", { style: "currency", currency: "USD" })
+  }, [amount])
+
+  const protectedTtlSelectOptions = useMemo(
+    () =>
+      PROTECTED_TTL_PRESETS.map((sec) => ({
+        value: String(sec),
+        label:
+          sec === 900
+            ? t("home.ttlPreset15m")
+            : sec === 3600
+              ? t("home.ttlPreset1h")
+              : sec === 86400
+                ? t("home.ttlPreset24h")
+                : t("home.ttlPreset7d"),
+      })),
+    [t],
+  )
 
   const homeRailAmountHero = (
     <Box
@@ -868,95 +889,120 @@ export default function Home() {
       <Box as="span" style={visuallyHidden}>
         {t("home.amount")}
       </Box>
-      <HStack
-        gap={0}
-        alignItems="baseline"
-        width="100%"
-        minWidth={0}
-        paddingY={2}
-      >
-        <Box
-          position="relative"
-          display="inline-flex"
+      <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+        <HStack
+          gap={0}
           alignItems="baseline"
+          width="100%"
           minWidth={0}
-          maxWidth="calc(100% - 3.25rem)"
-          flexShrink={1}
+          paddingY={2}
         >
           <Box
+            position="relative"
+            display="inline-flex"
+            alignItems="baseline"
+            minWidth={0}
+            maxWidth="calc(100% - 4.75rem)"
+            flexShrink={1}
+          >
+            <Box
+              as="span"
+              ref={homeAmountMeasureRef}
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                visibility: "hidden",
+                whiteSpace: "pre",
+                pointerEvents: "none",
+                fontFamily: HERO_AMOUNT_FONT_FAMILY,
+                fontSize: homeRailHeroAmountFontPx,
+                fontWeight: 400,
+                letterSpacing: "-0.03em",
+                lineHeight: 1,
+              }}
+            >
+              {homeAmountDisplay}
+            </Box>
+            <Box
+              as="input"
+              id="home-rail-amount"
+              value={amount}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                setAmount(sanitizeHomeAmountInput(e.target.value))
+                invalidateQrIfFormChanged()
+              }}
+              onBlur={() => {
+                const raw = amount.trim()
+                if (raw === "" || raw === ".") {
+                  setAmount("0.00")
+                  invalidateQrIfFormChanged()
+                  return
+                }
+                const n = parseFloat(raw)
+                if (!Number.isFinite(n)) {
+                  setAmount("0.00")
+                  invalidateQrIfFormChanged()
+                  return
+                }
+                setAmount(n.toFixed(2))
+                invalidateQrIfFormChanged()
+              }}
+              inputMode="decimal"
+              autoComplete="off"
+              style={{
+                display: "block",
+                width: homeAmountInputWidthPx,
+                maxWidth: "100%",
+                margin: 0,
+                padding: 0,
+                border: "none",
+                outline: "none",
+                background: "transparent",
+                fontFamily: HERO_AMOUNT_FONT_FAMILY,
+                fontSize: homeRailHeroAmountFontPx,
+                fontWeight: 400,
+                letterSpacing: "-0.03em",
+                lineHeight: 1,
+                textAlign: "left",
+                color: "var(--color-fg)",
+                caretColor: "var(--color-fgPrimary)",
+              }}
+            />
+          </Box>
+          <Box
             as="span"
-            ref={homeAmountMeasureRef}
             aria-hidden
+            color="fgMuted"
+            display="inline-block"
             style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              visibility: "hidden",
-              whiteSpace: "pre",
-              pointerEvents: "none",
+              flexShrink: 0,
+              margin: 0,
+              padding: 0,
+              paddingLeft: "0.04em",
               fontFamily: HERO_AMOUNT_FONT_FAMILY,
-              fontSize: homeRailHeroAmountFontPx,
+              fontSize: homeRailHeroUsdFontPx,
               fontWeight: 400,
               letterSpacing: "-0.03em",
               lineHeight: 1,
             }}
           >
-            {homeAmountDisplay}
+            USDC
           </Box>
-          <Box
-            as="input"
-            id="home-rail-amount"
-            value={amount}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              setAmount(sanitizeHomeAmountInput(e.target.value))
-              invalidateQrIfFormChanged()
-            }}
-            inputMode="decimal"
-            autoComplete="off"
-            style={{
-              display: "block",
-              width: homeAmountInputWidthPx,
-              maxWidth: "100%",
-              margin: 0,
-              padding: 0,
-              border: "none",
-              outline: "none",
-              background: "transparent",
-              fontFamily: HERO_AMOUNT_FONT_FAMILY,
-              fontSize: homeRailHeroAmountFontPx,
-              fontWeight: 400,
-              letterSpacing: "-0.03em",
-              lineHeight: 1,
-              textAlign: "left",
-              color: "var(--color-fg)",
-              caretColor: "var(--color-fgPrimary)",
-            }}
-          />
-        </Box>
-        <Box
-          as="span"
-          aria-hidden
-          color="bgSecondary"
-          display="inline-block"
-          style={{
-            flexShrink: 0,
-            margin: 0,
-            padding: 0,
-            paddingLeft: "0.04em",
-            fontFamily: HERO_AMOUNT_FONT_FAMILY,
-            fontSize: homeRailHeroUsdFontPx,
-            fontWeight: 400,
-            letterSpacing: "-0.03em",
-            lineHeight: 1,
-          }}
+        </HStack>
+        <TextBody
+          color="fgPrimary"
+          as="p"
+          style={{ margin: 0, fontSize: 15, lineHeight: 1.25 }}
         >
-          USD
-        </Box>
-      </HStack>
+          {t("home.usdApprox", { amount: homeUsdApproxDisplay })}
+        </TextBody>
+      </VStack>
     </Box>
   )
 
-  const homeRailStackedFields = (
+  const homeRailPrimaryFields = (
     <VStack gap={4} alignItems="stretch" width="100%">
       <TextInput
         compact
@@ -973,7 +1019,7 @@ export default function Home() {
         <TextInput
           compact
           {...homeFormTextInputSurface}
-          label={t("home.getPaidAt")}
+          label={t("home.payoutWallet")}
           value={receiverAddress}
           onChange={(e) => {
             setReceiverAddress(e.target.value)
@@ -982,11 +1028,8 @@ export default function Home() {
           }}
           autoComplete="off"
           spellCheck={false}
-          placeholder="0x…"
+          placeholder="0x"
         />
-        <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
-          {t("home.receiverHint")}
-        </TextCaption>
         {receiverAddressError ? (
           <TextCaption color="fgNegative" as="p" style={{ margin: 0 }}>
             {receiverAddressError}
@@ -996,38 +1039,125 @@ export default function Home() {
       <TextInput
         compact
         {...homeFormTextInputSurface}
-        label={t("home.slugRailLabel")}
-        value={slug}
+        label={t("home.postPaymentOpens")}
+        value={protectedLinkUrl}
         onChange={(e) => {
-          setSlug(e.target.value)
+          setProtectedLinkUrl(e.target.value)
           invalidateQrIfFormChanged()
         }}
         autoComplete="off"
         spellCheck={false}
-        placeholder={t("home.slugPlaceholder")}
-        end={
-          <Box
-            display="flex"
-            alignItems="center"
-            paddingEnd={1}
-            flexShrink={0}
-          >
-            <IconButton
-              name="auto"
-              variant="foregroundMuted"
-              transparent
-              compact
-              type="button"
-              accessibilityLabel={t("home.generateRandom")}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleGenerateRandomSlug()
-              }}
-              disabled={isCreating}
-            />
-          </Box>
-        }
+        placeholder={t("home.postPaymentOpensPlaceholder")}
       />
+    </VStack>
+  )
+
+  const homeRailDeliveryBlock = (
+    <VStack gap={2} alignItems="stretch" width="100%">
+      <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+        {t("home.deliveryMode")}
+      </TextLabel1>
+      <SegmentedTabs<HomeDeliveryTabId>
+        accessibilityLabel={t("home.deliveryMode")}
+        activeTab={activeDeliveryTab}
+        onChange={handleDeliveryTabsChange}
+        tabs={deliveryTabs}
+        alignSelf="flex-start"
+        maxWidth="100%"
+      />
+      {activeDeliveryTab.id === "protected" ? (
+        <VStack gap={1} alignItems="stretch" width="100%">
+          <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+            {t("home.deliveryProtectedBlurb1")}
+          </TextBody>
+          <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+            {t("home.deliveryProtectedBlurb2")}
+          </TextBody>
+        </VStack>
+      ) : null}
+    </VStack>
+  )
+
+  const homeRailProtectedSettings = (
+    <VStack gap={4} alignItems="stretch" width="100%">
+      <HStack
+        gap={3}
+        alignItems="center"
+        justifyContent="space-between"
+        width="100%"
+        minWidth={0}
+      >
+        <HStack gap={1} alignItems="center" minWidth={0} flexShrink={1}>
+          <Box flexShrink={0} display="flex" alignItems="center">
+            <Icon name="clock" size="m" color="fgPrimary" />
+          </Box>
+          <TextLabel1
+            color="fg"
+            as="span"
+            style={{ margin: 0, fontWeight: 600, lineHeight: 1.35 }}
+          >
+            {t("home.unlockLinkExpiresTitle")}
+          </TextLabel1>
+        </HStack>
+        <Box flexShrink={0} minWidth={0} maxWidth="50%">
+          <Select
+            type="single"
+            value={String(protectedTtlSeconds)}
+            onChange={(next) => {
+              if (next == null) return
+              setProtectedTtlSeconds(Number(next))
+              invalidateQrIfFormChanged()
+            }}
+            options={protectedTtlSelectOptions}
+            compact
+            bordered={false}
+            variant="foregroundMuted"
+            align="end"
+            accessibilityLabel={t("home.unlockLinkExpiresTitle")}
+            controlAccessibilityLabel={t("home.unlockLinkExpiresTitle")}
+            classNames={{
+              controlValueNode: "home-protected-ttl-select-value",
+            }}
+            styles={{ dropdown: { width: 172 } }}
+          />
+        </Box>
+      </HStack>
+      <Checkbox
+        id="home-protected-one-time"
+        value="one-time-unlock"
+        checked={protectedOneTime}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => {
+          setProtectedOneTime(e.target.checked)
+          invalidateQrIfFormChanged()
+        }}
+        accessibilityLabel={t("home.protectedOneTime")}
+      >
+        <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+          {t("home.protectedOneTime")}
+        </TextLabel1>
+      </Checkbox>
+    </VStack>
+  )
+
+  const homeSellRule = (
+    <Box width="100%" paddingY={4}>
+      <Divider />
+    </Box>
+  )
+
+  const homeSellRailWorkflow = (
+    <VStack gap={0} alignItems="stretch" width="100%">
+      {homeRailAmountHero}
+      {homeSellRule}
+      {homeRailPrimaryFields}
+      {homeSellRule}
+      {homeRailDeliveryBlock}
+      {activeDeliveryTab.id === "protected" ? (
+        <>
+          {homeSellRule}
+          {homeRailProtectedSettings}
+        </>
+      ) : null}
     </VStack>
   )
 
@@ -1046,7 +1176,9 @@ export default function Home() {
       >
         {isCreating
           ? t("home.createLinkQrLoading")
-          : t("home.createLinkQr")}
+          : activeDeliveryTab.id === "protected"
+            ? t("home.createProtectedLink")
+            : t("home.createLinkQr")}
       </Button>
       {createError ? (
         <Box
@@ -1252,8 +1384,8 @@ export default function Home() {
   )
 
   /**
-   * Transaction rail: mode → flow → amount → fields → CTA; generated QR/URL/share
-   * live in `homeRailResultSection` below the CTA.
+   * Transaction rail: Sell/Buy/API tabs → amount → fields → delivery → CTA;
+   * generated QR/URL/share live in `homeRailResultSection` below the CTA.
    */
   const rightPane = (
     <Box
@@ -1269,9 +1401,7 @@ export default function Home() {
           {homeRailSegmentedControl}
           {activeTab.id === "sell" ? (
             <>
-              {homeRailFlowSelector}
-              {homeRailAmountHero}
-              {homeRailStackedFields}
+              {homeSellRailWorkflow}
               {homeFormSubmit}
               {homeRailResultSection}
             </>

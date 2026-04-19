@@ -20,6 +20,9 @@ export type ApiResource = {
   network: string
   active: boolean
   unlockType: string
+  deliveryMode?: "direct" | "protected"
+  protectedTtlSeconds?: number | null
+  oneTimeUnlock?: boolean
   /** Present on Worker responses when `unlock_value` is stored; never exposes the payload. */
   hasPaidPayload?: boolean
   contentType: string | null
@@ -60,14 +63,27 @@ export async function createResource(input: {
   /** Lowercase `0x` + 40 hex — required by Worker `POST /api/resource`. */
   receiverAddress: string
   slug?: string
+  unlockType?: string
+  unlockValue?: string
+  deliveryMode?: "direct" | "protected"
+  /** Omitted or empty lets the Worker default protected TTL to 900 seconds. */
+  protectedTtlSeconds?: number
+  oneTimeUnlock?: boolean
 }): Promise<{ response: Response; data: CreateResourceResponse | null }> {
-  const body: Record<string, string> = {
+  const body: Record<string, string | number | boolean> = {
     label: input.label.trim(),
     amount: input.amount.trim(),
     receiverAddress: input.receiverAddress.trim(),
   }
   const s = input.slug?.trim()
   if (s) body.slug = s
+  if (input.unlockType?.trim()) body.unlockType = input.unlockType.trim()
+  if (input.unlockValue !== undefined) body.unlockValue = input.unlockValue
+  if (input.deliveryMode) body.deliveryMode = input.deliveryMode
+  if (input.protectedTtlSeconds !== undefined) {
+    body.protectedTtlSeconds = input.protectedTtlSeconds
+  }
+  if (input.oneTimeUnlock !== undefined) body.oneTimeUnlock = input.oneTimeUnlock
 
   const res = await fetch(apiUrl("/api/resource"), {
     method: "POST",

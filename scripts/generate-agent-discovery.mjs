@@ -112,6 +112,11 @@ function buildOpenApi() {
                     amount: { type: "string" },
                     receiverAddress: { type: "string", pattern: "^0x[a-fA-F0-9]{40}$" },
                     slug: { type: "string" },
+                    unlockType: { type: "string", enum: ["json", "text", "link"] },
+                    unlockValue: {},
+                    deliveryMode: { type: "string", enum: ["direct", "protected"] },
+                    protectedTtlSeconds: { type: "integer", minimum: 60, maximum: 604800 },
+                    oneTimeUnlock: { type: "boolean" },
                   },
                 },
               },
@@ -230,6 +235,25 @@ function buildOpenApi() {
           summary: "Liveness / health",
           operationId: "health",
           responses: { "200": { description: "OK" } },
+        },
+      },
+      "/unlock/{token}": {
+        get: {
+          summary: "Redeem a short-lived protected delivery unlock token",
+          operationId: "getUnlock",
+          parameters: [
+            {
+              name: "token",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "302": { description: "Redirect to the seller final URL" },
+            "404": { description: "Unknown token" },
+            "410": { description: "Expired or exhausted token" },
+          },
         },
       },
     },
