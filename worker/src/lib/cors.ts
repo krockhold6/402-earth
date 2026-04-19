@@ -1,5 +1,6 @@
 /**
- * Browser origins allowed to call the public API from the 402.earth SPA.
+ * Browser origins allowed to call the public API from the 402.earth SPA
+ * (apex, www) and GitHub Pages previews (`*.github.io`).
  * The worker reflects a matching `Origin` so cross-site fetches succeed.
  */
 const EXACT_ORIGINS = new Set([
@@ -11,6 +12,8 @@ function isAllowedOrigin(origin: string): boolean {
   if (EXACT_ORIGINS.has(origin)) return true
   if (/^http:\/\/localhost:\d+$/.test(origin)) return true
   if (/^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) return true
+  // GitHub Pages (project or user site): Origin is always https://<host>.github.io
+  if (/^https:\/\/[a-z0-9-]+\.github\.io$/i.test(origin)) return true
   return false
 }
 
