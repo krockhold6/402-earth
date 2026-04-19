@@ -20,6 +20,7 @@ import { ApiDocsPanel } from "@/components/ApiDocsPanel"
 import { BuyFlowPanel } from "@/components/BuyFlowPanel"
 import { createResource } from "@/lib/api"
 import { publicUrl } from "@/lib/publicUrl"
+import { suggestResourceSlug } from "@/lib/suggestResourceSlug"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { useTheme } from "@coinbase/cds-web/hooks/useTheme"
 import { Interactable } from "@coinbase/cds-web/system/Interactable"
@@ -427,8 +428,6 @@ export default function Home() {
   const [protectedTtlSeconds, setProtectedTtlSeconds] = useState(900)
   const [protectedOneTime, setProtectedOneTime] = useState(false)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
-  /** Slugs produced by "Generate Random" (and successful creates) — never reused by the generator. */
-  const usedGeneratedSlugsRef = useRef<Set<string>>(new Set())
 
   const slugKey = slug.trim()
   const hasQr = paymentUrl !== ""
@@ -480,6 +479,12 @@ export default function Home() {
     setPaymentUrl("")
     setCreateError(null)
   }, [])
+
+  const handleGenerateRandomSlug = useCallback(() => {
+    setSlug(suggestResourceSlug())
+    setCreateError(null)
+    invalidateQrIfFormChanged()
+  }, [invalidateQrIfFormChanged])
 
   type HomeDeliveryTabId = "direct" | "protected"
   type HomeDeliveryTab = { id: HomeDeliveryTabId; label: string }
@@ -634,9 +639,7 @@ export default function Home() {
         return
       }
 
-      const createdSlug = data.resource.slug
-      setSlug(createdSlug)
-      usedGeneratedSlugsRef.current.add(createdSlug)
+      setSlug("")
       setReceiverAddress(
         pickResourceReceiver(data.resource).toLowerCase() ||
           recvResult.normalized,
@@ -1024,6 +1027,33 @@ export default function Home() {
         autoComplete="off"
         placeholder={t("home.labelPlaceholder")}
       />
+      <VStack gap={1} alignItems="stretch" width="100%">
+        <HStack gap={2} alignItems="flex-end" width="100%" minWidth={0}>
+          <Box style={{ flex: "1 1 0%", minWidth: 0 }}>
+            <TextInput
+              compact
+              {...homeFormTextInputSurface}
+              label={t("home.slugRailLabel")}
+              value={slug}
+              onChange={(e) => {
+                setSlug(e.target.value)
+                invalidateQrIfFormChanged()
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={t("home.slugPlaceholder")}
+            />
+          </Box>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleGenerateRandomSlug}
+            style={{ flexShrink: 0 }}
+          >
+            {t("home.generateRandom")}
+          </Button>
+        </HStack>
+      </VStack>
       <VStack gap={1} alignItems="stretch">
         <TextInput
           compact
