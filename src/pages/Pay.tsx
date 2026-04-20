@@ -141,6 +141,7 @@ export default function Pay() {
   const [desktopTxSubmitted, setDesktopTxSubmitted] = useState(false)
   const [desktopPayBusy, setDesktopPayBusy] = useState(false)
   const [walletLinkCopied, setWalletLinkCopied] = useState(false)
+  const [deliveryLinkCopied, setDeliveryLinkCopied] = useState(false)
 
   const autoOpenIssuedRef = useRef(false)
 
@@ -191,6 +192,7 @@ export default function Pay() {
     setDesktopTxSubmitted(false)
     setDesktopPayBusy(false)
     setWalletLinkCopied(false)
+    setDeliveryLinkCopied(false)
   }, [slug])
 
   /** Create / resume payment attempt and sync ?attemptId= */
@@ -267,6 +269,8 @@ export default function Pay() {
       const id = attemptData.attemptId
       persistUnlockAttempt(slug, id)
       navigate(unlockPagePath(slug, id), { replace: true })
+      const st = attemptData.status ?? "payment_required"
+      const nowIso = new Date().toISOString()
       setPolledAttempt({
         id,
         slug,
@@ -274,15 +278,15 @@ export default function Pay() {
         amount: resource.amount,
         currency: resource.currency,
         network: resource.network,
-        status: attemptData.status ?? "payment_required",
+        status: st,
         clientType: "browser",
         paymentMethod: "x402",
         payerAddress: null,
         paymentSignatureHash: null,
         txHash: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        paidAt: null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        paidAt: st === "paid" ? nowIso : null,
         expiresAt: null,
         paymentReceiverAddress: resource.receiverAddress ?? null,
       })
@@ -396,6 +400,17 @@ export default function Pay() {
     if (!paidPayload) return null
     return resolvePaidNavigateUrl(paidPayload.type, paidPayload.value)
   }, [paidPayload])
+
+  const copyDeliveryUrl = useCallback(async () => {
+    if (!deliveryUrl) return
+    try {
+      await navigator.clipboard.writeText(deliveryUrl)
+      setDeliveryLinkCopied(true)
+      window.setTimeout(() => setDeliveryLinkCopied(false), 2000)
+    } catch {
+      setVerifyError(t("pay.desktopCopyFailed"))
+    }
+  }, [deliveryUrl, t])
 
   const unlockPhase: UnlockPhase = useMemo(() => {
     if (loadState !== "done" || loadError || !resource) return "loading"
@@ -692,8 +707,6 @@ export default function Pay() {
     window.location.href = href
   }, [attemptIdFromUrl, canInteract, resource, t])
 
-  const showAdvancedOnlyPanel = manualAdvancedOpen && resource != null
-
   const centerMeta =
     resource && !showResourceError && !showResourceSkeleton
       ? {
@@ -702,9 +715,18 @@ export default function Pay() {
         }
       : null
 
+  const showAdvancedOnlyPanel =
+    manualAdvancedOpen && resource != null && !centerMeta?.isFree
+
   const phaseCopy = useMemo(() => {
     switch (unlockPhase) {
       case "awaiting_payment":
+        if (centerMeta?.isFree) {
+          return {
+            title: t("pay.freeUnlockingTitle"),
+            subtitle: t("pay.freeUnlockingSubtitle"),
+          }
+        }
         return {
           title: t("pay.session.phase.awaitingTitle"),
           subtitle: t("pay.session.phase.awaitingSubtitle"),
@@ -740,7 +762,7 @@ export default function Pay() {
           subtitle: t("pay.session.phase.connectingSubtitle"),
         }
     }
-  }, [t, unlockPhase])
+  }, [centerMeta?.isFree, t, unlockPhase])
 
   const showSessionCard =
     resource &&
@@ -754,10 +776,13 @@ export default function Pay() {
   const showWalletPrimarySection =
     unlockPhase === "awaiting_payment" &&
     !manualAdvancedOpen &&
-    Boolean(walletPayHref)
+    Boolean(walletPayHref) &&
+    !centerMeta?.isFree
 
   const showVerifyFallbackLink =
-    unlockPhase === "awaiting_payment" && !manualAdvancedOpen
+    unlockPhase === "awaiting_payment" &&
+    !manualAdvancedOpen &&
+    !centerMeta?.isFree
 
   const advancedTxForm = (opts: { showBackToMethods: boolean }) => (
     <VStack gap={{ base: 3, desktop: 4 }} alignItems="stretch">
@@ -1208,7 +1233,8 @@ export default function Pay() {
                   </VStack>
                 ) : null}
 
-                {(unlockPhase === "payment_detected" ||
+                {!centerMeta?.isFree &&
+                (unlockPhase === "payment_detected" ||
                   unlockPhase === "tx_pending" ||
                   unlockPhase === "confirming_unlock") &&
                 !manualAdvancedOpen ? (
@@ -1315,6 +1341,36 @@ export default function Pay() {
                     <Button variant="primary" onClick={handleOpenResource} block>
                       {t("pay.session.openResource")}
                     </Button>
+                    {deliveryUrl ? (
+                      <VStack gap={2} alignItems="stretch">
+                        <Button
+                          variant="secondary"
+                          onClick={() => void copyDeliveryUrl()}
+                          block
+                        >
+                          {deliveryLinkCopied
+                            ? t("pay.desktopCopied")
+                            : t("pay.copyDeliveryLink")}
+                        </Button>
+                        <TextCaption color="fgMuted" as="p">
+                          {t("pay.deliveryQrCaption")}
+                        </TextCaption>
+                        <Box
+                          alignSelf="center"
+                          padding={2}
+                          background="bg"
+                          borderRadius={400}
+                          style={{ lineHeight: 0 }}
+                        >
+                          <QRCodeSVG
+                            value={deliveryUrl}
+                            size={160}
+                            level="M"
+                            includeMargin={false}
+                          />
+                        </Box>
+                      </VStack>
+                    ) : null}
                     <TextCaption color="fgMuted" as="p">
                       {t("pay.session.autoOpenFallback")}
                     </TextCaption>

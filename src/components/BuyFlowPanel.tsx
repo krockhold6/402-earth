@@ -26,7 +26,10 @@ import {
 } from "@coinbase/cds-web/typography"
 import { createPaymentAttempt, fetchResource, type ApiResource } from "@/lib/api"
 import { unlockPagePath } from "@/lib/appUrl"
-import { buildBaseUsdcEip681Link } from "@/lib/baseUsdcPayLink"
+import {
+  buildBaseUsdcEip681Link,
+  isZeroUsdcAmount,
+} from "@/lib/baseUsdcPayLink"
 import { decodeQrFromImageFile } from "@/lib/decodeQrFromImageFile"
 import {
   openPaidResource,
@@ -215,8 +218,9 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     if (!slug || !resource) return
     clearErrors()
 
+    const isFree = isZeroUsdcAmount(resource.amount)
     const walletHref = buildBaseUsdcEip681Link(resource)
-    if (!walletHref) {
+    if (!isFree && !walletHref) {
       setFlowError("pay", t("pay.payBaseUnavailable"))
       return
     }
@@ -239,6 +243,12 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         unlockPagePath(slug, attemptId),
         { replace: true },
       )
+      if (isFree || attemptData.status === "paid") {
+        return
+      }
+      if (!walletHref) {
+        throw new Error(t("pay.payBaseUnavailable"))
+      }
       window.location.href = walletHref
     } catch (err) {
       const message = err instanceof Error ? err.message : t("buy.payFailed")
@@ -446,7 +456,9 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
                 onClick={() => void handlePay()}
                 block={isRail}
               >
-                {t("buy.payUnlock")}
+                {resource && isZeroUsdcAmount(resource.amount)
+                  ? t("buy.freeUnlockCta")
+                  : t("buy.payUnlock")}
               </Button>
             )}
           </VStack>
