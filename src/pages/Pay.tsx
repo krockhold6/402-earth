@@ -1115,18 +1115,8 @@ export default function Pay() {
                       {paidPayloadErrBanner}
 
                       <VStack gap={3} alignItems="stretch" width="100%">
-                        {showVerifyFallbackLink ? (
-                          <Button
-                            variant="primary"
-                            onClick={handleOpenAdvancedManual}
-                            disabled={!canInteract}
-                            block
-                          >
-                            {t("pay.verifySecondaryLink")}
-                          </Button>
-                        ) : null}
                         <Button
-                          variant="secondary"
+                          variant="primary"
                           onClick={() => void handleDesktopInBrowserPay()}
                           disabled={
                             !canInteract ||
@@ -1142,6 +1132,16 @@ export default function Pay() {
                               ? t("pay.desktopUnlockInBrowser")
                               : t("pay.desktopPayInBrowser")}
                         </Button>
+                        {showVerifyFallbackLink ? (
+                          <Button
+                            variant="foregroundMuted"
+                            onClick={handleOpenAdvancedManual}
+                            disabled={!canInteract}
+                            block
+                          >
+                            {t("pay.verifySecondaryLink")}
+                          </Button>
+                        ) : null}
                         {!hasInjectedWalletProvider() ? (
                           <TextCaption color="fgMuted" as="p">
                             {t("pay.desktopErrNoWallet")}
