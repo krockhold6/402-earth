@@ -109,6 +109,8 @@ export default function Pay() {
   const [searchParams] = useSearchParams()
   const attemptIdFromUrl = searchParams.get("attemptId")?.trim() || null
   const isMobilePayLayout = useMediaQuery("(max-width: 767px)")
+  /** CDS `desktop` breakpoint (see @coinbase/cds-web responsive styles). */
+  const isCdsDesktop = useMediaQuery("(min-width: 1280px)")
 
   const [resource, setResource] = useState<ApiResource | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -971,10 +973,11 @@ export default function Pay() {
                   <Box
                     display="flex"
                     flexDirection="row"
-                    gap={{ base: 4, desktop: 10 }}
+                    gap={4}
                     alignItems="flex-start"
                     justifyContent="center"
                     width="100%"
+                    style={isCdsDesktop ? { gap: "140px" } : undefined}
                   >
                     <Box
                       style={{
@@ -1196,7 +1199,7 @@ export default function Pay() {
                       gap={3}
                       alignItems="stretch"
                       flexShrink={0}
-                      width="17.5rem"
+                      width="400px"
                       style={{ position: "sticky", top: "6rem" }}
                     >
                       {walletPayHref ? (
