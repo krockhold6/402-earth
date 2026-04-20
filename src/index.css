@@ -92,8 +92,8 @@ body {
 }
 
 /*
- * Home “Pay, then receive…” demo CTA: stack title + button when the *card* is
- * narrow (e.g. golden-ratio left column), not only when the viewport is small.
+ * Home proof band: title + “Start now” link in a single horizontal row
+ * (container used for future queries; layout is row at all widths).
  */
 #root .home-demo-proof-band {
   container-type: inline-size;
@@ -104,8 +104,8 @@ body {
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4, 1rem);
+  justify-content: center;
+  gap: 0;
   width: 100%;
   min-width: 0;
 }
@@ -113,25 +113,10 @@ body {
 #root .home-demo-proof-band__row > *:first-child {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
   padding-inline-end: var(--space-3, 0.75rem);
 }
 
 #root .home-demo-proof-band__row > *:last-child {
   flex-shrink: 0;
-}
-
-@container home-demo-band (max-width: 639px) {
-  #root .home-demo-proof-band__row {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-  }
-
-  #root .home-demo-proof-band__row > *:first-child {
-    padding-inline-end: 0;
-  }
-
-  #root .home-demo-proof-band__row > *:last-child {
-    align-self: flex-start;
-  }
 }

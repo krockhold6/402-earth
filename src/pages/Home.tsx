@@ -11,7 +11,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { QRCodeCanvas } from "qrcode.react"
-import { Button } from "@coinbase/cds-web/buttons"
+import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Select } from "@coinbase/cds-web/alpha/select"
 import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
@@ -775,7 +775,7 @@ export default function Home() {
     <Box
       width="100%"
       paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
+      paddingEnd={6}
       paddingBottom={{ base: 2, desktop: 3 }}
     >
       <Box
@@ -787,23 +787,29 @@ export default function Home() {
         className="home-demo-proof-band"
       >
         <Box className="home-demo-proof-band__row">
-          <Box minWidth={0} flexShrink={1}>
-            <TextTitle4 color="fg" as="p" style={{ margin: 0, lineHeight: 1.35 }}>
+          <Box minWidth={0} flexShrink={1} width="100%">
+            <TextTitle4
+              color="fg"
+              as="p"
+              style={{ margin: 0, lineHeight: 1.35, width: "100%" }}
+            >
               {t("home.demoBandTitle")}
             </TextTitle4>
           </Box>
-          <Box flexShrink={0}>
-            <Button
+          <Box flexShrink={0} display="flex" alignItems="center" style={{ height: "100%" }}>
+            <IconButton
               as={Link}
               to="/demo"
-              compact
               variant="primary"
               type="button"
-              borderRadius={500}
-              minHeight={44}
-            >
-              {t("home.demoBandCta")}
-            </Button>
+              name="forwardArrow"
+              compact={false}
+              accessibilityLabel={t("home.demoBandCta")}
+              style={{
+                textDecoration: "none",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            />
           </Box>
         </Box>
       </Box>
