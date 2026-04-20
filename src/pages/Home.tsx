@@ -24,6 +24,7 @@ import {
   type ApiResource,
 } from "@/lib/api"
 import { publicUrl } from "@/lib/publicUrl"
+import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
 import { suggestResourceSlug } from "@/lib/suggestResourceSlug"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { useTheme } from "@coinbase/cds-web/hooks/useTheme"
@@ -1296,7 +1297,6 @@ export default function Home() {
     hasQr && createdResource ? (
       <VStack gap={4} alignItems="stretch" width="100%">
         <Box
-          bordered
           borderRadius={400}
           background="bgSecondary"
           padding={{ base: 4, desktop: 5 }}
@@ -1312,6 +1312,20 @@ export default function Home() {
                 {t("home.successSupporting")}
               </TextBody>
             </VStack>
+
+            <Box display="flex" justifyContent="center" width="100%">
+              <QRCodeCanvas
+                ref={qrCanvasRef}
+                value={paymentUrl}
+                size={isWide ? 220 : 200}
+                marginSize={2}
+                level="H"
+                bgColor="#ffffff"
+                fgColor="#000000"
+                imageSettings={qrCenterImageSettings(isWide ? 220 : 200)}
+                style={{ borderRadius: 16 }}
+              />
+            </Box>
 
             <Box
               borderRadius={400}
@@ -1408,17 +1422,6 @@ export default function Home() {
                   </TextBody>
                 </HStack>
               </VStack>
-            </Box>
-
-            <Box display="flex" justifyContent="center" width="100%">
-              <QRCodeCanvas
-                ref={qrCanvasRef}
-                value={paymentUrl}
-                size={isWide ? 220 : 200}
-                marginSize={2}
-                bgColor="#ffffff"
-                fgColor="#000000"
-              />
             </Box>
 
             <Box

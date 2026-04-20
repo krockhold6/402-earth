@@ -24,6 +24,7 @@ import {
   sendBaseUsdcTransferFromBrowser,
 } from "@/lib/desktopUsdcPay"
 import { unlockPagePath } from "@/lib/appUrl"
+import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
 import {
   openPaidResource,
   resolvePaidNavigateUrl,
@@ -1210,8 +1211,9 @@ export default function Pay() {
                             <QRCodeSVG
                               value={walletPayHref}
                               size={220}
-                              level="M"
+                              level="H"
                               includeMargin={false}
+                              imageSettings={qrCenterImageSettings(220)}
                             />
                           </Box>
                           <Box
@@ -1575,8 +1577,9 @@ export default function Pay() {
                           <QRCodeSVG
                             value={deliveryUrl}
                             size={160}
-                            level="M"
+                            level="H"
                             includeMargin={false}
+                            imageSettings={qrCenterImageSettings(160)}
                           />
                         </Box>
                       </VStack>
