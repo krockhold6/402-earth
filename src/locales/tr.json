@@ -394,5 +394,6 @@
   "legacy.navHome": "Ana sayfa",
   "legacy.navBackToPay": "Ödemeye geri dön",
   "legacy.footnote": "Yalnızca web kancası odaklı durum; x402 denemesi gerçeği gibi davranmayın.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

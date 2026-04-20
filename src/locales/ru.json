@@ -394,5 +394,6 @@
   "legacy.navHome": "Дом",
   "legacy.navBackToPay": "Вернуться к оплате",
   "legacy.footnote": "Только состояние, управляемое веб-перехватчиком — не рассматривайте как попытку проверки истины x402.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

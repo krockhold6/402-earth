@@ -394,5 +394,6 @@
   "legacy.navHome": "บ้าน",
   "legacy.navBackToPay": "Back to payment",
   "legacy.footnote": "สถานะที่ขับเคลื่อนด้วย Webhook เท่านั้น อย่าถือเป็นความพยายาม x402 จริง",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

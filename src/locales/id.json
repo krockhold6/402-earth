@@ -394,5 +394,6 @@
   "legacy.navHome": "Rumah",
   "legacy.navBackToPay": "Kembali ke pembayaran",
   "legacy.footnote": "Hanya status berbasis webhook—jangan dianggap sebagai percobaan x402 yang sebenarnya.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

@@ -394,5 +394,6 @@
   "legacy.navHome": "घर",
   "legacy.navBackToPay": "भुगतान पर वापस जाएँ",
   "legacy.footnote": "केवल वेबहुक-संचालित स्थिति—x402 प्रयास को सत्य न मानें।",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

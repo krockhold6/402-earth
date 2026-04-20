@@ -394,5 +394,6 @@
   "legacy.navHome": "집",
   "legacy.navBackToPay": "결제로 돌아가기",
   "legacy.footnote": "웹훅 기반 상태만 해당 - x402 시도 진실로 처리되지 않습니다.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

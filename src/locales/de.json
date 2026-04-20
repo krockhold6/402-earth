@@ -394,5 +394,6 @@
   "legacy.navHome": "Zuhause",
   "legacy.navBackToPay": "Zurück zur Zahlung",
   "legacy.footnote": "Nur Webhook-gesteuerter Status – nicht als x402-Versuchswahrheit behandeln.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

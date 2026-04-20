@@ -394,5 +394,6 @@
   "legacy.navHome": "首页",
   "legacy.navBackToPay": "返回付款",
   "legacy.footnote": "仅 Webhook 驱动的状态 - 不视为 x402 尝试真相。",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

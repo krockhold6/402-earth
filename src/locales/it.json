@@ -394,5 +394,6 @@
   "legacy.navHome": "Casa",
   "legacy.navBackToPay": "Torniamo al pagamento",
   "legacy.footnote": "Solo stato basato su webhook: non considerare come tentativo x402 veritiero.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

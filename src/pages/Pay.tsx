@@ -869,6 +869,59 @@ export default function Pay() {
     </VStack>
   )
 
+  const useDesktopSplitPayLayout =
+    Boolean(resource) &&
+    !showResourceError &&
+    !showResourceSkeleton &&
+    showWalletPrimarySection &&
+    !isMobilePayLayout
+
+  const sessionCardTextAlign = useDesktopSplitPayLayout ? "left" : "center"
+
+  const paymentErrBanner =
+    sessionError || verifyError ? (
+      <Box
+        borderRadius={400}
+        background="bgNegativeWash"
+        padding={3}
+        width="100%"
+        style={{ textAlign: "left" }}
+      >
+        <VStack gap={2} alignItems="stretch">
+          <TextBody color="fgNegative">{verifyError ?? sessionError}</TextBody>
+          {sessionError && slug ? (
+            <Button variant="secondary" onClick={resetToPaymentChoice} block>
+              {t("pay.session.retrySession")}
+            </Button>
+          ) : null}
+        </VStack>
+      </Box>
+    ) : null
+
+  const paidPayloadErrBanner = paidPayloadError ? (
+    <Box
+      borderRadius={400}
+      background="bgNegativeWash"
+      padding={3}
+      width="100%"
+      style={{ textAlign: "left" }}
+    >
+      <VStack gap={2} alignItems="stretch">
+        <TextBody color="fgNegative">{paidPayloadError}</TextBody>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setPaidPayloadError(null)
+            setDeliveryRetryKey((k) => k + 1)
+          }}
+          block
+        >
+          {t("pay.session.retryDelivery")}
+        </Button>
+      </VStack>
+    </Box>
+  ) : null
+
   return (
     <Box
       as="main"
@@ -882,7 +935,7 @@ export default function Pay() {
     >
       <Box
         width="100%"
-        maxWidth="34rem"
+        maxWidth={useDesktopSplitPayLayout ? "71rem" : "34rem"}
         paddingX={{ base: 3, desktop: 5 }}
         paddingY={{ base: 4, desktop: 6 }}
       >
@@ -912,172 +965,413 @@ export default function Pay() {
                 </VStack>
               </Box>
             ) : resource ? (
-              <VStack gap={{ base: 4, desktop: 5 }} alignItems="center">
-                <VStack gap={1} alignItems="center" maxWidth="28rem">
-                  <TextCaption
-                    color="fgMuted"
-                    style={{
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {t("pay.unlockEyebrow")}
-                  </TextCaption>
-                  <TextTitle2
-                    color="fg"
-                    as="h1"
-                    style={{
-                      letterSpacing: "-0.025em",
-                      lineHeight: 1.15,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {resource.label}
-                  </TextTitle2>
-                </VStack>
-
-                <VStack gap={1} alignItems="center">
-                  {centerMeta?.isFree ? (
-                    <>
-                      <TextTitle1
-                        color="fg"
-                        style={{
-                          fontSize: "clamp(1.85rem, 5.5vw, 2.65rem)",
-                          fontWeight: 600,
-                          letterSpacing: "-0.03em",
-                          lineHeight: 1.1,
-                        }}
-                      >
-                        {t("pay.freeUnlockEmphasis")}
-                      </TextTitle1>
-                      <TextCaption color="fgMuted" as="p">
-                        {t("pay.freeUnlockSupporting", {
-                          amount: centerMeta.amountDisplay,
-                          currency: resource.currency,
-                          network: resource.network,
-                        })}
-                      </TextCaption>
-                    </>
-                  ) : (
-                    <>
-                      <TextTitle1
-                        color="fg"
-                        style={{
-                          fontSize: "clamp(2rem, 6vw, 3.15rem)",
-                          fontWeight: 600,
-                          letterSpacing: "-0.035em",
-                          lineHeight: 1.08,
-                        }}
-                      >
-                        {centerMeta?.amountDisplay} {resource.currency}
-                      </TextTitle1>
-                      <TextCaption color="fgMuted" as="p">
-                        {t("pay.onNetworkCaption", {
-                          network: resource.network,
-                        })}
-                      </TextCaption>
-                    </>
-                  )}
-                </VStack>
-
-                {showSessionCard ? (
+              <VStack gap={{ base: 4, desktop: 5 }} alignItems="stretch">
+                {useDesktopSplitPayLayout ? (
                   <Box
-                    borderRadius={400}
-                    background={
-                      unlockPhase === "access_granted"
-                        ? "bgPositiveWash"
-                        : unlockPhase === "session_failed"
-                          ? "bgNegativeWash"
-                          : "bgSecondary"
-                    }
-                    padding={{ base: 3, desktop: 4 }}
+                    display="flex"
+                    flexDirection="row"
+                    gap={{ base: 4, desktop: 10 }}
+                    alignItems="flex-start"
+                    justifyContent="center"
                     width="100%"
-                    maxWidth="26rem"
-                    alignSelf="center"
                   >
-                    <VStack gap={2} alignItems="stretch">
+                    <Box
+                      style={{
+                        flex: "1",
+                        minWidth: 0,
+                        maxWidth: "28rem",
+                        textAlign: "left",
+                      }}
+                    >
+                      <VStack gap={5} alignItems="stretch">
+                      <VStack gap={1} alignItems="flex-start">
+                        <TextCaption
+                          color="fgMuted"
+                          style={{
+                            letterSpacing: "0.16em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {centerMeta?.isFree
+                            ? t("pay.freeUnlockEmphasis")
+                            : t("pay.unlockEyebrow")}
+                        </TextCaption>
+                        <TextTitle2
+                          color="fg"
+                          as="h1"
+                          style={{
+                            letterSpacing: "-0.025em",
+                            lineHeight: 1.15,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {resource.label}
+                        </TextTitle2>
+                      </VStack>
+
+                      <VStack gap={1} alignItems="flex-start">
+                        {centerMeta?.isFree ? (
+                          <>
+                            <TextTitle1
+                              color="fg"
+                              style={{
+                                fontSize: "clamp(1.85rem, 5.5vw, 2.65rem)",
+                                fontWeight: 600,
+                                letterSpacing: "-0.03em",
+                                lineHeight: 1.1,
+                              }}
+                            >
+                              {t("pay.freeUnlockEmphasis")}
+                            </TextTitle1>
+                            <TextCaption color="fgMuted" as="p">
+                              {t("pay.freeUnlockSupporting", {
+                                amount: centerMeta?.amountDisplay ?? "",
+                                currency: resource.currency,
+                                network: resource.network,
+                              })}
+                            </TextCaption>
+                          </>
+                        ) : (
+                          <>
+                            <HStack
+                              gap={2}
+                              alignItems="baseline"
+                              style={{ flexWrap: "wrap" }}
+                            >
+                              <TextTitle1
+                                color="fg"
+                                style={{
+                                  fontSize: "clamp(2rem, 6vw, 3.15rem)",
+                                  fontWeight: 600,
+                                  letterSpacing: "-0.035em",
+                                  lineHeight: 1.08,
+                                }}
+                              >
+                                {centerMeta?.amountDisplay}
+                              </TextTitle1>
+                              <TextTitle1
+                                color="fgMuted"
+                                style={{
+                                  fontSize: "clamp(2rem, 6vw, 3.15rem)",
+                                  fontWeight: 600,
+                                  letterSpacing: "-0.035em",
+                                  lineHeight: 1.08,
+                                }}
+                              >
+                                {resource.currency}
+                              </TextTitle1>
+                            </HStack>
+                            <TextCaption color="fgMuted" as="p">
+                              {t("pay.paymentRequiredLine", {
+                                amount: centerMeta?.amountDisplay ?? "",
+                                currency: resource.currency,
+                                network: resource.network,
+                              })}
+                            </TextCaption>
+                          </>
+                        )}
+                      </VStack>
+
+                      {showSessionCard ? (
+                        <Box
+                          borderRadius={400}
+                          background={"bgSecondary"}
+                          padding={{ base: 3, desktop: 4 }}
+                          width="100%"
+                          alignSelf="stretch"
+                        >
+                          <VStack gap={2} alignItems="stretch">
+                            {sessionStarting ? (
+                              <TextBody color="fgMuted" as="p">
+                                {t("pay.session.starting")}
+                              </TextBody>
+                            ) : (
+                              <>
+                                <TextTitle2
+                                  color="fg"
+                                  as="h2"
+                                  style={{
+                                    letterSpacing: "-0.02em",
+                                    textAlign: sessionCardTextAlign,
+                                  }}
+                                >
+                                  {phaseCopy.title}
+                                </TextTitle2>
+                                <TextCaption
+                                  color="fgMuted"
+                                  as="p"
+                                  style={{ textAlign: sessionCardTextAlign }}
+                                >
+                                  {phaseCopy.subtitle}
+                                </TextCaption>
+                              </>
+                            )}
+                          </VStack>
+                        </Box>
+                      ) : null}
+
+                      {paymentErrBanner}
+                      {paidPayloadErrBanner}
+
+                      <VStack gap={3} alignItems="stretch" width="100%">
+                        {showVerifyFallbackLink ? (
+                          <Button
+                            variant="primary"
+                            onClick={handleOpenAdvancedManual}
+                            disabled={!canInteract}
+                            block
+                          >
+                            {t("pay.verifySecondaryLink")}
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="secondary"
+                          onClick={() => void handleDesktopInBrowserPay()}
+                          disabled={
+                            !canInteract ||
+                            !walletPayHref ||
+                            desktopPayBusy ||
+                            !hasInjectedWalletProvider()
+                          }
+                          block
+                        >
+                          {desktopPayBusy
+                            ? t("pay.working")
+                            : centerMeta?.isFree
+                              ? t("pay.desktopUnlockInBrowser")
+                              : t("pay.desktopPayInBrowser")}
+                        </Button>
+                        {!hasInjectedWalletProvider() ? (
+                          <TextCaption color="fgMuted" as="p">
+                            {t("pay.desktopErrNoWallet")}
+                          </TextCaption>
+                        ) : null}
+                        {walletPayHref ? (
+                          <HStack
+                            gap={2}
+                            alignItems="stretch"
+                            style={{ width: "100%" }}
+                          >
+                            <Button
+                              variant="secondary"
+                              onClick={() => void copyWalletPayLink()}
+                              disabled={!canInteract}
+                              block
+                              style={{ flex: 1 }}
+                            >
+                              {walletLinkCopied
+                                ? t("pay.desktopCopied")
+                                : t("pay.desktopCopyLink")}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              onClick={handleEip681DeepLinkFallback}
+                              disabled={!canInteract || !walletPayHref}
+                              block
+                              style={{ flex: 1 }}
+                            >
+                              {t("pay.desktopOpenDeepLink")}
+                            </Button>
+                          </HStack>
+                        ) : null}
+                        {!walletPayHref ? (
+                          <TextCaption color="fgMuted" as="p">
+                            {t("pay.walletLinksUnavailableShort")}
+                          </TextCaption>
+                        ) : null}
+                        <TextCaption color="fgMuted" as="p">
+                          {t("pay.session.watchingHint")}
+                        </TextCaption>
+                        {walletPayHref ? (
+                          <TextCaption color="fgMuted" as="p">
+                            {t("pay.baseWalletsNote")}
+                          </TextCaption>
+                        ) : null}
+                      </VStack>
+                      </VStack>
+                    </Box>
+
+                    <VStack
+                      gap={3}
+                      alignItems="stretch"
+                      flexShrink={0}
+                      width="17.5rem"
+                      style={{ position: "sticky", top: "6rem" }}
+                    >
+                      {walletPayHref ? (
+                        <>
+                          <Box
+                            padding={3}
+                            background="bg"
+                            borderRadius={400}
+                            alignSelf="center"
+                            style={{ lineHeight: 0 }}
+                          >
+                            <QRCodeSVG
+                              value={walletPayHref}
+                              size={220}
+                              level="M"
+                              includeMargin={false}
+                            />
+                          </Box>
+                          <Box
+                            background="bgSecondary"
+                            borderRadius={400}
+                            padding={3}
+                            width="100%"
+                          >
+                            <TextBody color="fg" style={{ textAlign: "center" }}>
+                              {t("pay.desktopQrCaption")}
+                            </TextBody>
+                          </Box>
+                        </>
+                      ) : (
+                        <TextCaption color="fgMuted" as="p">
+                          {t("pay.walletLinksUnavailableShort")}
+                        </TextCaption>
+                      )}
+                    </VStack>
+                  </Box>
+                ) : (
+                  <VStack gap={{ base: 4, desktop: 5 }} alignItems="center">
+                    <VStack gap={1} alignItems="center" maxWidth="28rem">
                       <TextCaption
                         color="fgMuted"
                         style={{
-                          letterSpacing: "0.14em",
+                          letterSpacing: "0.16em",
                           textTransform: "uppercase",
                         }}
                       >
-                        {t("pay.session.eyebrow")}
+                        {centerMeta?.isFree
+                          ? t("pay.freeUnlockEmphasis")
+                          : t("pay.unlockEyebrow")}
                       </TextCaption>
-                      {sessionStarting ? (
-                        <TextBody color="fgMuted" as="p">
-                          {t("pay.session.starting")}
-                        </TextBody>
-                      ) : (
+                      <TextTitle2
+                        color="fg"
+                        as="h1"
+                        style={{
+                          letterSpacing: "-0.025em",
+                          lineHeight: 1.15,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {resource.label}
+                      </TextTitle2>
+                    </VStack>
+
+                    <VStack gap={1} alignItems="center">
+                      {centerMeta?.isFree ? (
                         <>
-                          <TextTitle2
+                          <TextTitle1
                             color="fg"
-                            as="h2"
                             style={{
-                              letterSpacing: "-0.02em",
-                              textAlign: "center",
+                              fontSize: "clamp(1.85rem, 5.5vw, 2.65rem)",
+                              fontWeight: 600,
+                              letterSpacing: "-0.03em",
+                              lineHeight: 1.1,
                             }}
                           >
-                            {phaseCopy.title}
-                          </TextTitle2>
+                            {t("pay.freeUnlockEmphasis")}
+                          </TextTitle1>
                           <TextCaption color="fgMuted" as="p">
-                            {phaseCopy.subtitle}
+                            {t("pay.freeUnlockSupporting", {
+                              amount: centerMeta.amountDisplay,
+                              currency: resource.currency,
+                              network: resource.network,
+                            })}
+                          </TextCaption>
+                        </>
+                      ) : (
+                        <>
+                          <HStack
+                            gap={2}
+                            alignItems="baseline"
+                            justifyContent="center"
+                            style={{ flexWrap: "wrap" }}
+                          >
+                            <TextTitle1
+                              color="fg"
+                              style={{
+                                fontSize: "clamp(2rem, 6vw, 3.15rem)",
+                                fontWeight: 600,
+                                letterSpacing: "-0.035em",
+                                lineHeight: 1.08,
+                              }}
+                            >
+                              {centerMeta?.amountDisplay}
+                            </TextTitle1>
+                            <TextTitle1
+                              color="fgMuted"
+                              style={{
+                                fontSize: "clamp(2rem, 6vw, 3.15rem)",
+                                fontWeight: 600,
+                                letterSpacing: "-0.035em",
+                                lineHeight: 1.08,
+                              }}
+                            >
+                              {resource.currency}
+                            </TextTitle1>
+                          </HStack>
+                          <TextCaption color="fgMuted" as="p">
+                            {t("pay.paymentRequiredLine", {
+                              amount: centerMeta?.amountDisplay ?? "",
+                              currency: resource.currency,
+                              network: resource.network,
+                            })}
                           </TextCaption>
                         </>
                       )}
                     </VStack>
-                  </Box>
-                ) : null}
 
-                {(sessionError || verifyError) && (
-                  <Box
-                    borderRadius={400}
-                    background="bgNegativeWash"
-                    padding={3}
-                    width="100%"
-                    style={{ textAlign: "left" }}
-                  >
-                    <VStack gap={2} alignItems="stretch">
-                      <TextBody color="fgNegative">
-                        {verifyError ?? sessionError}
-                      </TextBody>
-                      {sessionError && slug ? (
-                        <Button
-                          variant="secondary"
-                          onClick={resetToPaymentChoice}
-                          block
-                        >
-                          {t("pay.session.retrySession")}
-                        </Button>
-                      ) : null}
-                    </VStack>
-                  </Box>
+                    {showSessionCard ? (
+                      <Box
+                        borderRadius={400}
+                        background={
+                          unlockPhase === "access_granted"
+                            ? "bgPositiveWash"
+                            : unlockPhase === "session_failed"
+                              ? "bgNegativeWash"
+                              : "bgSecondary"
+                        }
+                        padding={{ base: 3, desktop: 4 }}
+                        width="100%"
+                        maxWidth="26rem"
+                        alignSelf="center"
+                      >
+                        <VStack gap={2} alignItems="stretch">
+                          {sessionStarting ? (
+                            <TextBody color="fgMuted" as="p">
+                              {t("pay.session.starting")}
+                            </TextBody>
+                          ) : (
+                            <>
+                              <TextTitle2
+                                color="fg"
+                                as="h2"
+                                style={{
+                                  letterSpacing: "-0.02em",
+                                  textAlign: sessionCardTextAlign,
+                                }}
+                              >
+                                {phaseCopy.title}
+                              </TextTitle2>
+                              <TextCaption
+                                color="fgMuted"
+                                as="p"
+                                style={{ textAlign: sessionCardTextAlign }}
+                              >
+                                {phaseCopy.subtitle}
+                              </TextCaption>
+                            </>
+                          )}
+                        </VStack>
+                      </Box>
+                    ) : null}
+                  </VStack>
                 )}
 
-                {paidPayloadError ? (
-                  <Box
-                    borderRadius={400}
-                    background="bgNegativeWash"
-                    padding={3}
-                    width="100%"
-                    style={{ textAlign: "left" }}
-                  >
-                    <VStack gap={2} alignItems="stretch">
-                      <TextBody color="fgNegative">{paidPayloadError}</TextBody>
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setPaidPayloadError(null)
-                          setDeliveryRetryKey((k) => k + 1)
-                        }}
-                        block
-                      >
-                        {t("pay.session.retryDelivery")}
-                      </Button>
-                    </VStack>
-                  </Box>
-                ) : null}
+                {!useDesktopSplitPayLayout ? paymentErrBanner : null}
+                {!useDesktopSplitPayLayout ? paidPayloadErrBanner : null}
 
                 {unlockPhase === "session_failed" && !sessionError ? (
                   <Button variant="primary" onClick={resetToPaymentChoice} block>
@@ -1085,39 +1379,10 @@ export default function Pay() {
                   </Button>
                 ) : null}
 
-                {showWalletPrimarySection && isMobilePayLayout ? (
-                  <VStack
-                    gap={3}
-                    alignItems="stretch"
-                    width="100%"
-                    maxWidth="26rem"
-                    alignSelf="center"
-                  >
-                    <Button
-                      variant="primary"
-                      onClick={handleMobileDeepLinkPay}
-                      disabled={!canInteract || !walletPayHref}
-                      block
-                    >
-                      {centerMeta?.isFree
-                        ? t("pay.unlockInWallet")
-                        : t("pay.payWithWallet")}
-                    </Button>
-                    {showVerifyFallbackLink ? (
-                      <Button
-                        variant="foregroundMuted"
-                        onClick={handleOpenAdvancedManual}
-                        disabled={!canInteract}
-                        block
-                      >
-                        {t("pay.verifySecondaryLink")}
-                      </Button>
-                    ) : null}
-                    {!walletPayHref ? (
-                      <TextCaption color="fgMuted" as="p">
-                        {t("pay.walletLinksUnavailableShort")}
-                      </TextCaption>
-                    ) : null}
+                {showWalletPrimarySection &&
+                isMobilePayLayout &&
+                !useDesktopSplitPayLayout ? (
+                  <VStack gap={2} alignItems="center" maxWidth="26rem">
                     <TextCaption color="fgMuted" as="p">
                       {t("pay.session.watchingHint")}
                     </TextCaption>
@@ -1129,108 +1394,53 @@ export default function Pay() {
                   </VStack>
                 ) : null}
 
-                {showWalletPrimarySection && !isMobilePayLayout ? (
-                  <VStack
-                    gap={3}
-                    alignItems="stretch"
-                    width="100%"
-                    maxWidth="26rem"
-                    alignSelf="center"
+                {showWalletPrimarySection &&
+                isMobilePayLayout &&
+                !useDesktopSplitPayLayout ? (
+                  <Box
+                    position="sticky"
+                    bottom={0}
+                    zIndex={2}
+                    paddingTop={4}
+                    background="bg"
+                    style={{
+                      marginTop: "1rem",
+                      paddingBottom:
+                        "max(20px, calc(16px + env(safe-area-inset-bottom)))",
+                    }}
                   >
-                    <Button
-                      variant="primary"
-                      onClick={() => void handleDesktopInBrowserPay()}
-                      disabled={
-                        !canInteract ||
-                        !walletPayHref ||
-                        desktopPayBusy ||
-                        !hasInjectedWalletProvider()
-                      }
-                      block
+                    <VStack
+                      gap={3}
+                      alignItems="stretch"
+                      width="100%"
+                      maxWidth="26rem"
+                      alignSelf="center"
                     >
-                      {desktopPayBusy
-                        ? t("pay.working")
-                        : centerMeta?.isFree
-                          ? t("pay.desktopUnlockInBrowser")
-                          : t("pay.desktopPayInBrowser")}
-                    </Button>
-                    {!hasInjectedWalletProvider() ? (
-                      <TextCaption color="fgMuted" as="p">
-                        {t("pay.desktopErrNoWallet")}
-                      </TextCaption>
-                    ) : null}
-                    {walletPayHref ? (
-                      <HStack
-                        gap={2}
-                        alignItems="stretch"
-                        style={{ width: "100%" }}
-                      >
-                        <Button
-                          variant="secondary"
-                          onClick={() => void copyWalletPayLink()}
-                          disabled={!canInteract}
-                          block
-                          style={{ flex: 1 }}
-                        >
-                          {walletLinkCopied
-                            ? t("pay.desktopCopied")
-                            : t("pay.desktopCopyLink")}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={handleEip681DeepLinkFallback}
-                          disabled={!canInteract || !walletPayHref}
-                          block
-                          style={{ flex: 1 }}
-                        >
-                          {t("pay.desktopOpenDeepLink")}
-                        </Button>
-                      </HStack>
-                    ) : null}
-                    {walletPayHref ? (
-                      <VStack gap={2} alignItems="center">
-                        <TextCaption color="fgMuted" as="p">
-                          {t("pay.desktopQrCaption")}
-                        </TextCaption>
-                        <Box
-                          padding={2}
-                          background="bg"
-                          borderRadius={400}
-                          style={{ lineHeight: 0 }}
-                        >
-                          <QRCodeSVG
-                            value={walletPayHref}
-                            size={160}
-                            level="M"
-                            includeMargin={false}
-                          />
-                        </Box>
-                      </VStack>
-                    ) : null}
-                    {showVerifyFallbackLink ? (
                       <Button
-                        variant="foregroundMuted"
-                        onClick={handleOpenAdvancedManual}
-                        disabled={!canInteract}
+                        variant="primary"
+                        onClick={handleMobileDeepLinkPay}
+                        disabled={!canInteract || !walletPayHref}
                         block
                       >
-                        {t("pay.verifySecondaryLink")}
+                        {t("pay.unlockInWallet")}
                       </Button>
-                    ) : null}
-                    {!walletPayHref ? (
-                      <TextCaption color="fgMuted" as="p">
-                        {t("pay.walletLinksUnavailableShort")}
-                      </TextCaption>
-                    ) : null}
-                    <TextCaption color="fgMuted" as="p">
-                      {t("pay.session.watchingHint")}
-                    </TextCaption>
-                    {walletPayHref ? (
-                      <TextCaption color="fgMuted" as="p">
-                        {t("pay.baseWalletsNote")}
-                      </TextCaption>
-                    ) : null}
-                  </VStack>
+                      {showVerifyFallbackLink ? (
+                        <Button
+                          variant="foregroundMuted"
+                          onClick={handleOpenAdvancedManual}
+                          disabled={!canInteract}
+                          block
+                        >
+                          {t("pay.verifySecondaryLink")}
+                        </Button>
+                      ) : null}
+                      {!walletPayHref ? (
+                        <TextCaption color="fgMuted" as="p">
+                          {t("pay.walletLinksUnavailableShort")}
+                        </TextCaption>
+                      ) : null}
+                    </VStack>
+                  </Box>
                 ) : null}
 
                 {!centerMeta?.isFree &&

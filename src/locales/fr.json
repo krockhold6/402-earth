@@ -394,5 +394,6 @@
   "legacy.navHome": "Accueil",
   "legacy.navBackToPay": "Retour au paiement",
   "legacy.footnote": "Statut piloté par Webhook uniquement : ne pas considérer comme une vérité de tentative x402.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

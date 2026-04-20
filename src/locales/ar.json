@@ -394,5 +394,6 @@
   "legacy.navHome": "بيت",
   "legacy.navBackToPay": "العودة إلى الدفع",
   "legacy.footnote": "الحالة المستندة إلى Webhook فقط - لا تعامل على أنها محاولة x402 صحيحة.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

@@ -394,5 +394,6 @@
   "legacy.navHome": "Inicio",
   "legacy.navBackToPay": "Volver al pago",
   "legacy.footnote": "Solo estado basado en webhook; no lo trate como un intento x402 verdadero.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }

@@ -394,5 +394,6 @@
   "legacy.navHome": "Thuis",
   "legacy.navBackToPay": "Terug naar betaling",
   "legacy.footnote": "Alleen webhookgestuurde status: niet behandelen als x402-poging tot waarheid.",
-  "common.emDash": "—"
+  "common.emDash": "—",
+  "pay.paymentRequiredLine": "Payment required · {{amount}} {{currency}} on {{network}}"
 }
