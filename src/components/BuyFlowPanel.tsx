@@ -47,6 +47,12 @@ function extractSlugFrom402Input(raw: string): string | null {
     try {
       const u = new URL(trimmed)
       const parts = u.pathname.split("/").filter(Boolean)
+      /** Canonical buyer URLs are `/unlock/:slug` (see App.tsx). */
+      const unlockAt = parts.indexOf("unlock")
+      if (unlockAt >= 0 && parts[unlockAt + 1]) {
+        return decodeURIComponent(parts[unlockAt + 1]!)
+      }
+      /** `/pay/:slug` redirects to `/unlock/:slug`; still accept pasted legacy links. */
       const payAt = parts.indexOf("pay")
       if (payAt >= 0 && parts[payAt + 1]) {
         return decodeURIComponent(parts[payAt + 1]!)
@@ -57,7 +63,19 @@ function extractSlugFrom402Input(raw: string): string | null {
     return null
   }
 
-  const slug = trimmed.replace(/^\/+|\/+$/g, "")
+  /** Path-only paste: `/unlock/foo` or `/pay/foo` */
+  const pathOnly = trimmed.replace(/^\/+|\/+$/g, "")
+  const segs = pathOnly.split("/").filter(Boolean)
+  const unlockSeg = segs.indexOf("unlock")
+  if (unlockSeg >= 0 && segs[unlockSeg + 1]) {
+    return decodeURIComponent(segs[unlockSeg + 1]!)
+  }
+  const paySeg = segs.indexOf("pay")
+  if (paySeg >= 0 && segs[paySeg + 1]) {
+    return decodeURIComponent(segs[paySeg + 1]!)
+  }
+
+  const slug = pathOnly
   return slug || null
 }
 
