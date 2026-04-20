@@ -11,7 +11,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { QRCodeCanvas } from "qrcode.react"
-import { Button, IconButton } from "@coinbase/cds-web/buttons"
+import { Button } from "@coinbase/cds-web/buttons"
 import { Select } from "@coinbase/cds-web/alpha/select"
 import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
@@ -25,7 +25,6 @@ import {
 } from "@/lib/api"
 import { publicUrl } from "@/lib/publicUrl"
 import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
-import { suggestResourceSlug } from "@/lib/suggestResourceSlug"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { useTheme } from "@coinbase/cds-web/hooks/useTheme"
 import { Interactable } from "@coinbase/cds-web/system/Interactable"
@@ -417,8 +416,6 @@ export default function Home() {
   const isWide = useMediaQuery("(min-width: 960px)")
   const [amount, setAmount] = useState("0")
   const [label, setLabel] = useState("")
-  /** Optional custom slug; empty means server generates on create. */
-  const [slug, setSlug] = useState("")
   /** Creator payout wallet (USDC on Base); normalized to lowercase on submit. */
   const [receiverAddress, setReceiverAddress] = useState("")
   /** Inline validation for the wallet field (create flow). */
@@ -443,7 +440,6 @@ export default function Home() {
   const [protectedOneTime, setProtectedOneTime] = useState(false)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
 
-  const slugKey = slug.trim()
   const hasQr = paymentUrl !== ""
 
   const why402ExampleLines = useMemo(
@@ -501,12 +497,6 @@ export default function Home() {
     clearPaymentSuccessState()
     setCreateError(null)
   }, [clearPaymentSuccessState])
-
-  const handleGenerateRandomSlug = useCallback(() => {
-    setSlug(suggestResourceSlug())
-    setCreateError(null)
-    invalidateQrIfFormChanged()
-  }, [invalidateQrIfFormChanged])
 
   type HomeDeliveryTabId = "direct" | "protected"
   type HomeDeliveryTab = { id: HomeDeliveryTabId; label: string }
@@ -578,7 +568,7 @@ export default function Home() {
     setReceiverAddressError(null)
 
     const recvResult = validateCreatorReceiverAddress(receiverAddress)
-    if (!recvResult.ok) {
+    if (recvResult.ok === false) {
       setReceiverAddressError(recvResult.message)
       return
     }
@@ -600,7 +590,6 @@ export default function Home() {
         label: labelT,
         amount: amountT,
         receiverAddress: recvResult.normalized,
-        slug: slugKey || undefined,
       }
       let createPayload: Parameters<typeof createResource>[0] = basePayload
       const urlT = protectedLinkUrl.trim()
@@ -661,7 +650,6 @@ export default function Home() {
         return
       }
 
-      setSlug("")
       setReceiverAddress(
         pickResourceReceiver(data.resource).toLowerCase() ||
           recvResult.normalized,
@@ -709,12 +697,10 @@ export default function Home() {
     const a = document.createElement("a")
     a.href = canvas.toDataURL("image/png")
     const slugPart =
-      createdResource?.slug?.trim() ||
-      slugKey.trim() ||
-      i18n.t("home.qrFilenamePayment")
+      createdResource?.slug?.trim() || i18n.t("home.qrFilenamePayment")
     a.download = `402-${slugPart}.png`
     a.click()
-  }, [createdResource?.slug, slugKey])
+  }, [createdResource?.slug])
 
   const handleSendReceipt = useCallback(async () => {
     if (!createdResource?.slug || receiptPhase === "sending") return
@@ -1081,35 +1067,6 @@ export default function Home() {
         autoComplete="off"
         placeholder={t("home.labelPlaceholder")}
       />
-      <VStack gap={1} alignItems="stretch" width="100%">
-        <HStack gap={2} alignItems="flex-end" width="100%" minWidth={0}>
-          <Box style={{ flex: "1 1 0%", minWidth: 0 }}>
-            <TextInput
-              compact
-              {...homeFormTextInputSurface}
-              label={t("home.slugRailLabel")}
-              value={slug}
-              onChange={(e) => {
-                setSlug(e.target.value)
-                invalidateQrIfFormChanged()
-              }}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder={t("home.slugPlaceholder")}
-            />
-          </Box>
-          <Box display="inline-flex" style={{ flexShrink: 0 }}>
-            <IconButton
-              name="convert"
-              variant="secondary"
-              type="button"
-              compact
-              accessibilityLabel={t("home.generateRandom")}
-              onClick={handleGenerateRandomSlug}
-            />
-          </Box>
-        </HStack>
-      </VStack>
       <VStack gap={1} alignItems="stretch">
         <TextInput
           compact
