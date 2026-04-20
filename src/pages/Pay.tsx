@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
+import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import {
   createPaymentAttempt,
   fetchPaidX402Resource,
@@ -17,18 +18,24 @@ import {
   formatUsdcAmountDisplay,
   isZeroUsdcAmount,
 } from "@/lib/baseUsdcPayLink"
+import {
+  DesktopPayError,
+  hasInjectedWalletProvider,
+  sendBaseUsdcTransferFromBrowser,
+} from "@/lib/desktopUsdcPay"
 import { unlockPagePath } from "@/lib/appUrl"
 import {
   openPaidResource,
   resolvePaidNavigateUrl,
 } from "@/lib/paidResourceUnlock"
-import { Box, VStack } from "@coinbase/cds-web/layout"
+import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
 import {
   TextBody,
   TextCaption,
   TextTitle1,
   TextTitle2,
 } from "@coinbase/cds-web/typography"
+import { QRCodeSVG } from "qrcode.react"
 
 const DEV_MOCK_SIGNATURE = "browser-mock-signature"
 const POLL_MS = 2500
@@ -89,6 +96,7 @@ type UnlockPhase =
   | "loading"
   | "awaiting_payment"
   | "payment_detected"
+  | "tx_pending"
   | "confirming_unlock"
   | "access_granted"
   | "session_failed"
@@ -99,6 +107,7 @@ export default function Pay() {
   const { slug } = useParams()
   const [searchParams] = useSearchParams()
   const attemptIdFromUrl = searchParams.get("attemptId")?.trim() || null
+  const isMobilePayLayout = useMediaQuery("(max-width: 767px)")
 
   const [resource, setResource] = useState<ApiResource | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -128,6 +137,10 @@ export default function Pay() {
 
   const [isVerifying, setIsVerifying] = useState(false)
   const [verifyError, setVerifyError] = useState<string | null>(null)
+
+  const [desktopTxSubmitted, setDesktopTxSubmitted] = useState(false)
+  const [desktopPayBusy, setDesktopPayBusy] = useState(false)
+  const [walletLinkCopied, setWalletLinkCopied] = useState(false)
 
   const autoOpenIssuedRef = useRef(false)
 
@@ -175,6 +188,9 @@ export default function Pay() {
     setPaidPayloadLoading(false)
     setDeliveryRetryKey(0)
     autoOpenIssuedRef.current = false
+    setDesktopTxSubmitted(false)
+    setDesktopPayBusy(false)
+    setWalletLinkCopied(false)
   }, [slug])
 
   /** Create / resume payment attempt and sync ?attemptId= */
@@ -372,6 +388,7 @@ export default function Pay() {
   useEffect(() => {
     if (polledAttempt?.status === "paid" && attemptIdFromUrl) {
       clearWalletHandoff(attemptIdFromUrl)
+      setDesktopTxSubmitted(false)
     }
   }, [attemptIdFromUrl, polledAttempt?.status])
 
@@ -396,11 +413,16 @@ export default function Pay() {
       return "access_granted"
     }
 
+    if (desktopTxSubmitted && !terminalUnpaidStatus(st)) {
+      return "tx_pending"
+    }
+
     if (readWalletHandoff(attemptIdFromUrl)) return "payment_detected"
 
     return "awaiting_payment"
   }, [
     attemptIdFromUrl,
+    desktopTxSubmitted,
     loadError,
     loadState,
     paidPayload,
@@ -437,20 +459,9 @@ export default function Pay() {
     setPaidPayload(null)
     setPaidPayloadError(null)
     autoOpenIssuedRef.current = false
+    setDesktopTxSubmitted(false)
     if (slug) navigate(unlockPagePath(slug), { replace: true })
   }, [attemptIdFromUrl, navigate, slug])
-
-  const handlePayWithWallet = () => {
-    if (!canInteract || !resource || !attemptIdFromUrl) return
-    setManualAdvancedOpen(false)
-    const href = buildBaseUsdcEip681Link(resource)
-    if (!href) {
-      setSessionError(t("pay.payBaseUnavailable"))
-      return
-    }
-    setWalletHandoff(attemptIdFromUrl)
-    window.location.href = href
-  }
 
   const handleOpenAdvancedManual = () => {
     setVerifyError(null)
@@ -578,6 +589,109 @@ export default function Pay() {
   const walletPayHref =
     resource != null ? buildBaseUsdcEip681Link(resource) : null
 
+  const handleMobileDeepLinkPay = useCallback(() => {
+    if (!canInteract || !resource || !attemptIdFromUrl) return
+    setManualAdvancedOpen(false)
+    const href = buildBaseUsdcEip681Link(resource)
+    if (!href) {
+      setSessionError(t("pay.payBaseUnavailable"))
+      return
+    }
+    setWalletHandoff(attemptIdFromUrl)
+    window.location.href = href
+  }, [attemptIdFromUrl, canInteract, resource, t])
+
+  const handleDesktopInBrowserPay = useCallback(async () => {
+    if (
+      !canInteract ||
+      !resource ||
+      !slug ||
+      !attemptIdFromUrl ||
+      isMobilePayLayout
+    ) {
+      return
+    }
+    setManualAdvancedOpen(false)
+    setSessionError(null)
+    setVerifyError(null)
+    setDesktopPayBusy(true)
+    try {
+      const { txHash } = await sendBaseUsdcTransferFromBrowser(resource)
+      setDesktopTxSubmitted(true)
+      const { response: verifyRes, data: verifyData } = await verifyX402Payment(
+        {
+          attemptId: attemptIdFromUrl,
+          slug,
+          txHash,
+        },
+      )
+      const verifyOk =
+        verifyRes.ok &&
+        verifyData?.ok === true &&
+        verifyData.status === "paid"
+      if (verifyOk) {
+        const refreshed = await fetchPaymentAttempt(attemptIdFromUrl)
+        if (refreshed.ok && refreshed.attempt) {
+          setPolledAttempt(refreshed.attempt)
+        }
+        return
+      }
+      const refreshed = await fetchPaymentAttempt(attemptIdFromUrl)
+      if (refreshed.ok && refreshed.attempt) {
+        setPolledAttempt(refreshed.attempt)
+      }
+    } catch (err) {
+      if (err instanceof DesktopPayError) {
+        if (err.code === "NO_WALLET") {
+          setVerifyError(t("pay.desktopErrNoWallet"))
+        } else if (err.code === "USER_REJECTED") {
+          setVerifyError(t("pay.desktopErrRejected"))
+        } else if (err.code === "INVALID_RESOURCE") {
+          setSessionError(t("pay.payBaseUnavailable"))
+        } else {
+          setVerifyError(err.message || t("pay.unexpectedVerifyError"))
+        }
+      } else {
+        setVerifyError(
+          err instanceof Error ? err.message : t("pay.unexpectedVerifyError"),
+        )
+      }
+    } finally {
+      setDesktopPayBusy(false)
+    }
+  }, [
+    attemptIdFromUrl,
+    canInteract,
+    isMobilePayLayout,
+    resource,
+    slug,
+    t,
+  ])
+
+  const copyWalletPayLink = useCallback(async () => {
+    const href =
+      resource != null ? buildBaseUsdcEip681Link(resource) : null
+    if (!href) return
+    try {
+      await navigator.clipboard.writeText(href)
+      setWalletLinkCopied(true)
+      window.setTimeout(() => setWalletLinkCopied(false), 2000)
+    } catch {
+      setVerifyError(t("pay.desktopCopyFailed"))
+    }
+  }, [resource, t])
+
+  const handleEip681DeepLinkFallback = useCallback(() => {
+    if (!canInteract || !resource || !attemptIdFromUrl) return
+    const href = buildBaseUsdcEip681Link(resource)
+    if (!href) {
+      setSessionError(t("pay.payBaseUnavailable"))
+      return
+    }
+    setWalletHandoff(attemptIdFromUrl)
+    window.location.href = href
+  }, [attemptIdFromUrl, canInteract, resource, t])
+
   const showAdvancedOnlyPanel = manualAdvancedOpen && resource != null
 
   const centerMeta =
@@ -596,6 +710,11 @@ export default function Pay() {
           subtitle: t("pay.session.phase.awaitingSubtitle"),
         }
       case "payment_detected":
+        return {
+          title: t("pay.inProgressTitle"),
+          subtitle: t("pay.inProgressShort"),
+        }
+      case "tx_pending":
         return {
           title: t("pay.session.phase.detectedTitle"),
           subtitle: t("pay.session.phase.detectedSubtitle"),
@@ -941,7 +1060,7 @@ export default function Pay() {
                   </Button>
                 ) : null}
 
-                {showWalletPrimarySection ? (
+                {showWalletPrimarySection && isMobilePayLayout ? (
                   <VStack
                     gap={3}
                     alignItems="stretch"
@@ -951,7 +1070,7 @@ export default function Pay() {
                   >
                     <Button
                       variant="primary"
-                      onClick={handlePayWithWallet}
+                      onClick={handleMobileDeepLinkPay}
                       disabled={!canInteract || !walletPayHref}
                       block
                     >
@@ -985,7 +1104,112 @@ export default function Pay() {
                   </VStack>
                 ) : null}
 
+                {showWalletPrimarySection && !isMobilePayLayout ? (
+                  <VStack
+                    gap={3}
+                    alignItems="stretch"
+                    width="100%"
+                    maxWidth="26rem"
+                    alignSelf="center"
+                  >
+                    <Button
+                      variant="primary"
+                      onClick={() => void handleDesktopInBrowserPay()}
+                      disabled={
+                        !canInteract ||
+                        !walletPayHref ||
+                        desktopPayBusy ||
+                        !hasInjectedWalletProvider()
+                      }
+                      block
+                    >
+                      {desktopPayBusy
+                        ? t("pay.working")
+                        : centerMeta?.isFree
+                          ? t("pay.desktopUnlockInBrowser")
+                          : t("pay.desktopPayInBrowser")}
+                    </Button>
+                    {!hasInjectedWalletProvider() ? (
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.desktopErrNoWallet")}
+                      </TextCaption>
+                    ) : null}
+                    {walletPayHref ? (
+                      <HStack
+                        gap={2}
+                        alignItems="stretch"
+                        style={{ width: "100%" }}
+                      >
+                        <Button
+                          variant="secondary"
+                          onClick={() => void copyWalletPayLink()}
+                          disabled={!canInteract}
+                          block
+                          style={{ flex: 1 }}
+                        >
+                          {walletLinkCopied
+                            ? t("pay.desktopCopied")
+                            : t("pay.desktopCopyLink")}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={handleEip681DeepLinkFallback}
+                          disabled={!canInteract || !walletPayHref}
+                          block
+                          style={{ flex: 1 }}
+                        >
+                          {t("pay.desktopOpenDeepLink")}
+                        </Button>
+                      </HStack>
+                    ) : null}
+                    {walletPayHref ? (
+                      <VStack gap={2} alignItems="center">
+                        <TextCaption color="fgMuted" as="p">
+                          {t("pay.desktopQrCaption")}
+                        </TextCaption>
+                        <Box
+                          padding={2}
+                          background="bg"
+                          borderRadius={400}
+                          style={{ lineHeight: 0 }}
+                        >
+                          <QRCodeSVG
+                            value={walletPayHref}
+                            size={160}
+                            level="M"
+                            includeMargin={false}
+                          />
+                        </Box>
+                      </VStack>
+                    ) : null}
+                    {showVerifyFallbackLink ? (
+                      <Button
+                        variant="foregroundMuted"
+                        onClick={handleOpenAdvancedManual}
+                        disabled={!canInteract}
+                        block
+                      >
+                        {t("pay.verifySecondaryLink")}
+                      </Button>
+                    ) : null}
+                    {!walletPayHref ? (
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.walletLinksUnavailableShort")}
+                      </TextCaption>
+                    ) : null}
+                    <TextCaption color="fgMuted" as="p">
+                      {t("pay.session.watchingHint")}
+                    </TextCaption>
+                    {walletPayHref ? (
+                      <TextCaption color="fgMuted" as="p">
+                        {t("pay.baseWalletsNote")}
+                      </TextCaption>
+                    ) : null}
+                  </VStack>
+                ) : null}
+
                 {(unlockPhase === "payment_detected" ||
+                  unlockPhase === "tx_pending" ||
                   unlockPhase === "confirming_unlock") &&
                 !manualAdvancedOpen ? (
                   <VStack
@@ -998,16 +1222,23 @@ export default function Pay() {
                     <TextCaption color="fgMuted" as="p">
                       {t("pay.session.patienceHint")}
                     </TextCaption>
-                    <Button
-                      variant="foregroundMuted"
-                      onClick={() => setCryptoAdvancedOpen((o) => !o)}
-                      block
-                    >
-                      {cryptoAdvancedOpen
-                        ? t("pay.hideAdvanced")
-                        : t("pay.verifySecondaryLink")}
-                    </Button>
-                    {cryptoAdvancedOpen && attemptIdFromUrl ? (
+                    {isMobilePayLayout ? (
+                      <Button
+                        variant="foregroundMuted"
+                        onClick={() => setCryptoAdvancedOpen((o) => !o)}
+                        block
+                      >
+                        {cryptoAdvancedOpen
+                          ? t("pay.hideAdvanced")
+                          : t("pay.verifySecondaryLink")}
+                      </Button>
+                    ) : null}
+                    {(cryptoAdvancedOpen ||
+                      (!isMobilePayLayout &&
+                        (unlockPhase === "payment_detected" ||
+                          unlockPhase === "tx_pending" ||
+                          unlockPhase === "confirming_unlock"))) &&
+                    attemptIdFromUrl ? (
                       <Box
                         background="bgElevation1"
                         borderRadius={400}
