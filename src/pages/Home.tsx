@@ -15,7 +15,6 @@ import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Select } from "@coinbase/cds-web/alpha/select"
 import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
-import { RemoteImage } from "@coinbase/cds-web/media"
 import { ApiDocsPanel } from "@/components/ApiDocsPanel"
 import { BuyFlowPanel } from "@/components/BuyFlowPanel"
 import {
@@ -140,32 +139,26 @@ function pickResourceReceiver(resource: {
 /** Golden ratio φ; left column : right column = φ : 1 (messaging side is wider). */
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2
 
-/**
- * `MessagingCard` row defaults to flex with a non-shrinking media slot, which squeezes
- * copy on narrow cards. Grid tracks `φfr : 1fr` give the text column the larger share.
- * Used for Creators + Software audience carousels (`type="upsell"` for full-bleed media).
- */
-const HOME_AUDIENCE_UPSELL_LAYOUT_STYLES = {
+/** Text-only `MessagingCard`s: single column, media slot hidden. */
+const HOME_CAPABILITIES_CARD_STYLES = {
   layoutContainer: {
-    display: "grid",
-    gridTemplateColumns: `minmax(0, ${GOLDEN_RATIO}fr) minmax(0, 1fr)`,
+    display: "flex",
+    flexDirection: "column" as const,
     minWidth: 0,
     width: "100%",
+  },
+  mediaContainer: {
+    display: "none",
+    width: 0,
+    minWidth: 0,
+    height: 0,
+    overflow: "hidden",
   },
   contentContainer: {
     minWidth: 0,
     maxWidth: "100%",
-  },
-  mediaContainer: {
-    minWidth: 0,
-    maxWidth: "100%",
-    width: "100%",
-    alignSelf: "stretch",
-    /** Overrides CDS default `alignItems: center` on the media `Box` so media can span card height. */
-    alignItems: "stretch",
-    height: "100%",
-    minHeight: 0,
-    overflow: "hidden",
+    justifyContent: "flex-start",
+    padding: 24,
   },
 } as const
 
@@ -184,10 +177,14 @@ type HomeAudienceMessagingCardRow = {
   id: string
   titleKey: string
   descriptionKey: string
-  tagKey: string
-  imageSrc: string
-  /** Optional `object-position` for portrait or asymmetric art in the media slot. */
-  imageObjectPosition?: string
+  iconName: IconName
+}
+
+type HomeCapabilitiesCardRow = {
+  id: string
+  titleKey: string
+  descriptionKey: string
+  iconName: IconName
 }
 
 const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
@@ -195,41 +192,31 @@ const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     id: "home-creators-1",
     titleKey: "home.creatorsCard1Title",
     descriptionKey: "home.creatorsCard1Description",
-    tagKey: "home.creatorsCard1Tag",
-    imageSrc: publicUrl("img/home-audience-creator-sell-links.png"),
-    imageObjectPosition: "center 18%",
+    iconName: "chainLink",
   },
   {
     id: "home-creators-2",
     titleKey: "home.creatorsCard2Title",
     descriptionKey: "home.creatorsCard2Description",
-    tagKey: "home.creatorsCard2Tag",
-    imageSrc: publicUrl("img/home-audience-creator-downloads.png"),
-    imageObjectPosition: "center 42%",
+    iconName: "download",
   },
   {
     id: "home-creators-3",
     titleKey: "home.creatorsCard3Title",
     descriptionKey: "home.creatorsCard3Description",
-    tagKey: "home.creatorsCard3Tag",
-    imageSrc: publicUrl("img/home-audience-creator-content.png"),
-    imageObjectPosition: "center 22%",
+    iconName: "educationBook",
   },
   {
     id: "home-creators-4",
     titleKey: "home.creatorsCard4Title",
     descriptionKey: "home.creatorsCard4Description",
-    tagKey: "home.creatorsCard4Tag",
-    imageSrc: publicUrl("img/home-audience-creator-one-off-access.png"),
-    imageObjectPosition: "center 38%",
+    iconName: "lock",
   },
   {
     id: "home-creators-5",
     titleKey: "home.creatorsCard5Title",
     descriptionKey: "home.creatorsCard5Description",
-    tagKey: "home.creatorsCard5Tag",
-    imageSrc: publicUrl("img/home-audience-creator-social-drops.png"),
-    imageObjectPosition: "center 38%",
+    iconName: "drops",
   },
 ]
 
@@ -238,27 +225,62 @@ const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     id: "home-software-1",
     titleKey: "home.softwareCard1Title",
     descriptionKey: "home.softwareCard1Description",
-    tagKey: "home.softwareCard1Tag",
-    imageSrc: publicUrl("img/home-audience-software-monetize-api.png"),
-    imageObjectPosition: "46% center",
+    iconName: "api",
   },
   {
     id: "home-software-2",
     titleKey: "home.softwareCard2Title",
     descriptionKey: "home.softwareCard2Description",
-    tagKey: "home.softwareCard2Tag",
-    imageSrc: publicUrl("img/home-audience-software-actions.png"),
-    imageObjectPosition: "center 44%",
+    iconName: "lightningBolt",
   },
   {
     id: "home-software-3",
     titleKey: "home.softwareCard3Title",
     descriptionKey: "home.softwareCard3Description",
-    tagKey: "home.softwareCard3Tag",
-    imageSrc: publicUrl("img/home-audience-software-machine-readable.png"),
-    imageObjectPosition: "center",
+    iconName: "robot",
   },
 ]
+
+const HOME_CAPABILITIES_CARDS: ReadonlyArray<HomeCapabilitiesCardRow> = [
+  {
+    id: "home-capabilities-1",
+    titleKey: "home.capabilitiesCard1Title",
+    descriptionKey: "home.capabilitiesCard1Description",
+    iconName: "qrCode",
+  },
+  {
+    id: "home-capabilities-2",
+    titleKey: "home.capabilitiesCard2Title",
+    descriptionKey: "home.capabilitiesCard2Description",
+    iconName: "peopleGroup",
+  },
+]
+
+/** Fixed height for full-width audience carousel hero banners (Creators + Software). */
+const HOME_AUDIENCE_BANNER_HEIGHT_PX = 300
+
+/** Creators carousel banner; asset: `public/img/home-audience-creators-banner-5.png`. */
+const HOME_AUDIENCE_CREATORS_BANNER_SRC = publicUrl(
+  "img/home-audience-creators-banner-5.png",
+)
+/** Scale image to cover the fixed-height banner (no letterboxing). */
+const HOME_AUDIENCE_CREATORS_BANNER_BG_STYLE: CSSProperties = {
+  backgroundImage: `url(${HOME_AUDIENCE_CREATORS_BANNER_SRC})`,
+  backgroundRepeat: "no-repeat",
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+}
+
+/** Software carousel banner; asset: `public/img/home-audience-creators-banner-6.png`. */
+const HOME_AUDIENCE_SOFTWARE_BANNER_SRC = publicUrl(
+  "img/home-audience-creators-banner-6.png",
+)
+const HOME_AUDIENCE_SOFTWARE_BANNER_BG_STYLE: CSSProperties = {
+  backgroundImage: `url(${HOME_AUDIENCE_SOFTWARE_BANNER_SRC})`,
+  backgroundRepeat: "no-repeat",
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+}
 
 function renderHomeAudienceMessagingCard(
   card: HomeAudienceMessagingCardRow,
@@ -270,52 +292,73 @@ function renderHomeAudienceMessagingCard(
   const cardBackground = isCreators
     ? HOME_AUDIENCE_CREATORS_CARD_BG
     : HOME_AUDIENCE_SOFTWARE_CARD_BG
-  const tagColor = isCreators ? "fgMuted" : "fgInverse"
   const titleColor = isCreators ? "fg" : "fgInverse"
   const descriptionColor = isCreators ? "fgMuted" : "fgInverse"
   return (
     <MessagingCard
       as="article"
       type="upsell"
-      width={320}
+      width={385}
       mediaPlacement="end"
-      tag={
-        <Text color={tagColor} font="label2">
-          {t(card.tagKey)}
-        </Text>
-      }
       title={
-        <Text color={titleColor} font="title3" as="span">
-          {titleText}
-        </Text>
+        <VStack gap={1.5} alignItems="flex-start" width="100%">
+          <Box aria-hidden display="flex">
+            <Icon name={card.iconName} size="m" color={titleColor} />
+          </Box>
+          <Text color={titleColor} font="title3" as="span">
+            {titleText}
+          </Text>
+        </VStack>
       }
       description={
         <Text color={descriptionColor} font="label2" overflow="wrap">
           {t(card.descriptionKey)}
         </Text>
       }
-      media={
-        <RemoteImage
-          alt={titleText}
-          height="100%"
-          width="100%"
-          resizeMode="cover"
-          shape="rectangle"
-          source={card.imageSrc}
-          style={{
-            maxWidth: "100%",
-            minHeight: "100%",
-            height: "100%",
-            objectPosition: card.imageObjectPosition ?? "center",
-          }}
-        />
-      }
       styles={{
         root: {
           backgroundColor: cardBackground,
         },
-        ...HOME_AUDIENCE_UPSELL_LAYOUT_STYLES,
-        textContainer: { gap: 12 },
+        ...HOME_CAPABILITIES_CARD_STYLES,
+        textContainer: { gap: 24 },
+      }}
+    />
+  )
+}
+
+function renderHomeCapabilitiesCard(
+  card: HomeCapabilitiesCardRow,
+  t: (key: string) => string,
+) {
+  const titleText = t(card.titleKey)
+  return (
+    <MessagingCard
+      as="article"
+      type="upsell"
+      width="100%"
+      maxWidth="100%"
+      mediaPlacement="end"
+      title={
+        <VStack gap={3} alignItems="flex-start" width="100%">
+          <Box aria-hidden display="flex">
+            <Icon name={card.iconName} size="m" color="fg" />
+          </Box>
+          <Text color="fg" font="title3" as="span">
+            {titleText}
+          </Text>
+        </VStack>
+      }
+      description={
+        <Text color="fgMuted" font="label2" overflow="wrap">
+          {t(card.descriptionKey)}
+        </Text>
+      }
+      styles={{
+        root: {
+          backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
+        },
+        ...HOME_CAPABILITIES_CARD_STYLES,
+        textContainer: { gap: 24 },
       }}
     />
   )
@@ -788,13 +831,15 @@ export default function Home() {
       >
         <Box className="home-demo-proof-band__row">
           <Box minWidth={0} flexShrink={1} width="100%">
-            <TextTitle4
-              color="fg"
-              as="p"
-              style={{ margin: 0, lineHeight: 1.35, width: "100%" }}
-            >
-              {t("home.demoBandTitle")}
-            </TextTitle4>
+            <VStack gap={2} alignItems="stretch" width="100%">
+              <TextBody
+                color="fgMuted"
+                as="p"
+                style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+              >
+                {t("home.demoBandBody")}
+              </TextBody>
+            </VStack>
           </Box>
           <Box flexShrink={0} display="flex" alignItems="center" style={{ height: "100%" }}>
             <IconButton
@@ -816,7 +861,7 @@ export default function Home() {
     </Box>
   )
 
-  /** Carousel chrome for audience rows; cards use `MessagingCard` + `RemoteImage` media. */
+  /** Carousel chrome for audience rows; cards use `MessagingCard` + heading `Icon`s. */
   const homeAudienceCarouselStyles = {
     carousel: { gap: 16 },
     carouselContainer: { minWidth: 0 },
@@ -829,26 +874,47 @@ export default function Home() {
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
     >
-      <Carousel
-        width="100%"
-        minWidth={0}
-        snapMode="item"
-        paginationVariant="dot"
-        title={
-          <Box flexGrow={1} minWidth={0} paddingEnd={2}>
-            <TextTitle3 color="fg" as="h2">
+      <VStack alignItems="stretch" width="100%" style={{ gap: 38 }}>
+        <Box
+          width="100%"
+          minWidth={0}
+          borderRadius={400}
+          overflow="hidden"
+          role="img"
+          aria-label={t("home.audienceCreatorsBannerAlt")}
+          style={{
+            height: HOME_AUDIENCE_BANNER_HEIGHT_PX,
+            ...HOME_AUDIENCE_CREATORS_BANNER_BG_STYLE,
+          }}
+        />
+        <VStack alignItems="stretch" width="100%" style={{ gap: 0 }}>
+          <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+            <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
               {t("home.audienceCreatorsTitle")}
             </TextTitle3>
-          </Box>
-        }
-        styles={homeAudienceCarouselStyles}
-      >
-        {HOME_CREATORS_CARDS.map((card) => (
-          <CarouselItem key={card.id} id={card.id}>
-            {renderHomeAudienceMessagingCard(card, t, "creators")}
-          </CarouselItem>
-        ))}
-      </Carousel>
+            <TextBody
+              color="fgMuted"
+              as="p"
+              style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+            >
+              {t("home.audienceCreatorsBody")}
+            </TextBody>
+          </VStack>
+          <Carousel
+            width="100%"
+            minWidth={0}
+            snapMode="item"
+            paginationVariant="dot"
+            styles={homeAudienceCarouselStyles}
+          >
+            {HOME_CREATORS_CARDS.map((card) => (
+              <CarouselItem key={card.id} id={card.id}>
+                {renderHomeAudienceMessagingCard(card, t, "creators")}
+              </CarouselItem>
+            ))}
+          </Carousel>
+        </VStack>
+      </VStack>
     </Box>
   )
 
@@ -859,26 +925,91 @@ export default function Home() {
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
     >
-      <Carousel
-        width="100%"
-        minWidth={0}
-        snapMode="item"
-        paginationVariant="dot"
-        title={
-          <Box flexGrow={1} minWidth={0} paddingEnd={2}>
-            <TextTitle3 color="fg" as="h2">
+      <VStack alignItems="stretch" width="100%" style={{ gap: 38 }}>
+        <Box
+          width="100%"
+          minWidth={0}
+          borderRadius={400}
+          overflow="hidden"
+          role="img"
+          aria-label={t("home.audienceSoftwareBannerAlt")}
+          style={{
+            height: HOME_AUDIENCE_BANNER_HEIGHT_PX,
+            ...HOME_AUDIENCE_SOFTWARE_BANNER_BG_STYLE,
+          }}
+        />
+        <VStack alignItems="stretch" width="100%" style={{ gap: 0 }}>
+          <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+            <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
               {t("home.audienceSoftwareTitle")}
             </TextTitle3>
-          </Box>
-        }
-        styles={homeAudienceCarouselStyles}
-      >
-        {HOME_SOFTWARE_CARDS.map((card) => (
-          <CarouselItem key={card.id} id={card.id}>
-            {renderHomeAudienceMessagingCard(card, t, "software")}
-          </CarouselItem>
-        ))}
-      </Carousel>
+            <TextBody
+              color="fgMuted"
+              as="p"
+              style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+            >
+              {t("home.audienceSoftwareBody")}
+            </TextBody>
+          </VStack>
+          <Carousel
+            width="100%"
+            minWidth={0}
+            snapMode="item"
+            paginationVariant="dot"
+            styles={homeAudienceCarouselStyles}
+          >
+            {HOME_SOFTWARE_CARDS.map((card) => (
+              <CarouselItem key={card.id} id={card.id}>
+                {renderHomeAudienceMessagingCard(card, t, "software")}
+              </CarouselItem>
+            ))}
+          </Carousel>
+        </VStack>
+      </VStack>
+    </Box>
+  )
+
+  const homeAudienceCapabilitiesSection = (
+    <Box
+      width="100%"
+      minWidth={0}
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+    >
+      <VStack gap={3} alignItems="stretch" width="100%">
+        <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+          <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
+            {t("home.audienceCapabilitiesTitle")}
+          </TextTitle3>
+          <TextBody
+            color="fgMuted"
+            as="p"
+            style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+          >
+            {t("home.audienceCapabilitiesBody")}
+          </TextBody>
+        </VStack>
+        <HStack
+          gap={3}
+          alignItems="stretch"
+          width="100%"
+          minWidth={0}
+          flexDirection={isWide ? "row" : "column"}
+        >
+          {HOME_CAPABILITIES_CARDS.map((card) => (
+            <Box
+              key={card.id}
+              flexGrow={isWide ? 1 : undefined}
+              flexShrink={isWide ? 1 : undefined}
+              flexBasis={isWide ? "0%" : undefined}
+              width="100%"
+              minWidth={0}
+            >
+              {renderHomeCapabilitiesCard(card, t)}
+            </Box>
+          ))}
+        </HStack>
+      </VStack>
     </Box>
   )
 
@@ -1690,6 +1821,8 @@ export default function Home() {
       <HomeHorizontalRule />
       {homeAudienceSoftwareCarousel}
       <HomeHorizontalRule />
+      {homeAudienceCapabilitiesSection}
+      <HomeHorizontalRule />
       {homeWhy402}
     </VStack>
   )
@@ -1831,6 +1964,8 @@ export default function Home() {
             {homeAudienceCreatorsCarousel}
             <HomeHorizontalRule />
             {homeAudienceSoftwareCarousel}
+            <HomeHorizontalRule />
+            {homeAudienceCapabilitiesSection}
             <HomeHorizontalRule />
             <Box width="100%" paddingBottom={rightWorkflowPadBottom}>
               {rightPane}

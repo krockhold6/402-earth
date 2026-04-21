@@ -92,7 +92,7 @@ body {
 }
 
 /*
- * Home proof band: title + “Start now” link in a single horizontal row
+ * Home proof band: body copy + CTA in a single horizontal row
  * (container used for future queries; layout is row at all widths).
  */
 #root .home-demo-proof-band {
