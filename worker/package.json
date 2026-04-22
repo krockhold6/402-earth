@@ -5,13 +5,14 @@
     "dev": "wrangler dev",
     "predeploy": "node ../scripts/generate-agent-discovery.mjs",
     "deploy": "wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply 402-earth-payments --local",
+    "db:migrate:local": "wrangler d1 migrations apply 402-earth-payments --local --config wrangler.toml",
     "db:seed:local": "wrangler d1 execute 402-earth-payments --local --file=./seeds/demo_resource.sql",
     "db:seed:remote": "wrangler d1 execute 402-earth-payments --remote --yes --file=./seeds/demo_resource.sql"
   },
   "dependencies": {
     "jose": "^5.9.6",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "viem": "^2.48.2"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.6",

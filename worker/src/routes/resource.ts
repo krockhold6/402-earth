@@ -1,12 +1,27 @@
+import { insertCapabilityAuditEvent } from '../db/capabilityAudit'
 import {
   getResourceBySlug,
   insertResourceDefinition,
 } from '../db/resources'
-import { normalizeDeliveryMode } from '../lib/deliveryMode'
+import {
+  normalizeCapabilityDeliveryMode,
+  normalizeResourceDeliveryMode,
+} from '../lib/deliveryMode'
 import { parseUsdcMinorUnits, USDC_BASE } from '../lib/facilitator'
 import { createResourceSlug } from '../lib/ids'
 import { isPaidUnlockType } from '../lib/resourceDelivery'
 import { parseReceiverAddressForResource } from '../lib/receiverAddress'
+import { isHostAllowlistedForReceiver } from '../db/capabilityAllowlist'
+import {
+  evaluateOriginTrust,
+  parseCapabilityEndpoint,
+} from '../lib/capabilityOriginTrust'
+import {
+  isValidHttpMethod,
+  parseNonEmptyString,
+  parseReceiptMode,
+  parseSellType,
+} from '../lib/sellValidation'
 import { buyerUnlockPageUrl } from '../lib/siteUrl'
 import {
   badRequest,
@@ -14,19 +29,26 @@ import {
   json,
   notFound,
 } from '../lib/response'
+import { isExecutionPermittedForTrust } from '../lib/capabilityOriginTrust'
+import { evaluateCapabilityPolicyForBuyerPeek } from '../lib/capabilityPolicy'
 import { nowIso } from '../lib/time'
 import type { Env } from '../types/env'
 import type { ResourceDefinition } from '../types/resource'
 
-export function publicResourceDefinition(resource: ResourceDefinition) {
+export function publicResourceDefinition(
+  resource: ResourceDefinition,
+  env?: Env,
+) {
   const recv = resource.receiverAddress
   const hasPaidPayload =
     resource.unlockValue != null &&
     String(resource.unlockValue).trim() !== ''
-  return {
+  const base: Record<string, unknown> = {
     slug: resource.slug,
     label: resource.label,
+    sellType: resource.sellType,
     amount: resource.amount,
+    price_usdc: resource.amount,
     currency: resource.currency,
     network: resource.network,
     active: resource.active,
@@ -34,17 +56,36 @@ export function publicResourceDefinition(resource: ResourceDefinition) {
     deliveryMode: resource.deliveryMode,
     protectedTtlSeconds: resource.protectedTtlSeconds,
     oneTimeUnlock: resource.oneTimeUnlock,
-    /** True when a non-empty `unlock_value` is stored (payload is never exposed here). */
     hasPaidPayload,
     contentType: resource.contentType,
     successRedirectPath: resource.successRedirectPath,
     receiverAddress: recv,
-    /** Same as `receiverAddress` — kept for clients that still read this field. */
     paymentReceiverAddress: recv,
-    /** USDC contract on Base — EIP-681 token target. */
     usdcContractAddress:
       resource.network.toLowerCase() === 'base' ? USDC_BASE : null,
   }
+  if (resource.sellType === 'capability') {
+    const lc = resource.capabilityLifecycle ?? 'active'
+    base.capabilityName = resource.capabilityName
+    base.endpoint = resource.endpoint
+    base.httpMethod = resource.httpMethod
+    base.inputFormat = resource.inputFormat
+    base.resultFormat = resource.resultFormat
+    base.receiptMode = resource.receiptMode
+    base.capabilityEndpointCanonical = resource.capabilityEndpointCanonical
+    base.capabilityOriginHost = resource.capabilityOriginHost
+    base.capabilityOriginTrust = resource.capabilityOriginTrust
+    base.capabilityLifecycle = lc
+    const trust = resource.capabilityOriginTrust
+    if (lc === 'active' && trust != null && env) {
+      base.executionAllowed = isExecutionPermittedForTrust(env, trust)
+    } else if (lc === 'active' && trust != null) {
+      base.executionAllowed = trust !== 'blocked'
+    } else {
+      base.executionAllowed = false
+    }
+  }
+  return base
 }
 
 export async function handleGetResource(
@@ -55,9 +96,20 @@ export async function handleGetResource(
   if (!resource || !resource.active) {
     return notFound('Resource not found')
   }
+  const base = publicResourceDefinition(resource, env) as Record<string, unknown>
+  if (resource.sellType === 'capability') {
+    const peek = await evaluateCapabilityPolicyForBuyerPeek(env, resource)
+    base.capability_buyer_execution = peek.ok
+      ? { allowed: true }
+      : {
+          allowed: false,
+          code: peek.code,
+          summary: peek.publicMessage,
+        }
+  }
   return json({
     ok: true,
-    resource: publicResourceDefinition(resource),
+    resource: base,
   })
 }
 
@@ -76,6 +128,17 @@ function parseOptionalBool(raw: unknown): boolean | undefined {
   return undefined
 }
 
+function readAmount(o: Record<string, unknown>): string {
+  const price =
+    typeof o.price_usdc === 'string'
+      ? o.price_usdc.trim()
+      : typeof o.priceUsdc === 'string'
+        ? o.priceUsdc.trim()
+        : ''
+  if (price !== '') return price
+  return typeof o.amount === 'string' ? o.amount.trim() : ''
+}
+
 export async function handlePostResource(
   env: Env,
   req: Request,
@@ -88,10 +151,197 @@ export async function handlePostResource(
   }
 
   const o = body as Record<string, unknown>
-  const labelRaw = typeof o.label === 'string' ? o.label.trim() : ''
-  const amountRaw = typeof o.amount === 'string' ? o.amount.trim() : ''
+  const sellParsed = parseSellType(o.sell_type ?? o.sellType)
+  if (sellParsed === null) {
+    return badRequest('sell_type must be resource or capability')
+  }
+
+  if (sellParsed === 'capability') {
+    return handlePostCapability(env, o)
+  }
+
+  return handlePostResourceOnly(env, o)
+}
+
+async function handlePostCapability(
+  env: Env,
+  o: Record<string, unknown>,
+): Promise<Response> {
+  const capabilityName = parseNonEmptyString(
+    o.capability_name ?? o.capabilityName,
+    'capability_name',
+  )
+  if (!capabilityName.ok) return badRequest(capabilityName.message)
+
+  const methodRaw = parseNonEmptyString(o.http_method ?? o.httpMethod, 'http_method')
+  if (!methodRaw.ok) return badRequest(methodRaw.message)
+  const httpMethod = methodRaw.value.toUpperCase()
+  if (!isValidHttpMethod(httpMethod)) {
+    return badRequest('http_method must be GET, POST, PUT, PATCH, or DELETE')
+  }
+
+  const inputFormat = parseNonEmptyString(o.input_format ?? o.inputFormat, 'input_format')
+  if (!inputFormat.ok) return badRequest(inputFormat.message)
+
+  const resultFormat = parseNonEmptyString(
+    o.result_format ?? o.resultFormat,
+    'result_format',
+  )
+  if (!resultFormat.ok) return badRequest(resultFormat.message)
+
+  const recvParsed = parseReceiverAddressForResource(
+    o.payout_wallet ?? o.payoutWallet ?? o.receiverAddress,
+  )
+  if (!recvParsed.ok) {
+    return badRequest(recvParsed.message)
+  }
+  const receiverAddress = recvParsed.value
+
+  const endpointParsed = parseCapabilityEndpoint(
+    typeof o.endpoint === 'string' ? o.endpoint : '',
+  )
+  if (!endpointParsed.ok) {
+    return json(
+      {
+        ok: false,
+        error: endpointParsed.message,
+        code: endpointParsed.code,
+      },
+      { status: 400 },
+    )
+  }
+
+  const allow = await isHostAllowlistedForReceiver(
+    env.DB,
+    receiverAddress,
+    endpointParsed.hostname,
+  )
+  const trustEv = evaluateOriginTrust({
+    env,
+    hostname: endpointParsed.hostname,
+    receiverAddressLower: receiverAddress,
+    isOnAllowlist: allow,
+  })
+  const trustStr = trustEv.trust
+
+  const amountRaw = readAmount(o)
+  if (!amountRaw) {
+    return badRequest('amount or price_usdc is required')
+  }
+  if (parseUsdcMinorUnits(amountRaw) === null) {
+    return badRequest(
+      'Invalid amount (expected USDC-style decimal, up to 6 fractional digits)',
+    )
+  }
+
+  const deliveryRaw =
+    typeof o.delivery_mode === 'string'
+      ? o.delivery_mode.trim().toLowerCase()
+      : typeof o.deliveryMode === 'string'
+        ? o.deliveryMode.trim().toLowerCase()
+        : ''
+  const deliveryMode = normalizeCapabilityDeliveryMode(deliveryRaw || 'direct')
+
+  const receiptParsed = parseReceiptMode(o.receipt_mode ?? o.receiptMode)
+  if (!receiptParsed.ok) return badRequest(receiptParsed.message)
+
   const slugOptRaw = typeof o.slug === 'string' ? o.slug.trim() : ''
-  const recvParsed = parseReceiverAddressForResource(o.receiverAddress)
+  let slug: string
+  if (slugOptRaw !== '') {
+    const s = slugOptRaw.toLowerCase()
+    if (s.length > 64 || !SLUG_CUSTOM_RE.test(s)) {
+      return badRequest(
+        'Invalid slug (lowercase letters, digits, interior hyphens; max 64 chars)',
+      )
+    }
+    slug = s
+    const taken = await getResourceBySlug(env.DB, slug)
+    if (taken) {
+      return conflict('A resource with this slug already exists')
+    }
+  } else {
+    let attempts = 0
+    do {
+      slug = createResourceSlug()
+      attempts++
+      if (attempts > 12) {
+        return json(
+          { ok: false, error: 'Could not allocate a unique slug' },
+          { status: 503 },
+        )
+      }
+    } while (await getResourceBySlug(env.DB, slug))
+  }
+
+  const t = nowIso()
+  const successRedirectPath = `/success/${encodeURIComponent(slug)}`
+
+  await insertResourceDefinition(env.DB, {
+    slug,
+    label: capabilityName.value,
+    sellType: 'capability',
+    amount: amountRaw,
+    currency: 'USDC',
+    network: 'base',
+    receiverAddress,
+    unlockType: 'json',
+    unlockValue: '{}',
+    deliveryMode,
+    protectedTtlSeconds: null,
+    oneTimeUnlock: false,
+    contentType: null,
+    successRedirectPath,
+    capabilityName: capabilityName.value,
+    endpoint: endpointParsed.canonicalUrl,
+    httpMethod,
+    inputFormat: inputFormat.value,
+    resultFormat: resultFormat.value,
+    receiptMode: receiptParsed.value,
+    capabilityEndpointCanonical: endpointParsed.canonicalUrl,
+    capabilityOriginHost: endpointParsed.hostname,
+    capabilityOriginTrust: trustStr,
+    capabilityLifecycle: 'active',
+    createdAt: t,
+    updatedAt: t,
+  })
+
+  await insertCapabilityAuditEvent(env.DB, {
+    eventType: 'capability_created',
+    slug,
+    actorScope: 'system',
+    statusSummary: 'created',
+    metadata: { receiver: receiverAddress },
+  })
+
+  const resource = await getResourceBySlug(env.DB, slug)
+  if (!resource) {
+    return json(
+      { ok: false, error: 'Failed to load created capability' },
+      { status: 500 },
+    )
+  }
+
+  const paymentUrl = buyerUnlockPageUrl(env, slug)
+
+  return json({
+    ok: true,
+    sell_type: 'capability',
+    resource: publicResourceDefinition(resource, env),
+    paymentUrl,
+    qrUrl: paymentUrl,
+  })
+}
+
+async function handlePostResourceOnly(
+  env: Env,
+  o: Record<string, unknown>,
+): Promise<Response> {
+  const labelRaw = typeof o.label === 'string' ? o.label.trim() : ''
+  const amountRaw = readAmount(o)
+  const slugOptRaw = typeof o.slug === 'string' ? o.slug.trim() : ''
+  const recvParsed = parseReceiverAddressForResource(
+    o.receiverAddress ?? o.payout_wallet ?? o.payoutWallet,
+  )
   if (!recvParsed.ok) {
     return badRequest(recvParsed.message)
   }
@@ -108,14 +358,18 @@ export async function handlePostResource(
     return badRequest('unlockType must be one of: json, text, link')
   }
 
-  const uvRaw = o.unlockValue ?? o.unlock_value
+  const uvRaw =
+    o.unlockValue ??
+    o.unlock_value ??
+    o.destination_url ??
+    o.destinationUrl
   let unlockValueStr: string
   if (uvRaw === undefined || uvRaw === null) {
     if (unlockType === 'json') {
       unlockValueStr = '{}'
     } else {
       return badRequest(
-        'unlockValue is required when unlockType is text or link',
+        'unlockValue is required when unlockType is text or link (or use destination_url for link)',
       )
     }
   } else if (typeof uvRaw === 'string') {
@@ -161,7 +415,10 @@ export async function handlePostResource(
       : typeof o.delivery_mode === 'string'
         ? o.delivery_mode.trim().toLowerCase()
         : ''
-  const deliveryMode = normalizeDeliveryMode(deliveryModeRaw || 'direct')
+  if (deliveryModeRaw === 'async') {
+    return badRequest('delivery_mode async is only valid when sell_type is capability')
+  }
+  const deliveryMode = normalizeResourceDeliveryMode(deliveryModeRaw || 'direct')
 
   if (deliveryMode === 'protected' && unlockType !== 'link') {
     return json(
@@ -248,6 +505,7 @@ export async function handlePostResource(
   await insertResourceDefinition(env.DB, {
     slug,
     label: labelRaw,
+    sellType: 'resource',
     amount: amountRaw,
     currency: 'USDC',
     network: 'base',
@@ -259,6 +517,16 @@ export async function handlePostResource(
     oneTimeUnlock,
     contentType: null,
     successRedirectPath,
+    capabilityName: null,
+    endpoint: null,
+    httpMethod: null,
+    inputFormat: null,
+    resultFormat: null,
+    receiptMode: null,
+    capabilityEndpointCanonical: null,
+    capabilityOriginHost: null,
+    capabilityOriginTrust: null,
+    capabilityLifecycle: null,
     createdAt: t,
     updatedAt: t,
   })
@@ -275,7 +543,9 @@ export async function handlePostResource(
 
   return json({
     ok: true,
-    resource: publicResourceDefinition(resource),
+    sell_type: 'resource',
+    resource: publicResourceDefinition(resource, env),
     paymentUrl,
+    qrUrl: paymentUrl,
   })
 }

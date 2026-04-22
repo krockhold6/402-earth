@@ -26,3 +26,25 @@ export function createResourceSlug(): string {
   ).join('')
   return `pay-${hex}`
 }
+
+/** Primary key for `capability_async_jobs`. */
+export function createCapabilityJobId(): string {
+  return `cj_${randomSuffix()}`
+}
+
+/** Primary key for `capability_origin_allowlist`. */
+export function createCapabilityAllowlistRowId(): string {
+  return `coa_${randomSuffix()}`
+}
+
+export function createCapabilitySellerChallengeId(): string {
+  return `csc_${randomSuffix()}`
+}
+
+export function createCapabilityAuditEventId(): string {
+  return `cae_${randomSuffix()}`
+}
+
+export function createCapabilityNotificationDeliveryId(): string {
+  return `cnd_${randomSuffix()}`
+}

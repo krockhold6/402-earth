@@ -10,6 +10,7 @@ import {
   isProtectedLinkResource,
   protectedUnlockMaxUses,
 } from './deliveryMode'
+import { buildCapabilityPaidSuccessPayload } from './paidCapabilityPayload'
 import { addSecondsIso, nowIso } from './time'
 import type { Env } from '../types/env'
 import type { PaymentAttempt } from '../types/payment'
@@ -21,10 +22,15 @@ export async function buildPaidSuccessPayload(
     resource: ResourceDefinition
     attempt: PaymentAttempt | null
     attemptIdInQuery: string | null
+    executionContext?: ExecutionContext
   },
 ):
   | { ok: true; body: Record<string, unknown> }
   | { ok: false; body: Record<string, unknown>; status: number } {
+  if (input.resource.sellType === 'capability') {
+    return buildCapabilityPaidSuccessPayload(env, input)
+  }
+
   const delivery = resolvePaidResourceDelivery(input.resource)
   if (!delivery.ok) {
     const errBody: Record<string, unknown> = {

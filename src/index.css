@@ -114,9 +114,12 @@ body {
   flex: 1 1 auto;
   min-width: 0;
   width: 100%;
+}
+
+#root .home-demo-proof-band__row > *:first-child:not(:only-child) {
   padding-inline-end: var(--space-3, 0.75rem);
 }
 
-#root .home-demo-proof-band__row > *:last-child {
+#root .home-demo-proof-band__row > *:last-child:not(:only-child) {
   flex-shrink: 0;
 }

@@ -1,6 +1,7 @@
 import { createAttempt } from '../db/attempts'
 import { insertPaymentEvent } from '../db/events'
 import { getResourceBySlug } from '../db/resources'
+import { evaluateCapabilityPolicyForBuyerPeek } from '../lib/capabilityPolicy'
 import { sha256HexUtf8 } from '../lib/hash'
 import { createAttemptId, createEventId } from '../lib/ids'
 import { parseUsdcMinorUnits } from '../lib/facilitator'
@@ -36,6 +37,41 @@ export async function handlePostPaymentAttempt(
   const resource = await getResourceBySlug(env.DB, slug)
   if (!resource || !resource.active) {
     return notFound('Resource not found')
+  }
+
+  if (resource.sellType === 'capability') {
+    const lc = resource.capabilityLifecycle ?? 'active'
+    if (lc === 'disabled') {
+      return json(
+        {
+          ok: false,
+          error: 'This capability is disabled and cannot accept new payments.',
+          code: 'CAPABILITY_DISABLED',
+        },
+        { status: 409 },
+      )
+    }
+    if (lc === 'archived') {
+      return json(
+        {
+          ok: false,
+          error: 'This capability is archived and cannot accept new payments.',
+          code: 'CAPABILITY_ARCHIVED',
+        },
+        { status: 409 },
+      )
+    }
+    const peek = await evaluateCapabilityPolicyForBuyerPeek(env, resource)
+    if (!peek.ok) {
+      return json(
+        {
+          ok: false,
+          error: peek.publicMessage,
+          code: peek.code,
+        },
+        { status: peek.httpStatus },
+      )
+    }
   }
 
   const attemptId = createAttemptId()

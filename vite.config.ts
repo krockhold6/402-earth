@@ -3,6 +3,8 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // Default `/` so script/CSS URLs are always `/assets/…` on apex (402.earth). A relative
 // base (`./`) breaks any non-root path: e.g. `/pay/x` resolves `./assets/index.js` to
 // `/pay/assets/…` (404 HTML → MIME error → stuck on index.html "Loading…").
@@ -25,31 +27,32 @@ const base = normalizeViteBase(rawBase)
 // https://vite.dev/config/
 export default defineConfig({
   base,
-  plugins: [
-    react(),
-    {
-      name: "spa-fallback-404-html",
-      apply: "build",
-      enforce: "post",
-      closeBundle() {
-        const indexHtml = path.resolve(__dirname, "dist/index.html")
-        const notFoundHtml = path.resolve(__dirname, "dist/404.html")
-        // Copy shell for deep links / hard refresh on static hosts (GitHub Pages,
-        // Cloudflare Pages). Prefer this over a catch-all `_redirects` rule: Cloudflare
-        // applies those redirects even when a static file would match, which can
-        // rewrite `/assets/*.js` to `index.html` and break ES modules (MIME error).
-        if (existsSync(indexHtml)) {
-          copyFileSync(indexHtml, notFoundHtml)
-        }
-      },
+  plugins: [react(), {
+    name: "spa-fallback-404-html",
+    apply: "build",
+    enforce: "post",
+    closeBundle() {
+      const indexHtml = path.resolve(__dirname, "dist/index.html")
+      const notFoundHtml = path.resolve(__dirname, "dist/404.html")
+      // Copy shell for deep links / hard refresh on static hosts (GitHub Pages,
+      // Cloudflare Pages). Prefer this over a catch-all `_redirects` rule: Cloudflare
+      // applies those redirects even when a static file would match, which can
+      // rewrite `/assets/*.js` to `index.html` and break ES modules (MIME error).
+      if (existsSync(indexHtml)) {
+        copyFileSync(indexHtml, notFoundHtml)
+      }
     },
-  ],
+  }, cloudflare()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
   server: {
+    // Lets Simple Browser / LAN hit Vite when localhost routing differs.
+    host: true,
+    port: 5173,
+    strictPort: true,
     proxy: {
       "/api": {
         target: "http://127.0.0.1:8787",

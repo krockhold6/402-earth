@@ -6,7 +6,7 @@
   "scripts": {
     "generate:agent-discovery": "node scripts/generate-agent-discovery.mjs",
     "prebuild": "npm run generate:agent-discovery",
-    "predev": "npm run generate:agent-discovery && npm --prefix worker run db:migrate:local",
+    "predev": "npm run generate:agent-discovery && (cd worker && npm run db:migrate:local)",
     "dev": "concurrently -k -n worker,vite -c cyan,green \"npm run worker:dev\" \"wait-on -t 60000 tcp:127.0.0.1:8787 && vite\"",
     "db:migrate:local": "npm --prefix worker run db:migrate:local",
     "dev:vite": "vite",
@@ -14,10 +14,11 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "prepreview": "sh -c '[ -f dist/index.html ] || npm run build'",
-    "preview": "vite preview",
+    "preview": "npm run build && wrangler dev",
     "locales:sync": "node scripts/sync-locale-keys.mjs",
     "agent:x402": "tsx scripts/agent-x402.ts",
-    "agent:x402:pay": "tsx scripts/agent-x402-pay.ts"
+    "agent:x402:pay": "tsx scripts/agent-x402-pay.ts",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@coinbase/cds-web": "^8.62.1",
@@ -31,9 +32,11 @@
     "react-dom": "^19.2.4",
     "react-i18next": "^17.0.2",
     "react-router-dom": "^7.14.0",
-    "viem": "^2.38.0"
+    "viem": "^2.38.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.33.0",
     "@eslint/js": "^9.39.4",
     "@types/node": "^24.12.2",
     "@types/prismjs": "^1.26.6",
@@ -49,6 +52,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.0",
     "vite": "^8.0.4",
-    "wait-on": "^9.0.5"
+    "wait-on": "^9.0.5",
+    "wrangler": "^4.84.0"
   }
 }

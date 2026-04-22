@@ -9,12 +9,13 @@ import {
   type CSSProperties,
 } from "react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
+import { Link as RouterLink } from "react-router-dom"
 import { QRCodeCanvas } from "qrcode.react"
-import { Button, IconButton } from "@coinbase/cds-web/buttons"
+import { Button } from "@coinbase/cds-web/buttons"
 import { Select } from "@coinbase/cds-web/alpha/select"
 import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
+import { CapabilityManagePanel } from "@/components/CapabilityManagePanel"
 import { ApiDocsPanel } from "@/components/ApiDocsPanel"
 import { BuyFlowPanel } from "@/components/BuyFlowPanel"
 import {
@@ -22,6 +23,7 @@ import {
   sendCreatorReceiptEmail,
   type ApiResource,
 } from "@/lib/api"
+import { homeCapabilityCreateSchema } from "@/lib/sellSchemas"
 import { publicUrl } from "@/lib/publicUrl"
 import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
@@ -43,6 +45,7 @@ import {
   TextTitle4,
 } from "@coinbase/cds-web/typography"
 import i18n from "@/i18n/config"
+import { useCdsColorScheme } from "@/providers/cdsColorSchemeContext"
 
 const HERO_AMOUNT_FONT_FAMILY =
   'CoinbaseSans, var(--defaultFont-sans, system-ui), system-ui, sans-serif'
@@ -54,6 +57,46 @@ const HOME_HERO_HEADLINE_TEXT_STYLE: CSSProperties = {
   lineHeight: 1.05,
   letterSpacing: "-0.03em",
   margin: 0,
+}
+
+/** Home narrative (Resources, Capabilities, how / examples / why) — big display line. */
+const HOME_SECTION_DISPLAY_HERO_TITLE_STYLE: CSSProperties = {
+  margin: 0,
+  fontSize: "80.4px",
+  fontWeight: 700,
+  lineHeight: 1.02,
+  letterSpacing: "-0.03em",
+  fontFamily: HERO_AMOUNT_FONT_FAMILY,
+}
+
+/**
+ * Vertical padding for home left-column **sections** (hero + demo band stay
+ * tight; everything from Commerce through the bottom CTA uses this).
+ */
+const HOME_NARRATIVE_SECTION_PAD_Y = { base: 8, desktop: 10 } as const
+
+/** Home commerce band wordmarks — light + dark (`public/img/home-commerce/`). */
+const HOME_COMMERCE_IMAGES_BY_SCHEME = {
+  light: {
+    wordmark402: "/img/home-commerce/402-large.svg",
+    base: "/img/home-commerce/base-logo.svg",
+    usdc: "/img/home-commerce/usdc.svg",
+    x402: "/img/home-commerce/x402.svg",
+  },
+  dark: {
+    wordmark402: "/img/home-commerce/402-large-dark.svg",
+    base: "/img/home-commerce/base-logo-dark.svg",
+    usdc: "/img/home-commerce/usdc-dark.svg",
+    x402: "/img/home-commerce/x402-dark.svg",
+  },
+} as const
+
+/** Shared slot for Base / USDC / x402 logos in the commerce rail cards. */
+const HOME_COMMERCE_RAIL_LOGO_STYLE: CSSProperties = {
+  width: 120,
+  height: 32,
+  maxWidth: "100%",
+  objectFit: "contain",
 }
 
 /** Icons for `home.why402Examples` lines (retail → … → machine). */
@@ -136,6 +179,13 @@ function pickResourceReceiver(resource: {
   return b ?? ""
 }
 
+function apiSellType(resource: ApiResource): "resource" | "capability" {
+  if (resource.sellType === "capability" || resource.sell_type === "capability") {
+    return "capability"
+  }
+  return "resource"
+}
+
 /** Golden ratio φ; left column : right column = φ : 1 (messaging side is wider). */
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2
 
@@ -174,13 +224,6 @@ const HOME_AUDIENCE_CREATORS_CARD_BG = "rgb(var(--gray10))"
 const HOME_AUDIENCE_SOFTWARE_CARD_BG = "var(--color-bgInverse)"
 
 type HomeAudienceMessagingCardRow = {
-  id: string
-  titleKey: string
-  descriptionKey: string
-  iconName: IconName
-}
-
-type HomeCapabilitiesCardRow = {
   id: string
   titleKey: string
   descriptionKey: string
@@ -237,43 +280,34 @@ const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     id: "home-software-3",
     titleKey: "home.softwareCard3Title",
     descriptionKey: "home.softwareCard3Description",
-    iconName: "robot",
+    iconName: "continuous",
+  },
+  {
+    id: "home-software-4",
+    titleKey: "home.softwareCard4Title",
+    descriptionKey: "home.softwareCard4Description",
+    iconName: "compose",
   },
 ]
 
-const HOME_CAPABILITIES_CARDS: ReadonlyArray<HomeCapabilitiesCardRow> = [
-  {
-    id: "home-capabilities-1",
-    titleKey: "home.capabilitiesCard1Title",
-    descriptionKey: "home.capabilitiesCard1Description",
-    iconName: "qrCode",
-  },
-  {
-    id: "home-capabilities-2",
-    titleKey: "home.capabilitiesCard2Title",
-    descriptionKey: "home.capabilitiesCard2Description",
-    iconName: "peopleGroup",
-  },
-]
-
-/** Fixed height for full-width audience carousel hero banners (Creators + Software). */
+/** Fixed height for full-width audience carousel hero banners (Resources + Capabilities). */
 const HOME_AUDIENCE_BANNER_HEIGHT_PX = 300
 
-/** Creators carousel banner; asset: `public/img/home-audience-creators-banner-5.png`. */
-const HOME_AUDIENCE_CREATORS_BANNER_SRC = publicUrl(
-  "img/home-audience-creators-banner-5.png",
+/** Resources section banner; asset: `public/img/home-audience-creators-banner-9.jpg`. */
+const HOME_AUDIENCE_SHARED_BANNER_SRC = publicUrl(
+  "img/home-audience-creators-banner-9.jpg",
 )
 /** Scale image to cover the fixed-height banner (no letterboxing). */
-const HOME_AUDIENCE_CREATORS_BANNER_BG_STYLE: CSSProperties = {
-  backgroundImage: `url(${HOME_AUDIENCE_CREATORS_BANNER_SRC})`,
+const HOME_AUDIENCE_SHARED_BANNER_BG_STYLE: CSSProperties = {
+  backgroundImage: `url(${HOME_AUDIENCE_SHARED_BANNER_SRC})`,
   backgroundRepeat: "no-repeat",
   backgroundSize: "cover",
   backgroundPosition: "center",
 }
 
-/** Software carousel banner; asset: `public/img/home-audience-creators-banner-6.png`. */
+/** Capabilities section banner; asset: `public/img/home-audience-creators-banner-8.jpg`. */
 const HOME_AUDIENCE_SOFTWARE_BANNER_SRC = publicUrl(
-  "img/home-audience-creators-banner-6.png",
+  "img/home-audience-creators-banner-8.jpg",
 )
 const HOME_AUDIENCE_SOFTWARE_BANNER_BG_STYLE: CSSProperties = {
   backgroundImage: `url(${HOME_AUDIENCE_SOFTWARE_BANNER_SRC})`,
@@ -318,44 +352,6 @@ function renderHomeAudienceMessagingCard(
       styles={{
         root: {
           backgroundColor: cardBackground,
-        },
-        ...HOME_CAPABILITIES_CARD_STYLES,
-        textContainer: { gap: 24 },
-      }}
-    />
-  )
-}
-
-function renderHomeCapabilitiesCard(
-  card: HomeCapabilitiesCardRow,
-  t: (key: string) => string,
-) {
-  const titleText = t(card.titleKey)
-  return (
-    <MessagingCard
-      as="article"
-      type="upsell"
-      width="100%"
-      maxWidth="100%"
-      mediaPlacement="end"
-      title={
-        <VStack gap={3} alignItems="flex-start" width="100%">
-          <Box aria-hidden display="flex">
-            <Icon name={card.iconName} size="m" color="fg" />
-          </Box>
-          <Text color="fg" font="title3" as="span">
-            {titleText}
-          </Text>
-        </VStack>
-      }
-      description={
-        <Text color="fgMuted" font="label2" overflow="wrap">
-          {t(card.descriptionKey)}
-        </Text>
-      }
-      styles={{
-        root: {
-          backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
         },
         ...HOME_CAPABILITIES_CARD_STYLES,
         textContainer: { gap: 24 },
@@ -456,6 +452,8 @@ function HomeLinkActionRow({
 
 export default function Home() {
   const { t } = useTranslation()
+  const { colorScheme } = useCdsColorScheme()
+  const commerceImages = HOME_COMMERCE_IMAGES_BY_SCHEME[colorScheme]
   const isWide = useMediaQuery("(min-width: 960px)")
   const [amount, setAmount] = useState("0")
   const [label, setLabel] = useState("")
@@ -481,7 +479,54 @@ export default function Home() {
   const [protectedLinkUrl, setProtectedLinkUrl] = useState("")
   const [protectedTtlSeconds, setProtectedTtlSeconds] = useState(900)
   const [protectedOneTime, setProtectedOneTime] = useState(false)
+  type HomeSellTypeTabId = "resource" | "capability"
+  type HomeSellTypeTab = { id: HomeSellTypeTabId; label: string }
+  const sellTypeTabs = useMemo<HomeSellTypeTab[]>(
+    () => [
+      { id: "resource", label: t("home.sellTypeResource") },
+      { id: "capability", label: t("home.sellTypeCapability") },
+    ],
+    [t],
+  )
+  const [activeSellTypeTab, setActiveSellTypeTab] = useState<HomeSellTypeTab>(
+    () => ({ id: "resource", label: "" }),
+  )
+  useEffect(() => {
+    setActiveSellTypeTab((cur) => {
+      const next = sellTypeTabs.find((tab) => tab.id === cur.id)
+      return next ?? sellTypeTabs[0]!
+    })
+  }, [sellTypeTabs])
+
+  type HomeCapDeliveryTabId = "direct" | "protected" | "async"
+  type HomeCapDeliveryTab = { id: HomeCapDeliveryTabId; label: string }
+  const capabilityDeliveryTabs = useMemo<HomeCapDeliveryTab[]>(
+    () => [
+      { id: "direct", label: t("home.deliveryDirect") },
+      { id: "protected", label: t("home.deliveryProtected") },
+      { id: "async", label: t("home.deliveryAsync") },
+    ],
+    [t],
+  )
+  const [activeCapDeliveryTab, setActiveCapDeliveryTab] =
+    useState<HomeCapDeliveryTab>(() => ({ id: "direct", label: "" }))
+  useEffect(() => {
+    setActiveCapDeliveryTab((cur) => {
+      const next = capabilityDeliveryTabs.find((tab) => tab.id === cur.id)
+      return next ?? capabilityDeliveryTabs[0]!
+    })
+  }, [capabilityDeliveryTabs])
+
+  const [capabilityName, setCapabilityName] = useState("")
+  const [capEndpoint, setCapEndpoint] = useState("")
+  const [capHttpMethod, setCapHttpMethod] = useState("POST")
+  const [capInputFormat, setCapInputFormat] = useState("json")
+  const [capResultFormat, setCapResultFormat] = useState("json")
+  const [capReceiptMode, setCapReceiptMode] = useState<"standard" | "detailed">(
+    "standard",
+  )
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+  const homeWorkflowRailRef = useRef<HTMLDivElement>(null)
 
   const hasQr = paymentUrl !== ""
 
@@ -492,6 +537,39 @@ export default function Home() {
         .map((line) => line.trim())
         .filter(Boolean),
     [t],
+  )
+
+  const why402PillarCards = useMemo(
+    () => [
+      { title: t("home.why402EverydayTitle"), body: t("home.why402EverydayBody") },
+      { title: t("home.why402CreatorTitle"), body: t("home.why402CreatorBody") },
+      { title: t("home.why402MachineTitle"), body: t("home.why402MachineBody") },
+    ],
+    [t],
+  )
+
+  const homeFlowSteps = useMemo(
+    () => [
+      { title: t("howItWorks.step1Title"), body: t("howItWorks.step1Body") },
+      { title: t("howItWorks.step2Title"), body: t("howItWorks.step2Body") },
+      { title: t("howItWorks.step3Title"), body: t("howItWorks.step3Body") },
+      {
+        title: t("home.capabilitiesCard1Title"),
+        body: t("home.capabilitiesCard1Description"),
+      },
+      {
+        title: t("home.capabilitiesCard2Title"),
+        body: t("home.capabilitiesCard2Description"),
+      },
+    ],
+    [t],
+  )
+  const { howItWorksCoreSteps, howItWorksBuilderSteps } = useMemo(
+    () => ({
+      howItWorksCoreSteps: homeFlowSteps.slice(0, 3),
+      howItWorksBuilderSteps: homeFlowSteps.slice(3),
+    }),
+    [homeFlowSteps],
   )
 
   type HomeRailTabId = "sell" | "buy" | "api"
@@ -526,6 +604,17 @@ export default function Home() {
     [railTabs],
   )
 
+  const handleScrollToWorkflow = useCallback(() => {
+    const sellTab = railTabs.find((tab) => tab.id === "sell")
+    if (sellTab) updateActiveTab(sellTab)
+    requestAnimationFrame(() => {
+      homeWorkflowRailRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+    })
+  }, [railTabs])
+
   const canCreateOnRail = activeTab.id === "sell"
 
   const clearPaymentSuccessState = useCallback(() => {
@@ -534,6 +623,10 @@ export default function Home() {
     setReceiptEmail("")
     setReceiptPhase("idle")
     setReceiptSentTo(null)
+  }, [])
+
+  const handleCapabilityResourceUpdated = useCallback((r: ApiResource) => {
+    setCreatedResource(r)
   }, [])
 
   const invalidateQrIfFormChanged = useCallback(() => {
@@ -573,6 +666,30 @@ export default function Home() {
       }
     },
     [deliveryTabs, invalidateQrIfFormChanged],
+  )
+
+  const handleSellTypeTabsChange = useCallback(
+    (next: TabValue<HomeSellTypeTabId> | null) => {
+      if (!next) return
+      const resolved = sellTypeTabs.find((tab) => tab.id === next.id)
+      if (resolved) {
+        setActiveSellTypeTab(resolved)
+        invalidateQrIfFormChanged()
+      }
+    },
+    [sellTypeTabs, invalidateQrIfFormChanged],
+  )
+
+  const handleCapDeliveryTabsChange = useCallback(
+    (next: TabValue<HomeCapDeliveryTabId> | null) => {
+      if (!next) return
+      const resolved = capabilityDeliveryTabs.find((tab) => tab.id === next.id)
+      if (resolved) {
+        setActiveCapDeliveryTab(resolved)
+        invalidateQrIfFormChanged()
+      }
+    },
+    [capabilityDeliveryTabs, invalidateQrIfFormChanged],
   )
 
   const homeAmountDisplay = amount.trim() || "0"
@@ -616,14 +733,78 @@ export default function Home() {
       return
     }
 
-    const labelT = label.trim()
     const amountT = amount.trim()
-    if (!labelT) {
-      setCreateError(t("home.errorLabel"))
-      return
-    }
     if (!amountT) {
       setCreateError(t("home.errorAmount"))
+      return
+    }
+
+    if (activeSellTypeTab.id === "capability") {
+      const parsed = homeCapabilityCreateSchema.safeParse({
+        capabilityName: capabilityName.trim(),
+        amount: amountT,
+        receiverAddress: recvResult.normalized,
+        endpoint: capEndpoint.trim(),
+        httpMethod: capHttpMethod,
+        inputFormat: capInputFormat.trim(),
+        resultFormat: capResultFormat.trim(),
+        deliveryMode: activeCapDeliveryTab.id,
+        receiptMode: capReceiptMode,
+      })
+      if (!parsed.success) {
+        const first = parsed.error.issues[0]
+        setCreateError(first?.message ?? t("home.validationFailed"))
+        return
+      }
+
+      setIsCreating(true)
+      try {
+        const { response, data } = await createResource({
+          sellType: "capability",
+          capabilityName: parsed.data.capabilityName,
+          amount: parsed.data.amount,
+          receiverAddress: parsed.data.receiverAddress,
+          endpoint: parsed.data.endpoint,
+          httpMethod: parsed.data.httpMethod,
+          inputFormat: parsed.data.inputFormat,
+          resultFormat: parsed.data.resultFormat,
+          deliveryMode: parsed.data.deliveryMode,
+          receiptMode: parsed.data.receiptMode,
+        })
+
+        const payUrl = data?.paymentUrl?.trim() || data?.qrUrl?.trim() || ""
+        if (!response.ok || !data?.ok || !data.resource || !payUrl) {
+          const msg =
+            data?.error?.trim() ||
+            t("home.createErrorHttp", { status: response.status })
+          setCreateError(msg)
+          clearPaymentSuccessState()
+          return
+        }
+
+        setReceiverAddress(
+          pickResourceReceiver(data.resource).toLowerCase() ||
+            recvResult.normalized,
+        )
+        setCreatedResource(data.resource)
+        setPaymentUrl(payUrl)
+        setReceiptEmail("")
+        setReceiptPhase("idle")
+        setReceiptSentTo(null)
+        setCreateError(null)
+        setReceiverAddressError(null)
+      } catch {
+        setCreateError(t("home.createErrorNetwork"))
+        clearPaymentSuccessState()
+      } finally {
+        setIsCreating(false)
+      }
+      return
+    }
+
+    const labelT = label.trim()
+    if (!labelT) {
+      setCreateError(t("home.errorLabel"))
       return
     }
 
@@ -684,7 +865,8 @@ export default function Home() {
       }
       const { response, data } = await createResource(createPayload)
 
-      if (!response.ok || !data?.ok || !data.resource || !data.paymentUrl) {
+      const payUrl = data?.paymentUrl?.trim() || data?.qrUrl?.trim() || ""
+      if (!response.ok || !data?.ok || !data.resource || !payUrl) {
         const msg =
           data?.error?.trim() ||
           t("home.createErrorHttp", { status: response.status })
@@ -698,7 +880,7 @@ export default function Home() {
           recvResult.normalized,
       )
       setCreatedResource(data.resource)
-      setPaymentUrl(data.paymentUrl.trim())
+      setPaymentUrl(payUrl)
       setReceiptEmail("")
       setReceiptPhase("idle")
       setReceiptSentTo(null)
@@ -789,7 +971,7 @@ export default function Home() {
     ? { paddingStart: ruleGap, paddingEnd: { base: 3, desktop: 3 } as const }
     : { paddingStart: edgePad, paddingEnd: edgePad }
 
-  /** Headline only; audience blocks sit below `HomeHorizontalRule` like `homeWhy402`. */
+  /** Headline only; light proof band + “Why 402” live below. */
   const homeHeroLead = (
     <Box
       width="100%"
@@ -803,17 +985,19 @@ export default function Home() {
           font="headline"
           style={{
             ...HOME_HERO_HEADLINE_TEXT_STYLE,
-            paddingBottom: 60,
+            fontSize: "24px",
+            letterSpacing: "normal",
+            paddingBottom: 20,
           }}
         >
-          {t("home.heroLine1")}
-          <br />
+          {t("home.heroLine1")}{" "}
           {t("home.heroLine2")}
         </Box>
       </VStack>
     </Box>
   )
 
+  /** Proof band — body copy; highlight uses `backgroundColor` on the paragraph. */
   const homeDemoProofBand = (
     <Box
       width="100%"
@@ -823,8 +1007,7 @@ export default function Home() {
     >
       <Box
         borderRadius={400}
-        background="bgSecondary"
-        padding={{ base: 4, desktop: 5 }}
+        padding={0}
         width="100%"
         maxWidth={680}
         className="home-demo-proof-band"
@@ -835,29 +1018,171 @@ export default function Home() {
               <TextBody
                 color="fgMuted"
                 as="p"
-                style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+                style={{
+                  margin: 0,
+                  lineHeight: 1.5,
+                  width: "100%",
+                  backgroundColor: "var(--color-bgLineInverse)",
+                }}
               >
                 {t("home.demoBandBody")}
               </TextBody>
             </VStack>
           </Box>
-          <Box flexShrink={0} display="flex" alignItems="center" style={{ height: "100%" }}>
-            <IconButton
-              as={Link}
-              to="/demo"
-              variant="primary"
-              type="button"
-              name="forwardArrow"
-              compact={false}
-              accessibilityLabel={t("home.demoBandCta")}
-              style={{
-                textDecoration: "none",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            />
-          </Box>
         </Box>
       </Box>
+    </Box>
+  )
+
+  /** “402 Commerce” payment layer — wordmark + Base / USDC / x402 (below Hero, above Resources). */
+  const homeCommerceSection = (
+    <Box
+      width="100%"
+      minWidth={0}
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
+    >
+      <VStack gap={6} alignItems="stretch" width="100%" maxWidth="100%">
+        <VStack gap={3} alignItems="stretch" width="100%">
+          <Box
+            as="h2"
+            color="fg"
+            font="headline"
+            aria-label={t("home.commerceAriaTitle")}
+            style={{
+              ...HOME_HERO_HEADLINE_TEXT_STYLE,
+              display: "flex",
+              flexDirection: "column",
+              flexWrap: "nowrap",
+              alignItems: "flex-start",
+              rowGap: 0,
+            }}
+          >
+            <Box
+              as="img"
+              key={commerceImages.wordmark402}
+              src={commerceImages.wordmark402}
+              alt=""
+              aria-hidden
+              flexShrink={0}
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "flex-start",
+                alignItems: "flex-start",
+                width: 220,
+                height: 80,
+                maxWidth: "100%",
+              }}
+            />
+            <Box as="span">Commerce</Box>
+          </Box>
+          <VStack gap={4} alignItems="stretch" width="100%" minWidth={0}>
+            <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+              <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
+                {t("home.commerceIntroHeading1")}
+              </TextTitle3>
+              <TextBody
+                color="fgMuted"
+                as="p"
+                style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+              >
+                {t("home.commerceIntroBody1")}
+              </TextBody>
+            </VStack>
+            <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+              <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
+                {t("home.commerceIntroHeading2")}
+              </TextTitle3>
+              <TextBody
+                color="fgMuted"
+                as="p"
+                style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+              >
+                {t("home.commerceIntroBody2")}
+              </TextBody>
+            </VStack>
+          </VStack>
+        </VStack>
+        <HStack
+          alignItems="stretch"
+          width="100%"
+          minWidth={0}
+          flexWrap="nowrap"
+          style={{ gap: 12 }}
+        >
+          <Box
+            borderRadius={400}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            width="100%"
+            style={{
+              backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
+              minWidth: 140,
+            }}
+            padding={{ base: 3, desktop: 4 }}
+            flexGrow={1}
+            flexBasis="140px"
+          >
+            <Box
+              as="img"
+              key={commerceImages.base}
+              src={commerceImages.base}
+              alt={t("home.commerceRailBase")}
+              flexShrink={0}
+              style={HOME_COMMERCE_RAIL_LOGO_STYLE}
+            />
+          </Box>
+          <Box
+            borderRadius={400}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            width="100%"
+            style={{
+              backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
+              minWidth: 140,
+            }}
+            padding={{ base: 3, desktop: 4 }}
+            flexGrow={1}
+            flexBasis="140px"
+          >
+            <Box
+              as="img"
+              key={commerceImages.usdc}
+              src={commerceImages.usdc}
+              alt={t("home.commerceRailUsdc")}
+              flexShrink={0}
+              style={HOME_COMMERCE_RAIL_LOGO_STYLE}
+            />
+          </Box>
+          <Box
+            borderRadius={400}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            width="100%"
+            style={{
+              backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
+              minWidth: 140,
+            }}
+            padding={{ base: 3, desktop: 4 }}
+            flexGrow={1}
+            flexBasis="140px"
+          >
+            <Box
+              as="img"
+              key={commerceImages.x402}
+              src={commerceImages.x402}
+              alt={t("home.commerceRailX402")}
+              flexShrink={0}
+              style={HOME_COMMERCE_RAIL_LOGO_STYLE}
+            />
+          </Box>
+        </HStack>
+      </VStack>
     </Box>
   )
 
@@ -873,6 +1198,7 @@ export default function Home() {
       minWidth={0}
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
+      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
     >
       <VStack alignItems="stretch" width="100%" style={{ gap: 38 }}>
         <Box
@@ -884,13 +1210,20 @@ export default function Home() {
           aria-label={t("home.audienceCreatorsBannerAlt")}
           style={{
             height: HOME_AUDIENCE_BANNER_HEIGHT_PX,
-            ...HOME_AUDIENCE_CREATORS_BANNER_BG_STYLE,
+            ...HOME_AUDIENCE_SHARED_BANNER_BG_STYLE,
           }}
         />
-        <VStack alignItems="stretch" width="100%" style={{ gap: 0 }}>
+        <VStack alignItems="stretch" width="100%" style={{ gap: 24 }}>
+          <TextTitle3
+            color="fg"
+            as="h2"
+            style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
+          >
+            {t("home.audienceCreatorsTitle")}
+          </TextTitle3>
           <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
             <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-              {t("home.audienceCreatorsTitle")}
+              {t("home.audienceCreatorsSubhead")}
             </TextTitle3>
             <TextBody
               color="fgMuted"
@@ -904,8 +1237,11 @@ export default function Home() {
             width="100%"
             minWidth={0}
             snapMode="item"
-            paginationVariant="dot"
-            styles={homeAudienceCarouselStyles}
+            hidePagination
+            styles={{
+              ...homeAudienceCarouselStyles,
+              navigation: { flexShrink: 0 },
+            }}
           >
             {HOME_CREATORS_CARDS.map((card) => (
               <CarouselItem key={card.id} id={card.id}>
@@ -924,6 +1260,7 @@ export default function Home() {
       minWidth={0}
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
+      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
     >
       <VStack alignItems="stretch" width="100%" style={{ gap: 38 }}>
         <Box
@@ -938,10 +1275,17 @@ export default function Home() {
             ...HOME_AUDIENCE_SOFTWARE_BANNER_BG_STYLE,
           }}
         />
-        <VStack alignItems="stretch" width="100%" style={{ gap: 0 }}>
+        <VStack alignItems="stretch" width="100%" style={{ gap: 24 }}>
+          <TextTitle3
+            color="fg"
+            as="h2"
+            style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
+          >
+            {t("home.audienceSoftwareTitle")}
+          </TextTitle3>
           <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
             <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-              {t("home.audienceSoftwareTitle")}
+              {t("home.audienceSoftwareSubhead")}
             </TextTitle3>
             <TextBody
               color="fgMuted"
@@ -955,8 +1299,11 @@ export default function Home() {
             width="100%"
             minWidth={0}
             snapMode="item"
-            paginationVariant="dot"
-            styles={homeAudienceCarouselStyles}
+            hidePagination
+            styles={{
+              ...homeAudienceCarouselStyles,
+              navigation: { flexShrink: 0 },
+            }}
           >
             {HOME_SOFTWARE_CARDS.map((card) => (
               <CarouselItem key={card.id} id={card.id}>
@@ -969,46 +1316,284 @@ export default function Home() {
     </Box>
   )
 
-  const homeAudienceCapabilitiesSection = (
+  const homeHowItWorksSection = (
     <Box
       width="100%"
       minWidth={0}
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
+      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
     >
-      <VStack gap={3} alignItems="stretch" width="100%">
+      <VStack alignItems="stretch" width="100%" style={{ gap: 32 }}>
+        <TextTitle3
+          color="fg"
+          as="h2"
+          style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
+        >
+          {t("home.howItWorksTitle")}
+        </TextTitle3>
         <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
           <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-            {t("home.audienceCapabilitiesTitle")}
+            {t("home.howItWorksSubhead")}
           </TextTitle3>
           <TextBody
             color="fgMuted"
             as="p"
             style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
           >
-            {t("home.audienceCapabilitiesBody")}
+            {t("home.howItWorksBody")}
           </TextBody>
         </VStack>
-        <HStack
-          gap={3}
-          alignItems="stretch"
-          width="100%"
-          minWidth={0}
-          flexDirection={isWide ? "row" : "column"}
-        >
-          {HOME_CAPABILITIES_CARDS.map((card) => (
-            <Box
-              key={card.id}
-              flexGrow={isWide ? 1 : undefined}
-              flexShrink={isWide ? 1 : undefined}
-              flexBasis={isWide ? "0%" : undefined}
+        <VStack gap={5} alignItems="stretch" width="100%" minWidth={0}>
+          <Text
+            color="fgMuted"
+            font="label2"
+            as="p"
+            style={{
+              margin: 0,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            {t("home.howItWorksGroupBasics")}
+          </Text>
+          <VStack
+            as="ol"
+            gap={5}
+            width="100%"
+            minWidth={0}
+            margin={0}
+            padding={0}
+            alignItems="stretch"
+            style={{ listStyle: "none" }}
+          >
+            {howItWorksCoreSteps.map((step, i) => (
+              <Box
+                as="li"
+                key={`home-flow-core-${i}`}
+                borderRadius={400}
+                width="100%"
+                minWidth={0}
+                padding={{ base: 5, desktop: 7 }}
+                style={{
+                  background: "rgb(var(--gray10))",
+                }}
+              >
+                <HStack
+                  gap={{ base: 3, desktop: 5 }}
+                  alignItems="flex-start"
+                  width="100%"
+                  minWidth={0}
+                >
+                  <Box
+                    aria-hidden
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    flexShrink={0}
+                    width={48}
+                    height={48}
+                    borderRadius={1000}
+                    background="bgPrimary"
+                  >
+                    <Text color="fgInverse" font="title3" as="span">
+                      {i + 1}
+                    </Text>
+                  </Box>
+                  <VStack gap={2} alignItems="stretch" minWidth={0} style={{ flex: 1, minWidth: 0 }}>
+                    <TextTitle4
+                      color="fg"
+                      as="p"
+                      style={{ margin: 0, lineHeight: 1.35 }}
+                    >
+                      {step.title}
+                    </TextTitle4>
+                    <TextBody
+                      color="fgMuted"
+                      as="p"
+                      style={{
+                        margin: 0,
+                        lineHeight: 1.65,
+                      }}
+                    >
+                      {step.body}
+                    </TextBody>
+                  </VStack>
+                </HStack>
+              </Box>
+            ))}
+          </VStack>
+        </VStack>
+        {howItWorksBuilderSteps.length > 0 ? (
+          <VStack gap={4} alignItems="stretch" width="100%" minWidth={0}>
+            <Text
+              color="fgMuted"
+              font="label2"
+              as="p"
+              style={{
+                margin: 0,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              {t("home.howItWorksGroupBuilder")}
+            </Text>
+            <VStack
+              as="ol"
+              gap={5}
+              alignItems="stretch"
               width="100%"
               minWidth={0}
+              margin={0}
+              padding={0}
+              style={{ listStyle: "none" }}
             >
-              {renderHomeCapabilitiesCard(card, t)}
+              {howItWorksBuilderSteps.map((step, i) => (
+                <Box
+                  as="li"
+                  key={`home-flow-xtra-${i}`}
+                  width="100%"
+                  minWidth={0}
+                  borderRadius={400}
+                >
+                  <HStack
+                    gap={{ base: 3, desktop: 5 }}
+                    alignItems="flex-start"
+                    width="100%"
+                    minWidth={0}
+                  >
+                    <Box
+                      width={4}
+                      alignSelf="stretch"
+                      flexShrink={0}
+                      borderRadius={1000}
+                      background="fgPrimary"
+                      style={{ minHeight: 48, opacity: 0.45 }}
+                    />
+                    <VStack
+                      gap={2}
+                      alignItems="stretch"
+                      minWidth={0}
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
+                      <TextTitle4
+                        color="fg"
+                        as="p"
+                        style={{ margin: 0, lineHeight: 1.35 }}
+                      >
+                        {step.title}
+                      </TextTitle4>
+                      <TextBody
+                        color="fgMuted"
+                        as="p"
+                        style={{ margin: 0, lineHeight: 1.65 }}
+                      >
+                        {step.body}
+                      </TextBody>
+                    </VStack>
+                  </HStack>
+                </Box>
+              ))}
+            </VStack>
+          </VStack>
+        ) : null}
+      </VStack>
+    </Box>
+  )
+
+  const homeExampleUseCasesSection = (
+    <Box
+      width="100%"
+      minWidth={0}
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
+    >
+      <VStack alignItems="stretch" width="100%" style={{ gap: 32 }}>
+        <TextTitle3
+          color="fg"
+          as="h2"
+          style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
+        >
+          {t("home.exampleUseCasesTitle")}
+        </TextTitle3>
+        <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+          <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
+            {t("home.exampleUseCasesSubhead")}
+          </TextTitle3>
+          <TextBody
+            color="fgMuted"
+            as="p"
+            style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+          >
+            {t("home.exampleUseCasesIntro")}
+          </TextBody>
+        </VStack>
+        <Box
+          as="ul"
+          display="grid"
+          width="100%"
+          minWidth={0}
+          margin={0}
+          padding={0}
+          style={{
+            listStyle: "none",
+            gap: 16,
+            gridTemplateColumns: isWide
+              ? "repeat(2, minmax(0, 1fr))"
+              : "minmax(0, 1fr)",
+          }}
+        >
+          {why402ExampleLines.map((line, i) => (
+            <Box
+              as="li"
+              key={`home-use-case-${i}`}
+              borderRadius={400}
+              width="100%"
+              minWidth={0}
+              padding={5}
+              style={{
+                background: "rgb(var(--gray10))",
+                margin: 0,
+              }}
+            >
+              <HStack
+                alignItems="flex-start"
+                justifyContent="space-between"
+                width="100%"
+                gap={3}
+                minWidth={0}
+              >
+                <Box style={{ flex: 1, minWidth: 0 }} minWidth={0}>
+                  <TextBody
+                    color="fg"
+                    as="p"
+                    style={{ margin: 0, lineHeight: 1.5 }}
+                  >
+                    {line}
+                  </TextBody>
+                </Box>
+                <Box
+                  aria-hidden
+                  display="flex"
+                  flexShrink={0}
+                  alignItems="center"
+                  justifyContent="center"
+                  width={32}
+                  height={32}
+                  borderRadius={1000}
+                  background="bgPrimary"
+                >
+                  <Icon
+                    name={HOME_WHY402_EXAMPLE_ICONS[i] ?? "circleCheckmark"}
+                    size="s"
+                    color="fgInverse"
+                  />
+                </Box>
+              </HStack>
             </Box>
           ))}
-        </HStack>
+        </Box>
       </VStack>
     </Box>
   )
@@ -1019,6 +1604,13 @@ export default function Home() {
     focusedBorderWidth: 100 as const,
     inputBackground: "bgSecondary" as const,
   } as const
+
+  /** Alpha `Select` control uses `InputStack`; `secondary` maps the field fill to `bgSecondary` like `homeFormTextInputSurface`. */
+  const homeFormSelectSurface = {
+    bordered: false as const,
+    compact: true as const,
+    variant: "secondary" as const,
+  }
 
   const homeRailSegmentedControl = (
     <SegmentedTabs<HomeRailTabId>
@@ -1073,6 +1665,7 @@ export default function Home() {
       minWidth={0}
       display="block"
       position="relative"
+      style={{ marginTop: 12, marginBottom: 20 }}
     >
       <Box as="span" style={visuallyHidden}>
         {t("home.amount")}
@@ -1083,7 +1676,7 @@ export default function Home() {
           alignItems="baseline"
           width="100%"
           minWidth={0}
-          paddingTop={2}
+          paddingTop={0}
         >
           <Box
             position="relative"
@@ -1190,7 +1783,7 @@ export default function Home() {
     </Box>
   )
 
-  const homeRailPrimaryFields = (
+  const homeRailResourceFields = (
     <VStack gap={4} alignItems="stretch" width="100%">
       <TextInput
         compact
@@ -1242,7 +1835,132 @@ export default function Home() {
     </VStack>
   )
 
-  const homeRailDeliveryBlock = (
+  const httpMethodSelectOptions = useMemo(
+    () =>
+      (["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((m) => ({
+        value: m,
+        label: m,
+      })),
+    [],
+  )
+
+  const homeRailCapabilityFields = (
+    <VStack gap={4} alignItems="stretch" width="100%">
+      <TextInput
+        compact
+        {...homeFormTextInputSurface}
+        label={t("home.capabilityName")}
+        value={capabilityName}
+        onChange={(e) => {
+          setCapabilityName(e.target.value)
+          invalidateQrIfFormChanged()
+        }}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <VStack gap={1} alignItems="stretch">
+        <TextInput
+          compact
+          {...homeFormTextInputSurface}
+          label={t("home.payoutWallet")}
+          value={receiverAddress}
+          onChange={(e) => {
+            setReceiverAddress(e.target.value)
+            setReceiverAddressError(null)
+            invalidateQrIfFormChanged()
+          }}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="0x"
+        />
+        {receiverAddressError ? (
+          <TextCaption color="fgNegative" as="p" style={{ margin: 0 }}>
+            {receiverAddressError}
+          </TextCaption>
+        ) : null}
+      </VStack>
+      <TextInput
+        compact
+        {...homeFormTextInputSurface}
+        label={t("home.endpoint")}
+        value={capEndpoint}
+        onChange={(e) => {
+          setCapEndpoint(e.target.value)
+          invalidateQrIfFormChanged()
+        }}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={t("home.endpointPlaceholder")}
+      />
+      <Select
+        type="single"
+        value={capHttpMethod}
+        onChange={(next) => {
+          if (next == null) return
+          setCapHttpMethod(String(next))
+          invalidateQrIfFormChanged()
+        }}
+        options={httpMethodSelectOptions}
+        label={t("home.method")}
+        {...homeFormSelectSurface}
+        accessibilityLabel={t("home.method")}
+        controlAccessibilityLabel={t("home.method")}
+        style={{ width: "100%", minWidth: 0 }}
+      />
+      <TextInput
+        compact
+        {...homeFormTextInputSurface}
+        label={t("home.inputFormat")}
+        value={capInputFormat}
+        onChange={(e) => {
+          setCapInputFormat(e.target.value)
+          invalidateQrIfFormChanged()
+        }}
+        autoComplete="off"
+      />
+      <TextInput
+        compact
+        {...homeFormTextInputSurface}
+        label={t("home.resultFormat")}
+        value={capResultFormat}
+        onChange={(e) => {
+          setCapResultFormat(e.target.value)
+          invalidateQrIfFormChanged()
+        }}
+        autoComplete="off"
+      />
+      <VStack gap={1} alignItems="stretch" width="100%">
+        <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+          {t("home.receiptMode")}
+        </TextLabel1>
+        <SegmentedTabs<"standard" | "detailed">
+          accessibilityLabel={t("home.receiptMode")}
+          activeTab={{
+            id: capReceiptMode,
+            label:
+              capReceiptMode === "detailed"
+                ? t("home.receiptDetailed")
+                : t("home.receiptStandard"),
+          }}
+          onChange={(next) => {
+            if (!next) return
+            if (next.id === "standard" || next.id === "detailed") {
+              setCapReceiptMode(next.id)
+              invalidateQrIfFormChanged()
+            }
+          }}
+          tabs={[
+            { id: "standard", label: t("home.receiptStandard") },
+            { id: "detailed", label: t("home.receiptDetailed") },
+          ]}
+          alignSelf="flex-start"
+          maxWidth="100%"
+        />
+      </VStack>
+    </VStack>
+  )
+
+  const homeRailResourceDeliveryBlock = (
     <VStack gap={2} alignItems="stretch" width="100%">
       <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
         {t("home.deliveryMode")}
@@ -1271,6 +1989,197 @@ export default function Home() {
       ) : null}
     </VStack>
   )
+
+  const homeRailCapabilityDeliveryBlock = (
+    <VStack gap={2} alignItems="stretch" width="100%">
+      <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+        {t("home.deliveryMode")}
+      </TextLabel1>
+      <SegmentedTabs<HomeCapDeliveryTabId>
+        accessibilityLabel={t("home.deliveryMode")}
+        activeTab={activeCapDeliveryTab}
+        onChange={handleCapDeliveryTabsChange}
+        tabs={capabilityDeliveryTabs}
+        alignSelf="flex-start"
+        maxWidth="100%"
+      />
+      {activeCapDeliveryTab.id === "direct" ? (
+        <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+          {t("home.capDeliveryDirectHelp")}
+        </TextBody>
+      ) : activeCapDeliveryTab.id === "protected" ? (
+        <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+          {t("home.capDeliveryProtectedHelp")}
+        </TextBody>
+      ) : (
+        <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+          {t("home.capDeliveryAsyncHelp")}
+        </TextBody>
+      )}
+    </VStack>
+  )
+
+  const showCapabilityLiveSummary =
+    activeSellTypeTab.id === "capability" &&
+    capabilityName.trim() !== "" &&
+    capEndpoint.trim() !== "" &&
+    capHttpMethod.trim() !== ""
+
+  const homeCapabilityLiveSummary = showCapabilityLiveSummary ? (
+    <Box
+      borderRadius={400}
+      background="bgSecondary"
+      padding={3}
+      width="100%"
+      minWidth={0}
+    >
+      <VStack gap={2} alignItems="stretch" width="100%">
+        <TextTitle3 color="fg" as="p" style={{ margin: 0 }}>
+          {t("home.capabilitySummaryTitle")}
+        </TextTitle3>
+        <HStack
+          gap={3}
+          justifyContent="space-between"
+          alignItems="flex-start"
+          width="100%"
+        >
+          <TextCaption color="fgMuted">{t("home.capabilityName")}</TextCaption>
+          <TextBody
+            color="fg"
+            style={{ margin: 0, textAlign: "end", wordBreak: "break-word" }}
+          >
+            {capabilityName.trim()}
+          </TextBody>
+        </HStack>
+        <HStack
+          gap={3}
+          justifyContent="space-between"
+          alignItems="flex-start"
+          width="100%"
+        >
+          <TextCaption color="fgMuted">{t("home.method")}</TextCaption>
+          <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+            {capHttpMethod}
+          </TextBody>
+        </HStack>
+        <HStack
+          gap={3}
+          justifyContent="space-between"
+          alignItems="flex-start"
+          width="100%"
+        >
+          <TextCaption color="fgMuted">{t("home.endpoint")}</TextCaption>
+          <TextBody
+            color="fg"
+            style={{ margin: 0, textAlign: "end", wordBreak: "break-word" }}
+          >
+            {capEndpoint.trim()}
+          </TextBody>
+        </HStack>
+        <HStack
+          gap={3}
+          justifyContent="space-between"
+          alignItems="flex-start"
+          width="100%"
+        >
+          <TextCaption color="fgMuted">{t("home.inputFormat")}</TextCaption>
+          <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+            {capInputFormat.trim()}
+          </TextBody>
+        </HStack>
+        <HStack
+          gap={3}
+          justifyContent="space-between"
+          alignItems="flex-start"
+          width="100%"
+        >
+          <TextCaption color="fgMuted">{t("home.resultFormat")}</TextCaption>
+          <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+            {capResultFormat.trim()}
+          </TextBody>
+        </HStack>
+        <HStack
+          gap={3}
+          justifyContent="space-between"
+          alignItems="flex-start"
+          width="100%"
+        >
+          <TextCaption color="fgMuted">{t("home.deliveryMode")}</TextCaption>
+          <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+            {activeCapDeliveryTab.id === "direct"
+              ? t("home.deliveryDirect")
+              : activeCapDeliveryTab.id === "protected"
+                ? t("home.deliveryProtected")
+                : t("home.deliveryAsync")}
+          </TextBody>
+        </HStack>
+        <HStack
+          gap={3}
+          justifyContent="space-between"
+          alignItems="flex-start"
+          width="100%"
+        >
+          <TextCaption color="fgMuted">{t("home.receiptMode")}</TextCaption>
+          <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+            {capReceiptMode === "detailed"
+              ? t("home.receiptDetailed")
+              : t("home.receiptStandard")}
+          </TextBody>
+        </HStack>
+        {createdResource &&
+        apiSellType(createdResource) === "capability" &&
+        (createdResource.capabilityOriginHost != null ||
+          createdResource.capabilityOriginTrust != null) ? (
+          <>
+            {typeof createdResource.capabilityOriginHost === "string" &&
+            createdResource.capabilityOriginHost.trim() !== "" ? (
+              <HStack
+                gap={3}
+                justifyContent="space-between"
+                alignItems="flex-start"
+                width="100%"
+              >
+                <TextCaption color="fgMuted">
+                  {t("home.capabilityOriginHost")}
+                </TextCaption>
+                <TextBody
+                  color="fg"
+                  style={{ margin: 0, textAlign: "end", wordBreak: "break-word" }}
+                >
+                  {createdResource.capabilityOriginHost}
+                </TextBody>
+              </HStack>
+            ) : null}
+            {typeof createdResource.capabilityOriginTrust === "string" ? (
+              <HStack
+                gap={3}
+                justifyContent="space-between"
+                alignItems="flex-start"
+                width="100%"
+              >
+                <TextCaption color="fgMuted">
+                  {t("home.capabilityTrustStatus")}
+                </TextCaption>
+                <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+                  {createdResource.capabilityOriginTrust}
+                </TextBody>
+              </HStack>
+            ) : null}
+            {createdResource.capabilityOriginTrust === "blocked" ? (
+              <TextBody color="fgNegative" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+                {t("home.capabilityTrustBlockedHint")}
+              </TextBody>
+            ) : null}
+            {createdResource.capabilityOriginTrust === "unverified" ? (
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+                {t("home.capabilityTrustUnverifiedHint")}
+              </TextBody>
+            ) : null}
+          </>
+        ) : null}
+      </VStack>
+    </Box>
+  ) : null
 
   const homeRailProtectedSettings = (
     <VStack gap={4} alignItems="stretch" width="100%">
@@ -1339,17 +2248,51 @@ export default function Home() {
     </Box>
   )
 
+  const homeSellTypeBlock = (
+    <VStack gap={2} alignItems="stretch" width="100%">
+      <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+        {t("home.sellType")}
+      </TextLabel1>
+      <SegmentedTabs<HomeSellTypeTabId>
+        accessibilityLabel={t("home.sellTypeAccessibility")}
+        activeTab={activeSellTypeTab}
+        onChange={handleSellTypeTabsChange}
+        tabs={sellTypeTabs}
+        alignSelf="flex-start"
+        maxWidth="100%"
+      />
+      <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+        {activeSellTypeTab.id === "resource"
+          ? t("home.resourceChargeBlurb")
+          : t("home.capabilityChargeBlurb")}
+      </TextBody>
+    </VStack>
+  )
+
   const homeSellRailWorkflow = (
     <VStack gap={0} alignItems="stretch" width="100%">
+      {homeSellTypeBlock}
+      {homeSellRule}
       {homeRailAmountHero}
       {homeSellRule}
-      {homeRailPrimaryFields}
+      {activeSellTypeTab.id === "resource"
+        ? homeRailResourceFields
+        : homeRailCapabilityFields}
       {homeSellRule}
-      {homeRailDeliveryBlock}
-      {activeDeliveryTab.id === "protected" ? (
+      {activeSellTypeTab.id === "resource"
+        ? homeRailResourceDeliveryBlock
+        : homeRailCapabilityDeliveryBlock}
+      {activeSellTypeTab.id === "resource" &&
+      activeDeliveryTab.id === "protected" ? (
         <>
           {homeSellRule}
           {homeRailProtectedSettings}
+        </>
+      ) : null}
+      {activeSellTypeTab.id === "capability" && homeCapabilityLiveSummary ? (
+        <>
+          {homeSellRule}
+          {homeCapabilityLiveSummary}
         </>
       ) : null}
     </VStack>
@@ -1370,9 +2313,11 @@ export default function Home() {
       >
         {isCreating
           ? t("home.createLinkQrLoading")
-          : activeDeliveryTab.id === "protected"
-            ? t("home.createProtectedLink")
-            : t("home.createLinkQr")}
+          : activeSellTypeTab.id === "capability"
+            ? t("home.createPaidEndpoint")
+            : activeDeliveryTab.id === "protected"
+              ? t("home.createProtectedLink")
+              : t("home.createLinkQr")}
       </Button>
       {createError ? (
         <Box
@@ -1429,6 +2374,31 @@ export default function Home() {
               minWidth={0}
             >
               <VStack gap={2} alignItems="stretch" width="100%">
+                <HStack
+                  gap={3}
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                  width="100%"
+                  minWidth={0}
+                >
+                  <TextCaption color="fgMuted" as="span" style={{ flexShrink: 0 }}>
+                    {t("home.summarySellType")}
+                  </TextCaption>
+                  <TextBody
+                    as="p"
+                    color="fg"
+                    style={{
+                      margin: 0,
+                      textAlign: "end",
+                      lineHeight: 1.45,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {apiSellType(createdResource) === "capability"
+                      ? t("home.sellTypeCapability")
+                      : t("home.sellTypeResource")}
+                  </TextBody>
+                </HStack>
                 <HStack
                   gap={3}
                   alignItems="flex-start"
@@ -1510,9 +2480,15 @@ export default function Home() {
                       wordBreak: "break-word",
                     }}
                   >
-                    {createdResource.deliveryMode === "protected"
-                      ? t("home.deliveryProtected")
-                      : t("home.deliveryDirect")}
+                    {apiSellType(createdResource) === "capability"
+                      ? createdResource.deliveryMode === "async"
+                        ? t("home.deliveryAsync")
+                        : createdResource.deliveryMode === "protected"
+                          ? t("home.deliveryProtected")
+                          : t("home.deliveryDirect")
+                      : createdResource.deliveryMode === "protected"
+                        ? t("home.deliveryProtected")
+                        : t("home.deliveryDirect")}
                   </TextBody>
                 </HStack>
               </VStack>
@@ -1579,6 +2555,38 @@ export default function Home() {
             </VStack>
           </VStack>
         </Box>
+
+        {apiSellType(createdResource) === "capability" &&
+        typeof createdResource.receiverAddress === "string" &&
+        createdResource.receiverAddress.trim() !== "" ? (
+          <VStack gap={2} alignItems="stretch" width="100%">
+            <CapabilityManagePanel
+              slug={createdResource.slug}
+              receiverAddress={createdResource.receiverAddress}
+              onResourceUpdated={handleCapabilityResourceUpdated}
+            />
+            <Box alignSelf="flex-start">
+              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
+                <RouterLink
+                  to={`/manage/capability/${encodeURIComponent(createdResource.slug)}?receiver=${encodeURIComponent(createdResource.receiverAddress.trim())}`}
+                  style={{ color: "inherit", fontWeight: 600 }}
+                >
+                  {t("home.capabilityOpenFullManage")}
+                </RouterLink>
+                {" — "}
+                {t("home.capabilityOpenFullManageHint")}
+              </TextBody>
+              <TextBody color="fgMuted" as="p" style={{ margin: "8px 0 0", lineHeight: 1.5 }}>
+                <RouterLink
+                  to={`/manage/capabilities?receiver=${encodeURIComponent(createdResource.receiverAddress.trim())}`}
+                  style={{ color: "inherit", fontWeight: 600 }}
+                >
+                  {t("home.capabilityOpenOperationsIndex")}
+                </RouterLink>
+              </TextBody>
+            </Box>
+          </VStack>
+        ) : null}
 
         <Box
           bordered
@@ -1700,130 +2708,154 @@ export default function Home() {
       minWidth={0}
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
-      paddingTop={6}
-      paddingBottom={6}
+      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
     >
-      <Box width="100%" maxWidth={680} minWidth={0}>
-        <VStack gap={6} alignItems="stretch" width="100%">
-          <VStack gap={3} alignItems="stretch" width="100%">
-            <Box
-              as="h1"
-              color="fg"
-              font="headline"
-              style={HOME_HERO_HEADLINE_TEXT_STYLE}
-            >
-              {t("home.why402Heading")}
-            </Box>
-            <TextTitle4 color="fg" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
-              {t("home.why402Tagline")}
-            </TextTitle4>
-          </VStack>
-          <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.6 }}>
+      <VStack alignItems="stretch" width="100%" style={{ gap: 32 }}>
+        <TextTitle3
+          color="fg"
+          as="h2"
+          style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
+        >
+          {t("home.why402Heading")}
+        </TextTitle3>
+        <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
+          <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
+            {t("home.why402Tagline")}
+          </TextTitle3>
+          <TextBody
+            color="fgMuted"
+            as="p"
+            style={{ margin: 0, lineHeight: 1.6 }}
+          >
             {t("home.why402Lead")}
           </TextBody>
-          <VStack
-            as="ul"
-            gap={2}
-            alignItems="stretch"
-            width="100%"
-            margin={0}
-            padding={0}
-            style={{ listStyle: "none" }}
-          >
-            {why402ExampleLines.map((line, i) => (
-              <Box as="li" key={i} style={{ margin: 0 }}>
-                <HStack
-                  gap={3}
-                  alignItems="center"
-                  width="100%"
-                  minWidth={0}
+        </VStack>
+        <Text
+          color="fgMuted"
+          font="label2"
+          as="p"
+          style={{
+            margin: 0,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          {t("home.why402PillarsEyebrow")}
+        </Text>
+        <Box
+          as="ol"
+          display="grid"
+          width="100%"
+          minWidth={0}
+          margin={0}
+          padding={0}
+          style={{
+            listStyle: "none",
+            gap: 16,
+            gridTemplateColumns: isWide
+              ? "repeat(3, minmax(0, 1fr))"
+              : "minmax(0, 1fr)",
+          }}
+        >
+          {why402PillarCards.map((pillar, i) => (
+            <Box
+              as="li"
+              key={`home-why402-pillar-${i}`}
+              borderRadius={400}
+              minWidth={0}
+              padding={{ base: 5, desktop: 6 }}
+              style={{ background: "rgb(var(--gray10))", margin: 0 }}
+            >
+              <VStack gap={2} alignItems="stretch" minWidth={0}>
+                <TextTitle4
+                  color="fg"
+                  as="p"
+                  style={{ margin: 0, lineHeight: 1.4 }}
                 >
-                  <Box
-                    aria-hidden
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                    flexShrink={0}
-                    width={40}
-                    height={40}
-                    borderRadius={1000}
-                    background="bgPrimary"
-                  >
-                    <Icon
-                      name={HOME_WHY402_EXAMPLE_ICONS[i] ?? "circleCheckmark"}
-                      size="s"
-                      color="fgInverse"
-                    />
-                  </Box>
-                  <Box flexGrow={1} minWidth={0}>
-                    <TextBody
-                      color="fgMuted"
-                      as="p"
-                      style={{
-                        margin: 0,
-                        lineHeight: 1.55,
-                        textAlign: "start",
-                      }}
-                    >
-                      {line}
-                    </TextBody>
-                  </Box>
-                </HStack>
-              </Box>
-            ))}
-          </VStack>
-          <VStack gap={2} alignItems="stretch" width="100%">
-            <TextBody color="fg" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
+                  {pillar.title}
+                </TextTitle4>
+                <TextBody
+                  color="fgMuted"
+                  as="p"
+                  style={{ margin: 0, lineHeight: 1.55 }}
+                >
+                  {pillar.body}
+                </TextBody>
+              </VStack>
+            </Box>
+          ))}
+        </Box>
+        <Box
+          width="100%"
+          borderRadius={400}
+          background="bgSecondary"
+          padding={6}
+          minWidth={0}
+        >
+          <VStack gap={3} alignItems="stretch" width="100%" minWidth={0}>
+            <TextBody
+              color="fg"
+              as="p"
+              style={{ margin: 0, lineHeight: 1.55, fontWeight: 600 }}
+            >
               {t("home.why402Built")}
             </TextBody>
-            <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.6 }}>
+            <TextBody
+              color="fgMuted"
+              as="p"
+              style={{ margin: 0, lineHeight: 1.6 }}
+            >
               {t("home.why402Closer")}
             </TextBody>
           </VStack>
-          <VStack gap={5} alignItems="stretch" width="100%">
-            <VStack gap={1} alignItems="stretch" width="100%">
-              <TextTitle3 color="fg" as="h3" style={{ margin: 0 }}>
-                {t("home.why402EverydayTitle")}
-              </TextTitle3>
-              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
-                {t("home.why402EverydayBody")}
-              </TextBody>
-            </VStack>
-            <VStack gap={1} alignItems="stretch" width="100%">
-              <TextTitle3 color="fg" as="h3" style={{ margin: 0 }}>
-                {t("home.why402CreatorTitle")}
-              </TextTitle3>
-              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
-                {t("home.why402CreatorBody")}
-              </TextBody>
-            </VStack>
-            <VStack gap={1} alignItems="stretch" width="100%">
-              <TextTitle3 color="fg" as="h3" style={{ margin: 0 }}>
-                {t("home.why402MachineTitle")}
-              </TextTitle3>
-              <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.55 }}>
-                {t("home.why402MachineBody")}
-              </TextBody>
-            </VStack>
-          </VStack>
-        </VStack>
-      </Box>
+        </Box>
+      </VStack>
     </Box>
   )
 
-  /** Wide: lead → audience carousels → “Why 402”; form + output live in the right column. */
+  const homeBottomCta = (
+    <Box
+      width="100%"
+      minWidth={0}
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
+    >
+      <VStack gap={4} alignItems="flex-start" width="100%" maxWidth={680}>
+        <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
+          {t("home.bottomCtaTitle")}
+        </TextTitle3>
+        <Button
+          variant="primary"
+          type="button"
+          onClick={handleScrollToWorkflow}
+          style={{ borderRadius: "100px" }}
+        >
+          {t("home.bottomCtaButton")}
+        </Button>
+      </VStack>
+    </Box>
+  )
+
+  /** Wide: narrative column (hero → commerce → resources → … → CTA); workflow + QR live in the right column. */
   const leftPaneDesktop = (
     <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
       {homeHeroLead}
       {homeDemoProofBand}
       <HomeHorizontalRule />
+      {homeCommerceSection}
+      <HomeHorizontalRule />
       {homeAudienceCreatorsCarousel}
       <HomeHorizontalRule />
       {homeAudienceSoftwareCarousel}
       <HomeHorizontalRule />
-      {homeAudienceCapabilitiesSection}
+      {homeHowItWorksSection}
+      <HomeHorizontalRule />
+      {homeExampleUseCasesSection}
       <HomeHorizontalRule />
       {homeWhy402}
+      <HomeHorizontalRule />
+      {homeBottomCta}
     </VStack>
   )
 
@@ -1833,6 +2865,8 @@ export default function Home() {
    */
   const rightPane = (
     <Box
+      ref={homeWorkflowRailRef}
+      id="home-workflow-rail"
       display="flex"
       flexDirection="column"
       width="100%"
@@ -1961,17 +2995,23 @@ export default function Home() {
             {homeHeroLead}
             {homeDemoProofBand}
             <HomeHorizontalRule />
+            {homeCommerceSection}
+            <HomeHorizontalRule />
             {homeAudienceCreatorsCarousel}
             <HomeHorizontalRule />
             {homeAudienceSoftwareCarousel}
             <HomeHorizontalRule />
-            {homeAudienceCapabilitiesSection}
+            {homeHowItWorksSection}
+            <HomeHorizontalRule />
+            {homeExampleUseCasesSection}
+            <HomeHorizontalRule />
+            {homeWhy402}
+            <HomeHorizontalRule />
+            {homeBottomCta}
             <HomeHorizontalRule />
             <Box width="100%" paddingBottom={rightWorkflowPadBottom}>
               {rightPane}
             </Box>
-            <HomeHorizontalRule />
-            {homeWhy402}
           </VStack>
         </Box>
       )}

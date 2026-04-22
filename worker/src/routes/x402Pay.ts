@@ -83,6 +83,7 @@ export async function handleX402Pay(
   slug: string,
   url: URL,
   req: Request,
+  executionContext?: ExecutionContext,
 ): Promise<Response> {
   const attemptId = url.searchParams.get('attemptId')?.trim() || null
   const resourceUrl = url.href
@@ -153,6 +154,7 @@ export async function handleX402Pay(
         resource,
         attempt,
         attemptIdInQuery: aid,
+        executionContext,
       })
       logX402PayBranch('verification_succeeded', {
         slug: resource.slug,
@@ -175,6 +177,7 @@ export async function handleX402Pay(
         resource,
         attempt,
         attemptIdInQuery: aid,
+        executionContext,
       })
       logX402PayBranch('verification_succeeded', {
         slug: resource.slug,
@@ -219,7 +222,7 @@ export async function handleX402Pay(
     return paymentRequiredResponse({
       body: {
         ok: false,
-        resource: publicResourceDefinition(resource),
+        resource: publicResourceDefinition(resource, env),
       },
       requirements: wireRequirements({
         amount: resource.amount,
@@ -252,6 +255,7 @@ export async function handleX402Pay(
       resource,
       attempt,
       attemptIdInQuery: attemptId,
+      executionContext,
     })
     logX402PayBranch('verification_succeeded', {
       slug: resource.slug,
@@ -271,7 +275,7 @@ export async function handleX402Pay(
     body: {
       ok: false,
       attemptId: attempt.id,
-      resource: publicResourceDefinition(resource),
+      resource: publicResourceDefinition(resource, env),
     },
     requirements: wireRequirements({
       amount: attempt.amount,

@@ -25,6 +25,7 @@ import {
   TextTitle4,
 } from "@coinbase/cds-web/typography"
 import { createPaymentAttempt, fetchResource, type ApiResource } from "@/lib/api"
+import { capabilityBuyerBlockedMessage } from "@/lib/capabilityBuyerPolicyCopy"
 import { unlockPagePath } from "@/lib/appUrl"
 import {
   buildBaseUsdcEip681Link,
@@ -205,7 +206,20 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         setSlug(null)
         return
       }
-      setResource(data.resource)
+      const r = data.resource
+      const isCap =
+        r.sellType === "capability" || r.sell_type === "capability"
+      const peek = r.capability_buyer_execution
+      if (isCap && peek && peek.allowed === false) {
+        setFlowError(
+          "load",
+          capabilityBuyerBlockedMessage(peek.code, peek.summary, t) ||
+            t("pay.capabilityPolicy.catalogBlocked"),
+        )
+        setResource(null)
+        return
+      }
+      setResource(r)
       setState("loaded")
     } catch {
       setFlowError("load", t("buy.loadFailed"))
@@ -235,7 +249,15 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         })
 
       if (!attemptRes.ok || !attemptData?.ok || !attemptData.attemptId) {
-        throw new Error(attemptData?.error?.trim() || t("buy.payFailed"))
+        throw new Error(
+          capabilityBuyerBlockedMessage(
+            typeof attemptData?.code === "string"
+              ? attemptData.code
+              : undefined,
+            attemptData?.error,
+            t,
+          ) || t("buy.payFailed"),
+        )
       }
 
       const attemptId = attemptData.attemptId
@@ -442,6 +464,13 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
                 ? `${resource.amount} ${resource.currency} • ${resource.network}`
                 : ""}
             </TextBody>
+            {resource &&
+            (resource.sellType === "capability" ||
+              resource.sell_type === "capability") ? (
+              <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+                {t("buy.sellTypeCapabilityHint")}
+              </TextCaption>
+            ) : null}
             {state === "paying" ? (
               <HStack gap={2} alignItems="center">
                 <Box className="buy-flow-spinner" aria-hidden />

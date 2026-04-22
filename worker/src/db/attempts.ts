@@ -65,6 +65,7 @@ export async function createAttempt(
     .run()
 }
 
+/** Payment attempt row — **commercial** truth (paid/expired/…), not async job execution status. */
 export async function getAttemptById(
   db: D1Database,
   id: string,

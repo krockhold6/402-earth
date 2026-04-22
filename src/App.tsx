@@ -16,6 +16,11 @@ import ApiDocs from "./pages/ApiDocs"
 import Buy from "./pages/Buy"
 import Pay from "./pages/Pay"
 import Success from "./pages/Success"
+import BuyerCapabilityOutcomePage from "./pages/BuyerCapabilityOutcomePage"
+import BuyerCapabilityResultPage from "./pages/BuyerCapabilityResultPage"
+import CapabilityJobDetailPage from "./pages/CapabilityJobDetailPage"
+import CapabilityManagePage from "./pages/CapabilityManagePage"
+import CapabilityOperationsPage from "./pages/CapabilityOperationsPage"
 
 /** `/pay/:slug` is a permanent alias; canonical buyer entry is `/unlock/:slug`. */
 function RedirectLegacyPayRouteToUnlock() {
@@ -74,9 +79,29 @@ function App() {
           path="/privacy"
           element={<LegalDocumentPage variant="privacy" />}
         />
+        <Route
+          path="/unlock/:slug/capability/:jobId"
+          element={<BuyerCapabilityResultPage />}
+        />
+        <Route
+          path="/unlock/:slug/outcome/:attemptId"
+          element={<BuyerCapabilityOutcomePage />}
+        />
         <Route path="/unlock/:slug" element={<Pay />} />
         <Route path="/pay/:slug" element={<RedirectLegacyPayRouteToUnlock />} />
         <Route path="/success/:slug" element={<Success />} />
+        <Route
+          path="/manage/capability/:slug/jobs/:jobId"
+          element={<CapabilityJobDetailPage />}
+        />
+        <Route
+          path="/manage/capabilities"
+          element={<CapabilityOperationsPage />}
+        />
+        <Route
+          path="/manage/capability/:slug"
+          element={<CapabilityManagePage />}
+        />
       </Route>
     </Routes>
   )

@@ -41,6 +41,31 @@ export function unlockPagePath(
 }
 
 /**
+ * Buyer capability run & result detail (Phase 9). Public job poll + optional attempt for receipt.
+ */
+export function buyerCapabilityResultPath(
+  slug: string,
+  jobId: string,
+  attemptId?: string | null,
+): string {
+  const base = appBasePath()
+  const path = `${base}/unlock/${encodeURIComponent(slug)}/capability/${encodeURIComponent(jobId)}`
+  const qs =
+    attemptId != null && attemptId !== ""
+      ? `?attemptId=${encodeURIComponent(attemptId)}`
+      : ""
+  return `${path}${qs}`
+}
+
+/**
+ * Phase 10 — unified buyer outcome for any capability delivery mode (keyed by payment attempt).
+ */
+export function buyerCapabilityOutcomePath(slug: string, attemptId: string): string {
+  const base = appBasePath()
+  return `${base}/unlock/${encodeURIComponent(slug)}/outcome/${encodeURIComponent(attemptId)}`
+}
+
+/**
  * Absolute URL to the buyer unlock page (QR, share sheet, deep links).
  * Uses the current page origin so QR/copy always match the SPA the creator is on.
  */

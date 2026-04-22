@@ -95,7 +95,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Resource"
+            "description": "Resource; capabilities may include capability_buyer_execution (Phase 8 policy peek). Buyer UI: async runs also have /unlock/{slug}/capability/{jobId} (Phase 9)."
           },
           "404": {
             "description": "Not found"
@@ -105,7 +105,7 @@
     },
     "/api/payment-attempt": {
       "post": {
-        "summary": "Create a payment attempt for a resource",
+        "summary": "Create a payment attempt for a resource or capability (capabilities: Phase 8 policy/trust precheck may return 403/429/503 with stable code)",
         "operationId": "postPaymentAttempt",
         "requestBody": {
           "required": true,
@@ -137,6 +137,18 @@
         "responses": {
           "200": {
             "description": "Attempt created"
+          },
+          "403": {
+            "description": "Capability gated (e.g. trust, lifecycle)"
+          },
+          "409": {
+            "description": "Capability disabled/archived"
+          },
+          "429": {
+            "description": "Policy: rate limited (cooldown)"
+          },
+          "503": {
+            "description": "Policy: concurrency, caps, or temporary pause"
           }
         }
       }
@@ -185,7 +197,7 @@
         ],
         "responses": {
           "200": {
-            "description": "JSON payment or resource body"
+            "description": "JSON payment or resource body; attemptId anchors commercial/receipt truth. Phase 10 capability_buyer_outcome; Phase 10.5: async jobs also progress via queue (see platform docs)."
           }
         }
       }
@@ -225,6 +237,675 @@
         "responses": {
           "200": {
             "description": "Verification result"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/challenge": {
+      "post": {
+        "summary": "Start wallet-signed seller session (challenge message)",
+        "operationId": "postCapabilitySellerChallenge",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "challenge_id, message, expires_at"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/auth": {
+      "post": {
+        "summary": "Exchange signed challenge for seller JWT",
+        "operationId": "postCapabilitySellerAuth",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet",
+                  "challenge_id",
+                  "signature"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string"
+                  },
+                  "challenge_id": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "token, wallet, expires_in_seconds"
+          },
+          "401": {
+            "description": "Invalid signature"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/allowlist": {
+      "get": {
+        "summary": "List allowlisted hosts for own receiver (Bearer seller JWT)",
+        "operationId": "getSellerCapabilityAllowlist",
+        "parameters": [
+          {
+            "name": "receiverAddress",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "entries"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add allowlisted host (seller-scoped)",
+        "operationId": "postSellerCapabilityAllowlist",
+        "responses": {
+          "200": {
+            "description": "Created"
+          },
+          "409": {
+            "description": "Duplicate"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove allowlisted host (seller-scoped)",
+        "operationId": "deleteSellerCapabilityAllowlist",
+        "responses": {
+          "200": {
+            "description": "Removed"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/analytics/summary": {
+      "get": {
+        "summary": "Per-capability health metrics for all capabilities owned by the signed wallet (seller JWT)",
+        "operationId": "getSellerCapabilityAnalyticsSummary",
+        "responses": {
+          "200": {
+            "description": "capabilities[] with analytics aggregates"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capabilities": {
+      "get": {
+        "summary": "Phase 7 — seller capability index with operational summaries and cross-capability operations_summary (seller JWT)",
+        "operationId": "getSellerCapabilitiesIndex",
+        "responses": {
+          "200": {
+            "description": "operations_summary (Phase 8: policy_blocked counts, auto_pause signals, quick_filters), capabilities[] (health_tier, expanded policy_summary, notification_summary, analytics-derived fields)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}": {
+      "get": {
+        "summary": "Capability detail: analytics, insights, history, notifications, allowlist (seller JWT)",
+        "operationId": "getSellerCapabilityDetail",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "resource, capability_descriptor (Phase 10.5 internal normalized shape), policy_snapshot, analytics, insights, recent_jobs (execution rows keyed by job id; attempt_id inside row is payment anchor), allowlist_entries, recent_notifications"
+          },
+          "403": {
+            "description": "Not owner"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update capability fields, lifecycle, execution policy (cooldown, concurrency, 24h/7d caps, auto-pause, manual pause-until, clear_capability_execution_pause), notification channels (seller JWT)",
+        "operationId": "patchSellerCapability",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated resource"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}/audit": {
+      "get": {
+        "summary": "Audit ledger events for a capability (seller JWT)",
+        "operationId": "getSellerCapabilityAudit",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "events"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}/analytics": {
+      "get": {
+        "summary": "Time-windowed async job analytics, prior-window comparison, notification delivery stats (seller JWT)",
+        "operationId": "getSellerCapabilityWindowAnalytics",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "current, prior_window, trends, notification_delivery; windowed 24h/7d/30d"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}/notifications": {
+      "get": {
+        "summary": "Recent notification delivery rows with optional filters + health summary (seller JWT)",
+        "operationId": "getSellerCapabilityNotifications",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "delivered",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "email",
+                "webhook"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "deliveries[], filters_echo, summary (delivery_health, latest_failed, latest_delivered)"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}/notifications/test": {
+      "post": {
+        "summary": "Send notification_test to configured channels; records deliveries (seller JWT)",
+        "operationId": "postSellerCapabilityNotificationTest",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok, results[] per channel"
+          },
+          "400": {
+            "description": "No channel configured"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}/notifications/{deliveryId}/retry": {
+      "post": {
+        "summary": "Retry a failed delivery when still honest (async_job_* or notification_test) (seller JWT)",
+        "operationId": "postSellerCapabilityNotificationRetry",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deliveryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "new_delivery_id, status, error_message"
+          },
+          "400": {
+            "description": "Not failed or unsupported"
+          },
+          "409": {
+            "description": "Job state changed or channel not configured"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}/jobs": {
+      "get": {
+        "summary": "Phase 7 — paginated async execution history for a seller-owned capability (seller JWT)",
+        "operationId": "getSellerCapabilityJobs",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "failure_class",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "result_retention_state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "result_available",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ]
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "cursor_created_at",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "jobs[], next_cursor, filters_echo"
+          },
+          "403": {
+            "description": "Not owner"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}/jobs/{jobId}": {
+      "get": {
+        "summary": "Phase 7 — seller job drill-down: metadata, retention, audit sample, policy snapshot (seller JWT)",
+        "operationId": "getSellerCapabilityJobDetail",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "job, capability_summary, policy_snapshot, audit_sample"
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        }
+      }
+    },
+    "/api/capability/seller/capability/{slug}/diagnostics": {
+      "get": {
+        "summary": "Phase 7 — failure / trust / policy / retention / notification diagnostics for a window (seller JWT)",
+        "operationId": "getSellerCapabilityDiagnostics",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "failure_class_distribution, job_window_counts, policy_snapshot, policy_audit_counts_window, trust_and_policy_signals, notification_delivery_window, insights"
+          }
+        }
+      }
+    },
+    "/api/capability-job/{jobId}": {
+      "get": {
+        "summary": "Poll async capability job status",
+        "operationId": "getCapabilityJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job execution status (not payment attempt status). attempt_id = payment attempt id. result + buyer blocks derive from normalized result metadata (Phase 10.5); buyer.result_status_code/message (Phase 10)"
+          }
+        }
+      }
+    },
+    "/api/capability-job/{jobId}/result": {
+      "get": {
+        "summary": "Retrieve full async capability result body (D1 inline or R2 when configured)",
+        "operationId": "getCapabilityJobResult",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw result body"
+          },
+          "404": {
+            "description": "Not stored or not available"
+          },
+          "409": {
+            "description": "Job not completed"
+          },
+          "410": {
+            "description": "Result expired or purged"
+          },
+          "503": {
+            "description": "R2 not configured"
+          }
+        }
+      }
+    },
+    "/api/capability-origin-allowlist": {
+      "get": {
+        "summary": "List allowlisted hosts for a receiver (requires CAPABILITY_MANAGEMENT_SECRET)",
+        "operationId": "getCapabilityOriginAllowlist",
+        "parameters": [
+          {
+            "name": "receiverAddress",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Allowlist entries"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "503": {
+            "description": "Management not configured"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add allowlisted host (operator)",
+        "operationId": "postCapabilityOriginAllowlist",
+        "responses": {
+          "200": {
+            "description": "Created"
+          },
+          "409": {
+            "description": "Duplicate"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove allowlisted host (operator)",
+        "operationId": "deleteCapabilityOriginAllowlist",
+        "responses": {
+          "200": {
+            "description": "Removed"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/capability-ops/summary": {
+      "get": {
+        "summary": "Operational metrics for capability async jobs (requires CAPABILITY_MANAGEMENT_SECRET)",
+        "operationId": "getCapabilityOpsSummary",
+        "responses": {
+          "200": {
+            "description": "Aggregated job stats"
+          }
+        }
+      }
+    },
+    "/api/capability-proxy": {
+      "get": {
+        "summary": "Protected capability execution proxy",
+        "operationId": "getCapabilityProxy",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attemptId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proxied JSON body"
           }
         }
       }

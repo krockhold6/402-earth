@@ -31,7 +31,7 @@ export function withCors(req: Request, res: Response): Response {
   headers.set('access-control-allow-methods', 'GET, POST, OPTIONS')
   headers.set(
     'access-control-allow-headers',
-    'content-type, x-402-client, payment-signature, payment-required',
+    'content-type, authorization, x-402-client, payment-signature, payment-required',
   )
   return new Response(res.body, {
     status: res.status,

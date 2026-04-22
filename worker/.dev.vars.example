@@ -1,3 +1,6 @@
 # Copy to `.dev.vars` for `wrangler dev` (not committed).
 # Enables mock x402 verification on POST /x402/verify.
 X402_MOCK_VERIFY=true
+
+# Phase 4 — seller JWT for /api/capability/seller/* (use a long random secret locally).
+# CAPABILITY_SELLER_JWT_SECRET=

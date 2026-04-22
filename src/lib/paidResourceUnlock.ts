@@ -3,8 +3,17 @@
  * `window.open` after async payment).
  */
 
+function capabilityJsonKind(value: unknown): string | null {
+  if (value === null || typeof value !== "object") return null
+  const kind = (value as Record<string, unknown>).kind
+  return typeof kind === "string" ? kind : null
+}
+
 export function resolvePaidNavigateUrl(type: string, value: unknown): string | null {
   const k = type.toLowerCase()
+  if (k === "json" && capabilityJsonKind(value)?.startsWith("capability_")) {
+    return null
+  }
   if (k === "link" && typeof value === "string") {
     const s = value.trim()
     return /^https?:\/\//i.test(s) ? s : null

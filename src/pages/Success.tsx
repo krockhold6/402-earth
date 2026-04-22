@@ -10,12 +10,18 @@ import {
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
 import { TextBody, TextCaption, TextTitle3 } from "@coinbase/cds-web/typography"
 import {
+  fetchCapabilityJob,
   fetchPaidX402Resource,
   fetchPaymentAttempt,
+  type CapabilityJobPollResponse,
   type PaymentAttemptPayload,
   type PaymentAttemptStatus,
 } from "@/lib/api"
-import { unlockPagePath } from "@/lib/appUrl"
+import {
+  buyerCapabilityOutcomePath,
+  buyerCapabilityResultPath,
+  unlockPagePath,
+} from "@/lib/appUrl"
 import {
   openPaidResource,
   resolvePaidNavigateUrl,
@@ -115,6 +121,39 @@ function statusPillLabel(status: string, t: TFunction): string {
   return status.replace(/_/g, " ")
 }
 
+function readJsonRecord(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return null
+  }
+  return value as Record<string, unknown>
+}
+
+function retentionStateLabel(state: string | undefined, t: TFunction): string {
+  const s = state?.trim().toLowerCase() ?? ""
+  switch (s) {
+    case "available":
+      return t("success.retention.available")
+    case "expired":
+      return t("success.retention.expired")
+    case "deleted":
+      return t("success.retention.deleted")
+    case "preview_only":
+      return t("success.retention.previewOnly")
+    case "not_stored":
+      return t("success.retention.notStored")
+    default:
+      return s !== "" ? state ?? "—" : "—"
+  }
+}
+
+function readCapabilityProxyUrl(value: unknown): string | null {
+  const o = readJsonRecord(value)
+  const u = o?.proxy_url
+  return typeof u === "string" && /^https?:\/\//i.test(u.trim())
+    ? u.trim()
+    : null
+}
+
 function NavButtons({ payHref }: { payHref: string }) {
   const { t } = useTranslation()
   return (
@@ -151,8 +190,16 @@ export default function Success() {
     type: string
     value: unknown
   } | null>(null)
+  const [capabilityReceipt, setCapabilityReceipt] = useState<Record<
+    string,
+    unknown
+  > | null>(null)
   const [paidPayloadLoading, setPaidPayloadLoading] = useState(false)
   const [paidPayloadError, setPaidPayloadError] = useState<string | null>(null)
+  const [asyncJobPoll, setAsyncJobPoll] =
+    useState<CapabilityJobPollResponse | null>(null)
+  const [showCapabilityTechnical, setShowCapabilityTechnical] =
+    useState(false)
 
   useEffect(() => {
     if (!attemptId) return
@@ -202,6 +249,7 @@ export default function Success() {
   useEffect(() => {
     if (!attemptId || !attempt || attempt.status !== "paid") {
       setPaidPayload(null)
+      setCapabilityReceipt(null)
       setPaidPayloadError(null)
       setPaidPayloadLoading(false)
       return
@@ -209,6 +257,7 @@ export default function Success() {
 
     let cancelled = false
     setPaidPayload(null)
+    setCapabilityReceipt(null)
     setPaidPayloadError(null)
     setPaidPayloadLoading(true)
 
@@ -227,9 +276,17 @@ export default function Success() {
           type: data.resource.type,
           value: data.resource.value,
         })
+        setCapabilityReceipt(
+          data.capabilityReceipt &&
+            typeof data.capabilityReceipt === "object" &&
+            !Array.isArray(data.capabilityReceipt)
+            ? (data.capabilityReceipt as Record<string, unknown>)
+            : null,
+        )
         return
       }
       setPaidPayload(null)
+      setCapabilityReceipt(null)
       setPaidPayloadError(
         data?.error?.trim() ||
           t("success.loadPaidResourceFailed", { status: response.status }),
@@ -241,10 +298,64 @@ export default function Success() {
     }
   }, [attemptId, attempt, t])
 
+  const asyncJobId = useMemo(() => {
+    if (!paidPayload || paidPayload.type.toLowerCase() !== "json") {
+      return null
+    }
+    const v = readJsonRecord(paidPayload.value)
+    const id = v?.async_job_id
+    return typeof id === "string" && id.trim() !== "" ? id.trim() : null
+  }, [paidPayload])
+
+  const capabilityResultHref = useMemo(() => {
+    if (!asyncJobId || !attempt?.slug) return null
+    return buyerCapabilityResultPath(attempt.slug, asyncJobId, attemptId)
+  }, [asyncJobId, attempt?.slug, attemptId])
+
+  useEffect(() => {
+    if (!asyncJobId) {
+      setAsyncJobPoll(null)
+      return
+    }
+    let cancelled = false
+    let timer: number | undefined
+    const tick = async () => {
+      const j = await fetchCapabilityJob(asyncJobId)
+      if (cancelled) return
+      setAsyncJobPoll(j)
+      const st = j.status
+      if (st === "completed" || st === "failed") {
+        if (timer !== undefined) {
+          window.clearInterval(timer)
+          timer = undefined
+        }
+      }
+    }
+    timer = window.setInterval(tick, POLL_MS)
+    void tick()
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearInterval(timer)
+    }
+  }, [asyncJobId])
+
   const successNavigableUrl = useMemo(() => {
     if (!paidPayload) return null
     return resolvePaidNavigateUrl(paidPayload.type, paidPayload.value)
   }, [paidPayload])
+
+  const paidCapabilityKind = useMemo(() => {
+    if (!paidPayload || paidPayload.type.toLowerCase() !== "json") return null
+    const v = paidPayload.value
+    if (v === null || typeof v !== "object") return null
+    const k = (v as Record<string, unknown>).kind
+    return typeof k === "string" && k.startsWith("capability_") ? k : null
+  }, [paidPayload])
+
+  const capabilityOutcomeHref = useMemo(() => {
+    if (!attempt?.slug || !attemptId || !paidCapabilityKind) return null
+    return buyerCapabilityOutcomePath(attempt.slug, attemptId)
+  }, [attempt?.slug, attemptId, paidCapabilityKind])
 
   const successPaidDisplayJson = useMemo(() => {
     if (!paidPayload) return ""
@@ -437,59 +548,519 @@ export default function Success() {
                       ) : null}
                       {paidPayload && !paidPayloadLoading ? (
                         <VStack gap={2} alignItems="stretch">
-                          {successNavigableUrl ? (
+                          {paidCapabilityKind ? (
                             <>
+                              <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
+                                {paidCapabilityKind === "capability_async"
+                                  ? t("success.capability.headlineAsync")
+                                  : paidCapabilityKind === "capability_protected"
+                                    ? t("success.capability.headlineProtected")
+                                    : t("success.capability.headlineDirect")}
+                              </TextTitle3>
                               <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
-                                {t("buy.openingResource")}
+                                {paidCapabilityKind === "capability_async"
+                                  ? t("success.capability.subtitleAsync")
+                                  : paidCapabilityKind === "capability_protected"
+                                    ? t("success.capability.subtitleProtected")
+                                    : t("success.capability.subtitleDirect")}
                               </TextBody>
+
+                              {capabilityReceipt ? (
+                                <Box
+                                  bordered
+                                  borderRadius={400}
+                                  background="bgSecondary"
+                                  padding={3}
+                                >
+                                  <VStack gap={2} alignItems="stretch">
+                                    <TextCaption
+                                      color="fgMuted"
+                                      style={{ margin: 0 }}
+                                    >
+                                      {t("success.capability.receiptSection")}
+                                    </TextCaption>
+                                    {typeof capabilityReceipt.capability_name ===
+                                    "string" ? (
+                                      <DetailRow
+                                        label={t("success.capability.receiptName")}
+                                        value={capabilityReceipt.capability_name}
+                                      />
+                                    ) : null}
+                                    {typeof capabilityReceipt.execution_status ===
+                                    "string" ? (
+                                      <DetailRow
+                                        label={t("success.capability.receiptExecution")}
+                                        value={capabilityReceipt.execution_status}
+                                      />
+                                    ) : null}
+                                    {typeof capabilityReceipt.delivery_mode ===
+                                    "string" ? (
+                                      <DetailRow
+                                        label={t("success.capability.receiptDelivery")}
+                                        value={capabilityReceipt.delivery_mode}
+                                      />
+                                    ) : null}
+                                    {typeof capabilityReceipt.origin_trust_status ===
+                                    "string" ? (
+                                      <DetailRow
+                                        label={t("success.capability.receiptTrust")}
+                                        value={capabilityReceipt.origin_trust_status}
+                                      />
+                                    ) : null}
+                                  </VStack>
+                                </Box>
+                              ) : null}
+
+                              {capabilityOutcomeHref ? (
+                                <VStack gap={2} alignItems="stretch">
+                                  <TextCaption
+                                    color="fgMuted"
+                                    as="p"
+                                    style={{ margin: 0, lineHeight: 1.5 }}
+                                  >
+                                    {t("success.capability.unifiedOutcomeHint")}
+                                  </TextCaption>
+                                  <Button
+                                    as={Link}
+                                    to={capabilityOutcomeHref}
+                                    variant="primary"
+                                    block
+                                    height="auto"
+                                    minHeight={44}
+                                  >
+                                    {t("success.capability.openUnifiedOutcome")}
+                                  </Button>
+                                </VStack>
+                              ) : null}
+
+                              {paidCapabilityKind === "capability_protected" &&
+                              readCapabilityProxyUrl(paidPayload.value) ? (
+                                <Button
+                                  as="a"
+                                  href={readCapabilityProxyUrl(paidPayload.value)!}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  variant="primary"
+                                  block
+                                  height="auto"
+                                  minHeight={44}
+                                >
+                                  {t("success.capability.proxyCta")}
+                                </Button>
+                              ) : null}
+
+                              {paidCapabilityKind === "capability_direct" ? (
+                                (() => {
+                                  const capVal = readJsonRecord(paidPayload.value)
+                                  const execRaw = capVal?.execution
+                                  const exec =
+                                    execRaw &&
+                                    typeof execRaw === "object" &&
+                                    !Array.isArray(execRaw)
+                                      ? (execRaw as Record<string, unknown>)
+                                      : null
+                                  if (!exec) return null
+                                  const httpStatus = exec.http_status
+                                  const fetchErr = exec.fetch_error
+                                  const body =
+                                    typeof exec.body === "string"
+                                      ? exec.body
+                                      : null
+                                  const preview =
+                                    typeof exec.body_preview === "string"
+                                      ? exec.body_preview
+                                      : null
+                                  return (
+                                    <Box
+                                      bordered
+                                      borderRadius={400}
+                                      background="bgSecondary"
+                                      padding={3}
+                                    >
+                                      <VStack gap={2} alignItems="stretch">
+                                        <TextCaption
+                                          color="fgMuted"
+                                          style={{ margin: 0 }}
+                                        >
+                                          {t("success.capability.directResult")}
+                                        </TextCaption>
+                                        {typeof httpStatus === "number" ? (
+                                          <DetailRow
+                                            label={t(
+                                              "success.capability.httpStatus",
+                                            )}
+                                            value={String(httpStatus)}
+                                          />
+                                        ) : null}
+                                        {fetchErr != null &&
+                                        String(fetchErr).trim() !== "" ? (
+                                          <DetailRow
+                                            label={t(
+                                              "success.capability.fetchError",
+                                            )}
+                                            value={String(fetchErr)}
+                                          />
+                                        ) : null}
+                                        {body != null && body.length > 0 ? (
+                                          <Box
+                                            as="pre"
+                                            style={{
+                                              margin: 0,
+                                              whiteSpace: "pre-wrap",
+                                              wordBreak: "break-word",
+                                              fontSize: 13,
+                                              lineHeight: 1.45,
+                                              fontFamily:
+                                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                            }}
+                                          >
+                                            {body.length > 4000
+                                              ? `${body.slice(0, 4000)}…`
+                                              : body}
+                                          </Box>
+                                        ) : null}
+                                        {preview != null && preview.length > 0 ? (
+                                          <Box
+                                            as="pre"
+                                            style={{
+                                              margin: 0,
+                                              whiteSpace: "pre-wrap",
+                                              wordBreak: "break-word",
+                                              fontSize: 13,
+                                              lineHeight: 1.45,
+                                              fontFamily:
+                                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                            }}
+                                          >
+                                            {preview}
+                                          </Box>
+                                        ) : null}
+                                      </VStack>
+                                    </Box>
+                                  )
+                                })()
+                              ) : null}
+
+                              {paidCapabilityKind === "capability_async" &&
+                              asyncJobId ? (
+                                <Box
+                                  bordered
+                                  borderRadius={400}
+                                  background="bgWarningWash"
+                                  padding={3}
+                                >
+                                  <VStack gap={2} alignItems="stretch">
+                                    {asyncJobPoll?.capability?.capability_name ||
+                                    asyncJobPoll?.capability?.slug ? (
+                                      <DetailRow
+                                        label={t("success.capability.purchasedLabel")}
+                                        value={
+                                          asyncJobPoll?.capability?.capability_name?.trim() ||
+                                          asyncJobPoll?.capability?.slug ||
+                                          ""
+                                        }
+                                      />
+                                    ) : null}
+                                    {typeof asyncJobPoll?.capability?.delivery_mode ===
+                                    "string" ? (
+                                      <DetailRow
+                                        label={t("success.capability.deliveryModeLabel")}
+                                        value={asyncJobPoll.capability.delivery_mode}
+                                      />
+                                    ) : null}
+                                    <TextBody color="fg" as="p" style={{ margin: 0 }}>
+                                      {t("success.capability.asyncExplain")}
+                                    </TextBody>
+                                    {capabilityResultHref ? (
+                                      <>
+                                        <TextCaption
+                                          color="fgMuted"
+                                          as="p"
+                                          style={{ margin: 0, lineHeight: 1.5 }}
+                                        >
+                                          {t("success.capability.resultPageHint")}
+                                        </TextCaption>
+                                        <Button
+                                          as={Link}
+                                          to={capabilityResultHref}
+                                          variant="secondary"
+                                          block
+                                          height="auto"
+                                          minHeight={44}
+                                        >
+                                          {t("success.capability.openResultPage")}
+                                        </Button>
+                                      </>
+                                    ) : null}
+                                    <DetailRow
+                                      label={t("success.capability.jobId")}
+                                      value={asyncJobId}
+                                    />
+                                    <DetailRow
+                                      label={t("success.capability.jobStatus")}
+                                      value={
+                                        asyncJobPoll?.ok &&
+                                        typeof asyncJobPoll.status === "string"
+                                          ? asyncJobPoll.status
+                                          : "…"
+                                      }
+                                    />
+                                    {typeof asyncJobPoll?.buyer?.result_lifecycle ===
+                                    "string" ? (
+                                      <DetailRow
+                                        label={t("success.capability.outcomeLabel")}
+                                        value={t(
+                                          `capabilityResult.lifecycle.${asyncJobPoll.buyer.result_lifecycle}`,
+                                          {
+                                            defaultValue:
+                                              asyncJobPoll.buyer.result_lifecycle,
+                                          },
+                                        )}
+                                      />
+                                    ) : null}
+                                    {typeof asyncJobPoll?.max_attempts ===
+                                      "number" ? (
+                                      <DetailRow
+                                        label={t("success.capability.attemptsLabel")}
+                                        value={`${asyncJobPoll.attempt_count ?? 0} / ${asyncJobPoll.max_attempts}`}
+                                      />
+                                    ) : null}
+                                    {asyncJobPoll?.will_retry ? (
+                                      <TextCaption color="fgMuted" style={{ margin: 0 }}>
+                                        {t("success.capability.retryScheduled")}
+                                        {typeof asyncJobPoll.next_retry_at ===
+                                          "string" &&
+                                        asyncJobPoll.next_retry_at.trim() !== ""
+                                          ? ` (${formatTs(asyncJobPoll.next_retry_at)})`
+                                          : ""}
+                                      </TextCaption>
+                                    ) : null}
+                                    {typeof asyncJobPoll?.result?.retention_state ===
+                                    "string" ? (
+                                      <DetailRow
+                                        label={t("success.capability.retentionStateLabel")}
+                                        value={retentionStateLabel(
+                                          asyncJobPoll.result.retention_state,
+                                          t,
+                                        )}
+                                      />
+                                    ) : null}
+                                    {asyncJobPoll?.status === "failed" ? (
+                                      <TextBody
+                                        color="fgNegative"
+                                        as="p"
+                                        style={{ margin: 0 }}
+                                      >
+                                        {typeof asyncJobPoll.last_error_summary ===
+                                          "string" &&
+                                        asyncJobPoll.last_error_summary.trim() !==
+                                          ""
+                                          ? asyncJobPoll.last_error_summary
+                                          : t("success.capability.jobFailedGeneric")}
+                                      </TextBody>
+                                    ) : null}
+                                    {asyncJobPoll?.status === "completed" &&
+                                    asyncJobPoll.result?.retention_state === "expired" ? (
+                                      <TextBody color="fgNegative" as="p" style={{ margin: 0 }}>
+                                        {t("success.capability.resultExpired")}
+                                      </TextBody>
+                                    ) : null}
+                                    {asyncJobPoll?.status === "completed" &&
+                                    asyncJobPoll.result?.retention_state === "deleted" ? (
+                                      <TextBody color="fgNegative" as="p" style={{ margin: 0 }}>
+                                        {t("success.capability.resultDeleted")}
+                                      </TextBody>
+                                    ) : null}
+                                    {asyncJobPoll?.status === "completed" &&
+                                    typeof asyncJobPoll.result_preview ===
+                                      "string" &&
+                                    asyncJobPoll.result_preview.trim() !== "" ? (
+                                      <Box
+                                        as="pre"
+                                        style={{
+                                          margin: 0,
+                                          whiteSpace: "pre-wrap",
+                                          wordBreak: "break-word",
+                                          fontSize: 13,
+                                          lineHeight: 1.45,
+                                          fontFamily:
+                                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                        }}
+                                      >
+                                        {asyncJobPoll.result_preview}
+                                      </Box>
+                                    ) : null}
+                                    {(() => {
+                                      const lc =
+                                        asyncJobPoll?.buyer?.result_lifecycle
+                                      const can =
+                                        lc === "result_available" ||
+                                        (!lc &&
+                                          asyncJobPoll?.status === "completed" &&
+                                          asyncJobPoll.result
+                                            ?.full_result_available &&
+                                          typeof asyncJobPoll.result
+                                            .retrieval_url === "string" &&
+                                          asyncJobPoll.result.retrieval_url.trim() !==
+                                            "")
+                                      const href =
+                                        asyncJobPoll?.buyer?.retrieval_url ??
+                                        asyncJobPoll?.result?.retrieval_url
+                                      if (
+                                        !can ||
+                                        typeof href !== "string" ||
+                                        href.trim() === ""
+                                      ) {
+                                        return null
+                                      }
+                                      return (
+                                        <Button
+                                          as="a"
+                                          href={href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          variant="secondary"
+                                          block
+                                          height="auto"
+                                          minHeight={44}
+                                        >
+                                          {t("success.capability.retrievalCta")}
+                                        </Button>
+                                      )
+                                    })()}
+                                    {asyncJobPoll?.status === "completed" &&
+                                    asyncJobPoll.result?.preview_available &&
+                                    !asyncJobPoll.result?.full_result_available ? (
+                                      <TextCaption color="fgMuted" style={{ margin: 0 }}>
+                                        {t("success.capability.previewOnlyLarge")}
+                                      </TextCaption>
+                                    ) : null}
+                                    <TextCaption color="fgMuted" style={{ margin: 0 }}>
+                                      {t("success.capability.pollHint")}
+                                    </TextCaption>
+                                  </VStack>
+                                </Box>
+                              ) : null}
+
+                              {showCapabilityTechnical ? (
+                                <Box
+                                  as="pre"
+                                  bordered
+                                  borderRadius={300}
+                                  background="bgSecondary"
+                                  padding={3}
+                                  style={{
+                                    margin: 0,
+                                    overflow: "auto",
+                                    maxHeight: 220,
+                                    fontSize: 12,
+                                    lineHeight: 1.45,
+                                    fontFamily:
+                                      "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                  }}
+                                >
+                                  {successPaidDisplayJson}
+                                </Box>
+                              ) : (
+                                <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+                                  {t("success.capability.technicalHidden")}
+                                </TextCaption>
+                              )}
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() =>
+                                  setShowCapabilityTechnical((v) => !v)
+                                }
+                                block
+                                height="auto"
+                                minHeight={44}
+                              >
+                                {showCapabilityTechnical
+                                  ? t("success.capability.hideTechnical")
+                                  : t("success.capability.showTechnical")}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() =>
+                                  openPaidResource(
+                                    paidPayload.type,
+                                    paidPayload.value,
+                                  )
+                                }
+                                block
+                                height="auto"
+                                minHeight={44}
+                              >
+                                {t("success.capability.openTechnical")}
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              {successNavigableUrl ? (
+                                <>
+                                  <TextBody
+                                    color="fgMuted"
+                                    as="p"
+                                    style={{ margin: 0 }}
+                                  >
+                                    {t("buy.openingResource")}
+                                  </TextBody>
+                                  <TextCaption
+                                    color="fgMuted"
+                                    as="p"
+                                    style={{ margin: 0, wordBreak: "break-word" }}
+                                  >
+                                    {successNavigableUrl}
+                                  </TextCaption>
+                                </>
+                              ) : (
+                                <Box
+                                  as="pre"
+                                  bordered
+                                  borderRadius={300}
+                                  background="bgSecondary"
+                                  padding={3}
+                                  style={{
+                                    margin: 0,
+                                    overflow: "auto",
+                                    maxHeight: 280,
+                                    fontSize: 13,
+                                    lineHeight: 1.45,
+                                    fontFamily:
+                                      "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                  }}
+                                >
+                                  {successPaidDisplayJson}
+                                </Box>
+                              )}
+                              <Button
+                                type="button"
+                                variant="primary"
+                                onClick={() =>
+                                  openPaidResource(
+                                    paidPayload.type,
+                                    paidPayload.value,
+                                  )
+                                }
+                                block
+                                height="auto"
+                                minHeight={44}
+                              >
+                                {t("buy.openResource")}
+                              </Button>
                               <TextCaption
                                 color="fgMuted"
                                 as="p"
-                                style={{ margin: 0, wordBreak: "break-word" }}
+                                style={{ margin: 0 }}
                               >
-                                {successNavigableUrl}
+                                {successNavigableUrl
+                                  ? t("buy.unlockedSubNavHint")
+                                  : t("buy.unlockedSub")}
                               </TextCaption>
                             </>
-                          ) : (
-                            <Box
-                              as="pre"
-                              bordered
-                              borderRadius={300}
-                              background="bgSecondary"
-                              padding={3}
-                              style={{
-                                margin: 0,
-                                overflow: "auto",
-                                maxHeight: 280,
-                                fontSize: 13,
-                                lineHeight: 1.45,
-                                fontFamily:
-                                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                              }}
-                            >
-                              {successPaidDisplayJson}
-                            </Box>
                           )}
-                          <Button
-                            type="button"
-                            variant="primary"
-                            onClick={() =>
-                              openPaidResource(
-                                paidPayload.type,
-                                paidPayload.value,
-                              )
-                            }
-                            block
-                            height="auto"
-                            minHeight={44}
-                          >
-                            {t("buy.openResource")}
-                          </Button>
-                          <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
-                            {successNavigableUrl
-                              ? t("buy.unlockedSubNavHint")
-                              : t("buy.unlockedSub")}
-                          </TextCaption>
                         </VStack>
                       ) : null}
                     </VStack>

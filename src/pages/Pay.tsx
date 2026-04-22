@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Trans, useTranslation } from "react-i18next"
-import { useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
@@ -18,12 +18,18 @@ import {
   formatUsdcAmountDisplay,
   isZeroUsdcAmount,
 } from "@/lib/baseUsdcPayLink"
+import { capabilityBuyerBlockedMessage } from "@/lib/capabilityBuyerPolicyCopy"
 import {
   DesktopPayError,
   hasInjectedWalletProvider,
   sendBaseUsdcTransferFromBrowser,
 } from "@/lib/desktopUsdcPay"
-import { unlockPagePath } from "@/lib/appUrl"
+import {
+  buyerCapabilityOutcomePath,
+  buyerCapabilityResultPath,
+  unlockPagePath,
+} from "@/lib/appUrl"
+import { readCapabilityAsyncJobId } from "@/lib/capabilityPaidPayload"
 import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
 import {
   openPaidResource,
@@ -164,7 +170,19 @@ export default function Pay() {
         setLoadError(data.error || t("pay.resourceNotFound"))
         return
       }
-      setResource(data.resource)
+      const res = data.resource
+      const isCap =
+        res.sellType === "capability" || res.sell_type === "capability"
+      const peek = res.capability_buyer_execution
+      if (isCap && peek && peek.allowed === false) {
+        setResource(res)
+        setLoadError(
+          capabilityBuyerBlockedMessage(peek.code, peek.summary, t) ||
+            t("pay.capabilityPolicy.catalogBlocked"),
+        )
+        return
+      }
+      setResource(res)
       setLoadError(null)
     } catch {
       setResource(null)
@@ -264,7 +282,13 @@ export default function Pay() {
       if (cancelled) return
       if (!attemptRes.ok || !attemptData?.ok || !attemptData.attemptId) {
         setSessionError(
-          attemptData?.error?.trim() || t("pay.createAttemptFailed"),
+          capabilityBuyerBlockedMessage(
+            typeof attemptData?.code === "string"
+              ? attemptData.code
+              : undefined,
+            attemptData?.error,
+            t,
+          ) || t("pay.createAttemptFailed"),
         )
         setSessionStarting(false)
         return
@@ -382,7 +406,12 @@ export default function Pay() {
       }
       setPaidPayload(null)
       setPaidPayloadError(
-        data?.error?.trim() ||
+        capabilityBuyerBlockedMessage(
+          typeof data?.code === "string" ? data.code : undefined,
+          data?.error,
+          t,
+        ) ||
+          data?.error?.trim() ||
           t("pay.session.loadDeliveryFailed", { status: response.status }),
       )
     })()
@@ -403,6 +432,32 @@ export default function Pay() {
     if (!paidPayload) return null
     return resolvePaidNavigateUrl(paidPayload.type, paidPayload.value)
   }, [paidPayload])
+
+  const asyncCapabilityJobId = useMemo(() => {
+    if (!paidPayload || paidPayload.type.toLowerCase() !== "json") return null
+    return readCapabilityAsyncJobId(paidPayload.value)
+  }, [paidPayload])
+
+  const asyncCapabilityResultHref = useMemo(() => {
+    if (!slug || !asyncCapabilityJobId || !attemptIdFromUrl) return null
+    return buyerCapabilityResultPath(
+      slug,
+      asyncCapabilityJobId,
+      attemptIdFromUrl,
+    )
+  }, [slug, asyncCapabilityJobId, attemptIdFromUrl])
+
+  const isCapabilityResource = useMemo(() => {
+    if (!resource) return false
+    return (
+      resource.sellType === "capability" || resource.sell_type === "capability"
+    )
+  }, [resource])
+
+  const capabilityOutcomeHref = useMemo(() => {
+    if (!slug || !attemptIdFromUrl || !isCapabilityResource) return null
+    return buyerCapabilityOutcomePath(slug, attemptIdFromUrl)
+  }, [slug, attemptIdFromUrl, isCapabilityResource])
 
   const copyDeliveryUrl = useCallback(async () => {
     if (!deliveryUrl) return
@@ -1553,8 +1608,52 @@ export default function Pay() {
                     maxWidth="26rem"
                     alignSelf="center"
                   >
-                    <Button variant="primary" onClick={handleOpenResource} block>
-                      {t("pay.session.openResource")}
+                    {capabilityOutcomeHref ? (
+                      <VStack gap={1} alignItems="stretch" width="100%">
+                        <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+                          {t("pay.capabilityOutcome.subtitle")}
+                        </TextCaption>
+                        <Button
+                          as={Link}
+                          to={capabilityOutcomeHref}
+                          variant="primary"
+                          block
+                          height="auto"
+                          minHeight={44}
+                        >
+                          {t("pay.capabilityOutcome.primaryCta")}
+                        </Button>
+                      </VStack>
+                    ) : null}
+                    {asyncCapabilityResultHref ? (
+                      <VStack gap={1} alignItems="stretch" width="100%">
+                        <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+                          {t("pay.capabilityResult.subtitle")}
+                        </TextCaption>
+                        <Button
+                          as={Link}
+                          to={asyncCapabilityResultHref}
+                          variant="secondary"
+                          block
+                          height="auto"
+                          minHeight={44}
+                        >
+                          {t("pay.capabilityResult.primaryCta")}
+                        </Button>
+                      </VStack>
+                    ) : null}
+                    <Button
+                      variant={
+                        capabilityOutcomeHref || asyncCapabilityResultHref
+                          ? "secondary"
+                          : "primary"
+                      }
+                      onClick={handleOpenResource}
+                      block
+                    >
+                      {capabilityOutcomeHref || asyncCapabilityResultHref
+                        ? t("pay.session.openTechnicalPayload")
+                        : t("pay.session.openResource")}
                     </Button>
                     {deliveryUrl ? (
                       <VStack gap={2} alignItems="stretch">

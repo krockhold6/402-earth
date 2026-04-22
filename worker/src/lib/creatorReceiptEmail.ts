@@ -4,6 +4,11 @@ import type { Env } from '../types/env'
 import type { ResourceDefinition } from '../types/resource'
 
 function deliverySummary(resource: ResourceDefinition): string {
+  if (resource.sellType === 'capability') {
+    if (resource.deliveryMode === 'async') return 'Async execution'
+    if (resource.deliveryMode === 'protected') return 'Protected execution'
+    return 'Direct execution'
+  }
   if (resource.deliveryMode === 'protected') {
     return 'Protected link'
   }

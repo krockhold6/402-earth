@@ -13,6 +13,26 @@ database_name = "402-earth-payments"
 database_id = "91f00944-0193-4412-9df8-f5c00b150d19"
 migrations_dir = "migrations"
 
+[[r2_buckets]]
+binding = "CAPABILITY_RESULTS"
+bucket_name = "402-earth-capability-results"
+preview_bucket_name = "402-earth-capability-results-preview"
+
+# Phase 10.5 — queue-first async capability execution (see CAPABILITY_PLATFORM.md).
+[[queues.producers]]
+binding = "CAPABILITY_ASYNC"
+queue = "402-earth-capability-async"
+
+[[queues.consumers]]
+queue = "402-earth-capability-async"
+max_batch_size = 16
+max_batch_timeout = 1
+
 [[routes]]
 pattern = "api.402.earth/*"
 zone_name = "402.earth"
+
+# Phase 10.5: cron is **secondary** — stale recovery, retention cleanup, enqueue/fallback for eligible
+# async jobs. Primary execution is `CAPABILITY_ASYNC` queue + optional waitUntil accelerator.
+[triggers]
+crons = ["* * * * *"]
