@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@coinbase/cds-web/buttons"
 import { TextInput } from "@coinbase/cds-web/controls"
+import { Icon } from "@coinbase/cds-web/icons"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import {
   ContentCard,
@@ -318,12 +319,19 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         <Button
           type="button"
           variant="secondary"
-          startIcon="scanQrCode"
           onClick={() => qrFileInputRef.current?.click()}
           disabled={state === "loading"}
           block
         >
-          {t("buy.scanQrWithCamera")}
+          <HStack
+            gap={2}
+            alignItems="center"
+            justifyContent="center"
+            width="100%"
+          >
+            <Icon name="scanQrCode" size="m" color="fg" />
+            {t("buy.scanQrWithCamera")}
+          </HStack>
         </Button>
         {qrScanError ? (
           <TextCaption color="fgNegative" as="p" style={{ margin: 0 }}>

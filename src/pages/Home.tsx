@@ -59,10 +59,14 @@ const HOME_HERO_HEADLINE_TEXT_STYLE: CSSProperties = {
   margin: 0,
 }
 
-/** Home narrative (Resources, Capabilities, how / examples / why) — big display line. */
+/**
+ * Home narrative (Resources, Capabilities, how / examples / why) — display-scale line.
+ * Fluid type: caps at the prior fixed size on large viewports, scales down on narrow
+ * (same clamp pattern as `HOME_HERO_HEADLINE_TEXT_STYLE`).
+ */
 const HOME_SECTION_DISPLAY_HERO_TITLE_STYLE: CSSProperties = {
   margin: 0,
-  fontSize: "80.4px",
+  fontSize: "clamp(2rem, 4.2vw + 1.25rem, 5.025rem)",
   fontWeight: 700,
   lineHeight: 1.02,
   letterSpacing: "-0.03em",
@@ -99,9 +103,8 @@ const HOME_COMMERCE_RAIL_LOGO_STYLE: CSSProperties = {
   objectFit: "contain",
 }
 
-/** Icons for `home.why402Examples` lines (retail → … → machine). */
+/** Icons for `home.why402Examples` lines (… → machine). */
 const HOME_WHY402_EXAMPLE_ICONS = [
-  "shoppingCart",
   "dinnerPlate",
   "chainLink",
   "qrCode",
@@ -1105,11 +1108,12 @@ export default function Home() {
             </VStack>
           </VStack>
         </VStack>
-        <HStack
+        <Box
+          display="flex"
+          flexDirection={isWide ? "row" : "column"}
           alignItems="stretch"
           width="100%"
           minWidth={0}
-          flexWrap="nowrap"
           style={{ gap: 12 }}
         >
           <Box
@@ -1118,13 +1122,14 @@ export default function Home() {
             alignItems="center"
             justifyContent="center"
             width="100%"
+            minWidth={0}
             style={{
               backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
-              minWidth: 140,
+              ...(isWide ? { minWidth: 140 } : {}),
             }}
             padding={{ base: 3, desktop: 4 }}
-            flexGrow={1}
-            flexBasis="140px"
+            flexGrow={isWide ? 1 : undefined}
+            flexBasis={isWide ? "140px" : undefined}
           >
             <Box
               as="img"
@@ -1141,13 +1146,14 @@ export default function Home() {
             alignItems="center"
             justifyContent="center"
             width="100%"
+            minWidth={0}
             style={{
               backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
-              minWidth: 140,
+              ...(isWide ? { minWidth: 140 } : {}),
             }}
             padding={{ base: 3, desktop: 4 }}
-            flexGrow={1}
-            flexBasis="140px"
+            flexGrow={isWide ? 1 : undefined}
+            flexBasis={isWide ? "140px" : undefined}
           >
             <Box
               as="img"
@@ -1164,13 +1170,14 @@ export default function Home() {
             alignItems="center"
             justifyContent="center"
             width="100%"
+            minWidth={0}
             style={{
               backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
-              minWidth: 140,
+              ...(isWide ? { minWidth: 140 } : {}),
             }}
             padding={{ base: 3, desktop: 4 }}
-            flexGrow={1}
-            flexBasis="140px"
+            flexGrow={isWide ? 1 : undefined}
+            flexBasis={isWide ? "140px" : undefined}
           >
             <Box
               as="img"
@@ -1181,7 +1188,7 @@ export default function Home() {
               style={HOME_COMMERCE_RAIL_LOGO_STYLE}
             />
           </Box>
-        </HStack>
+        </Box>
       </VStack>
     </Box>
   )
@@ -2995,6 +3002,10 @@ export default function Home() {
             {homeHeroLead}
             {homeDemoProofBand}
             <HomeHorizontalRule />
+            <Box width="100%" paddingBottom={rightWorkflowPadBottom}>
+              {rightPane}
+            </Box>
+            <HomeHorizontalRule />
             {homeCommerceSection}
             <HomeHorizontalRule />
             {homeAudienceCreatorsCarousel}
@@ -3008,10 +3019,6 @@ export default function Home() {
             {homeWhy402}
             <HomeHorizontalRule />
             {homeBottomCta}
-            <HomeHorizontalRule />
-            <Box width="100%" paddingBottom={rightWorkflowPadBottom}>
-              {rightPane}
-            </Box>
           </VStack>
         </Box>
       )}

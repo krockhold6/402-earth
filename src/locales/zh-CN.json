@@ -403,7 +403,7 @@
   "home.why402Heading": "Why 402",
   "home.why402Tagline": "Not another storefront, cart, or hosted checkout.",
   "home.why402Lead": "Stripe and similar stacks excel when you have SKUs, tax regions, subscriptions, and a buyer who expects a long-lived merchant relationship. Much of the internet does not work that way.",
-  "home.why402Examples": "A thrift shop item on a shelf.\nA table at a market.\nA link in a TikTok bio.\nA QR code on a flyer.\nA one-time service.\nAn API call.\nA machine action.",
+  "home.why402Examples": "A table at a market.\nA link in a TikTok bio.\nA QR code on a flyer.\nA one-time service.\nAn API call.\nA machine action.",
   "home.why402Built": "402 is built for pay-first access and pay-first execution.",
   "home.why402Closer": "One commerce layer for links, downloads, gated pages, API calls, and agent workflows—USDC on Base, machine-readable HTTP 402, and humans using the same checkout.",
   "home.why402EverydayTitle": "Everyday commerce",
