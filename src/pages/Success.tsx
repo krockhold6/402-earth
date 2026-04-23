@@ -24,6 +24,7 @@ import {
 } from "@/lib/appUrl"
 import {
   openPaidResource,
+  readPhysicalFulfillmentInstructions,
   resolvePaidNavigateUrl,
 } from "@/lib/paidResourceUnlock"
 import i18n from "@/i18n/config"
@@ -342,6 +343,14 @@ export default function Success() {
   const successNavigableUrl = useMemo(() => {
     if (!paidPayload) return null
     return resolvePaidNavigateUrl(paidPayload.type, paidPayload.value)
+  }, [paidPayload])
+
+  const successPhysicalInstructions = useMemo(() => {
+    if (!paidPayload) return null
+    return readPhysicalFulfillmentInstructions(
+      paidPayload.type,
+      paidPayload.value,
+    )
   }, [paidPayload])
 
   const paidCapabilityKind = useMemo(() => {
@@ -1015,6 +1024,36 @@ export default function Success() {
                                     {successNavigableUrl}
                                   </TextCaption>
                                 </>
+                              ) : successPhysicalInstructions ? (
+                                <VStack gap={2} alignItems="stretch" width="100%">
+                                  <TextCaption
+                                    color="fgMuted"
+                                    as="p"
+                                    style={{ margin: 0 }}
+                                  >
+                                    {t("buy.physicalInstructionsCaption")}
+                                  </TextCaption>
+                                  <Box
+                                    bordered
+                                    borderRadius={300}
+                                    background="bgSecondary"
+                                    padding={3}
+                                    style={{ margin: 0 }}
+                                  >
+                                    <TextBody
+                                      color="fg"
+                                      as="p"
+                                      style={{
+                                        margin: 0,
+                                        whiteSpace: "pre-wrap",
+                                        wordBreak: "break-word",
+                                        lineHeight: 1.5,
+                                      }}
+                                    >
+                                      {successPhysicalInstructions}
+                                    </TextBody>
+                                  </Box>
+                                </VStack>
                               ) : (
                                 <Box
                                   as="pre"
@@ -1048,7 +1087,9 @@ export default function Success() {
                                 height="auto"
                                 minHeight={44}
                               >
-                                {t("buy.openResource")}
+                                {successPhysicalInstructions
+                                  ? t("buy.openPhysicalFulfillment")
+                                  : t("buy.openResource")}
                               </Button>
                               <TextCaption
                                 color="fgMuted"
@@ -1057,7 +1098,9 @@ export default function Success() {
                               >
                                 {successNavigableUrl
                                   ? t("buy.unlockedSubNavHint")
-                                  : t("buy.unlockedSub")}
+                                  : successPhysicalInstructions
+                                    ? t("buy.physicalUnlockedSub")
+                                    : t("buy.unlockedSub")}
                               </TextCaption>
                             </>
                           )}

@@ -7,7 +7,12 @@ import {
 } from "react"
 import { Box } from "@coinbase/cds-web/layout"
 import { PortalProvider } from "@coinbase/cds-web/overlays"
-import { MediaQueryProvider, ThemeProvider } from "@coinbase/cds-web/system"
+import {
+  ComponentConfigProvider,
+  MediaQueryProvider,
+  ThemeProvider,
+} from "@coinbase/cds-web/system"
+import { cdsAppComponentConfig } from "@/cds/appCdsFieldDefaults"
 import { defaultTheme } from "@coinbase/cds-web/themes/defaultTheme"
 import {
   CdsColorSchemeContext,
@@ -64,16 +69,18 @@ export function CdsAppShell({ children }: { children: ReactNode }) {
         }}
       >
         <CdsColorSchemeContext.Provider value={value}>
-          <PortalProvider>
-            <Box
-              display="flex"
-              flexDirection="column"
-              width="100%"
-              style={{ flex: "1 1 0%", minHeight: 0 }}
-            >
-              {children}
-            </Box>
-          </PortalProvider>
+          <ComponentConfigProvider value={cdsAppComponentConfig}>
+            <PortalProvider>
+              <Box
+                display="flex"
+                flexDirection="column"
+                width="100%"
+                style={{ flex: "1 1 0%", minHeight: 0 }}
+              >
+                {children}
+              </Box>
+            </PortalProvider>
+          </ComponentConfigProvider>
         </CdsColorSchemeContext.Provider>
       </ThemeProvider>
     </MediaQueryProvider>

@@ -123,3 +123,85 @@ body {
 #root .home-demo-proof-band__row > *:last-child:not(:only-child) {
   flex-shrink: 0;
 }
+
+/*
+ * Home: "What opens after payment" — Link/Physical Select + URL share one
+ * bordered `input-interactable-area`. Keep a single outer radius and remove
+ * built-in side padding so the start slot can align exactly.
+ */
+#root .home-postpay-direct-input [data-testid="input-interactable-area"] {
+  border-radius: 8px;
+  overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+#root .home-postpay-direct-input [data-testid="input-interactable-area"] > div[class*="bgSecondary"] {
+  align-items: center;
+  align-self: stretch;
+}
+
+/* Keep start row left-aligned; avoid centered offset in nested row wrappers. */
+#root .home-postpay-direct-input [data-testid="input-interactable-area"] > div[class*="row-"] {
+  justify-content: flex-start;
+}
+
+/* Remove hidden start-slot inset so the kind button is truly flush-left. */
+#root .home-postpay-direct-input [data-testid="input-interactable-area"] > div[class*="row-"] > *:first-child {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+#root .home-postpay-direct-input [data-testid="input-interactable-area"] > div[class*="row-"] > *:first-child > * {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+#root .home-postpay-direct-input .home-postpay-direct-input__kind {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+/*
+ * The Select inside the TextInput `start` slot renders its own Interactable
+ * which also applies `bgSecondary`. Because CDS `bgSecondary` is a
+ * semi-transparent overlay, stacking it on top of the outer TextInput
+ * `bgSecondary` darkens the left segment. Force every descendant of the
+ * kind wrapper to be transparent so only the parent field fill is visible,
+ * and suppress focus/hover chrome on the inner control.
+ */
+#root .home-postpay-direct-input .home-postpay-direct-input__kind,
+#root .home-postpay-direct-input .home-postpay-direct-input__kind *,
+#root .home-postpay-direct-input .home-postpay-direct-input__kind *::before,
+#root .home-postpay-direct-input .home-postpay-direct-input__kind *::after,
+#root .home-postpay-direct-input .home-postpay-direct-input__kind *:hover,
+#root .home-postpay-direct-input .home-postpay-direct-input__kind *:focus,
+#root .home-postpay-direct-input .home-postpay-direct-input__kind *:focus-within,
+#root .home-postpay-direct-input .home-postpay-direct-input__kind *:focus-visible,
+#root .home-postpay-direct-input .home-postpay-direct-input__kind *:active {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* URL input takes the remaining width with consistent inset. */
+#root .home-postpay-direct-input [data-testid="input-interactable-area"] > input[class*="nativeInputContainerCss"] {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  padding-inline-start: var(--space-2, 16px);
+  padding-inline-end: var(--space-2, 16px);
+}
+
+/* Home — buyer instructions: long English example reads as one line; scroll if needed on narrow widths. */
+#root .home-physical-instructions-textarea::placeholder {
+  white-space: nowrap;
+}
+
+#root .home-physical-instructions-textarea:placeholder-shown {
+  overflow-x: auto;
+}

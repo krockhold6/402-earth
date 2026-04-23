@@ -11,9 +11,10 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link as RouterLink } from "react-router-dom"
 import { QRCodeCanvas } from "qrcode.react"
-import { Button } from "@coinbase/cds-web/buttons"
+import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Select } from "@coinbase/cds-web/alpha/select"
-import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
+import { cdsCompactSelectFieldStyles } from "@/cds/appCdsFieldDefaults"
+import { Checkbox, NativeTextArea, TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
 import { CapabilityManagePanel } from "@/components/CapabilityManagePanel"
 import { ApiDocsPanel } from "@/components/ApiDocsPanel"
@@ -23,6 +24,10 @@ import {
   sendCreatorReceiptEmail,
   type ApiResource,
 } from "@/lib/api"
+import {
+  buildPhysicalUnlockJson,
+  PHYSICAL_INSTRUCTIONS_MAX_LENGTH,
+} from "@/lib/paidResourceUnlock"
 import { homeCapabilityCreateSchema } from "@/lib/sellSchemas"
 import { publicUrl } from "@/lib/publicUrl"
 import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
@@ -458,6 +463,8 @@ export default function Home() {
   const { colorScheme } = useCdsColorScheme()
   const commerceImages = HOME_COMMERCE_IMAGES_BY_SCHEME[colorScheme]
   const isWide = useMediaQuery("(min-width: 960px)")
+  /** When true, sell-type control stacks under the rail row (narrow workflow column). */
+  const workflowSellTypeBelowRail = useMediaQuery("(max-width: 639px)")
   const [amount, setAmount] = useState("0")
   const [label, setLabel] = useState("")
   /** Creator payout wallet (USDC on Base); normalized to lowercase on submit. */
@@ -480,6 +487,11 @@ export default function Home() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [protectedLinkUrl, setProtectedLinkUrl] = useState("")
+  /** Direct delivery only; reset to `link` when switching to Protected. */
+  const [postPaymentUnlockKind, setPostPaymentUnlockKind] = useState<
+    "link" | "physical"
+  >("link")
+  const [physicalInstructions, setPhysicalInstructions] = useState("")
   const [protectedTtlSeconds, setProtectedTtlSeconds] = useState(900)
   const [protectedOneTime, setProtectedOneTime] = useState(false)
   type HomeSellTypeTabId = "resource" | "capability"
@@ -607,6 +619,18 @@ export default function Home() {
     [railTabs],
   )
 
+  /**
+   * Coinbase-style "Order Types" pattern: tapping the sell-type pill in the
+   * rail header slides the workflow form out and slides a full-rail chooser
+   * panel in from the right. Picking an option (or pressing back) reverses
+   * the animation and applies the new selection. See `sellTypeChooserPanel`
+   * and the sliding container in `rightPane`.
+   */
+  const [sellTypeChooserOpen, setSellTypeChooserOpen] = useState(false)
+  const sellTypeChooserPanelId = "home-rail-sell-type-chooser"
+  const sellTypeChooserHeadingId = "home-rail-sell-type-chooser-title"
+  const homeRailTheme = useTheme()
+
   const handleScrollToWorkflow = useCallback(() => {
     const sellTab = railTabs.find((tab) => tab.id === "sell")
     if (sellTab) updateActiveTab(sellTab)
@@ -671,16 +695,68 @@ export default function Home() {
     [deliveryTabs, invalidateQrIfFormChanged],
   )
 
-  const handleSellTypeTabsChange = useCallback(
-    (next: TabValue<HomeSellTypeTabId> | null) => {
-      if (!next) return
-      const resolved = sellTypeTabs.find((tab) => tab.id === next.id)
+  useEffect(() => {
+    if (activeDeliveryTab.id === "protected") {
+      setPostPaymentUnlockKind("link")
+    }
+  }, [activeDeliveryTab.id])
+
+  const handleSellTypeChooserSelect = useCallback(
+    (key: HomeSellTypeTabId) => {
+      const resolved = sellTypeTabs.find((tab) => tab.id === key)
       if (resolved) {
         setActiveSellTypeTab(resolved)
         invalidateQrIfFormChanged()
       }
+      setSellTypeChooserOpen(false)
     },
     [sellTypeTabs, invalidateQrIfFormChanged],
+  )
+
+  const activeSellTypeDropdownLabel = useMemo(() => {
+    if (activeSellTypeTab.id === "resource") {
+      return t("home.sellTypeDropdownResource", {
+        defaultValue: t("home.sellTypeResource"),
+      })
+    }
+    return t("home.sellTypeDropdownCapability", {
+      defaultValue: t("home.sellTypeCapability"),
+    })
+  }, [activeSellTypeTab.id, t])
+
+  /**
+   * Two-row chooser shown when `sellTypeChooserOpen` is true. Each row mirrors
+   * the Coinbase "Order Types" panel: circular icon, bold title, supporting
+   * description, trailing chevron. Translations use the dropdown labels so
+   * "Resolve / Capability" stays the canonical user-facing wording.
+   */
+  const sellTypeChooserOptions = useMemo<
+    ReadonlyArray<{
+      id: HomeSellTypeTabId
+      title: string
+      description: string
+      iconName: IconName
+    }>
+  >(
+    () => [
+      {
+        id: "resource",
+        title: t("home.sellTypeDropdownResource", {
+          defaultValue: t("home.sellTypeResource"),
+        }),
+        description: t("home.sellTypeChooserResourceDescription"),
+        iconName: "chainLink",
+      },
+      {
+        id: "capability",
+        title: t("home.sellTypeDropdownCapability", {
+          defaultValue: t("home.sellTypeCapability"),
+        }),
+        description: t("home.sellTypeChooserCapabilityDescription"),
+        iconName: "api",
+      },
+    ],
+    [t],
   )
 
   const handleCapDeliveryTabsChange = useCallback(
@@ -847,6 +923,30 @@ export default function Home() {
           protectedTtlSeconds: ttl,
           oneTimeUnlock: protectedOneTime,
         }
+      } else if (postPaymentUnlockKind === "physical") {
+        const ins = physicalInstructions.trim()
+        if (!ins) {
+          setCreateError(t("home.errorPhysicalInstructions"))
+          clearPaymentSuccessState()
+          setIsCreating(false)
+          return
+        }
+        if (ins.length > PHYSICAL_INSTRUCTIONS_MAX_LENGTH) {
+          setCreateError(
+            t("home.errorPhysicalInstructionsLength", {
+              max: PHYSICAL_INSTRUCTIONS_MAX_LENGTH,
+            }),
+          )
+          clearPaymentSuccessState()
+          setIsCreating(false)
+          return
+        }
+        createPayload = {
+          ...basePayload,
+          unlockType: "json",
+          unlockValue: buildPhysicalUnlockJson(ins),
+          deliveryMode: "direct",
+        }
       } else if (urlT) {
         try {
           const u = new URL(urlT)
@@ -958,13 +1058,17 @@ export default function Home() {
   const edgePad = { base: 3, desktop: 6 } as const
   /** Space before the vertical rule (wide) so blocks don’t touch the line */
   const ruleGap = 3 as const
+  /** Vertical inset for workflow rail content, sell-type overlay, and related stacks. */
+  const homeRailBodyPadY = 4 as const
   const padTop = { base: 4, desktop: 6 } as const
   const padBottom = { base: 8, desktop: 10 } as const
   /**
-   * Right rail scrolls in a short viewport; extra bottom inset so the last control
-   * isn’t tight against the scrollbar or viewport edge.
+   * Workflow column (Sell rail): wide layout uses **no** vertical padding on the
+   * sticky column so the rail sits flush under the chrome (`top: 64px`) and
+   * fills to the bottom of the viewport without a dead band.
+   * Narrow layout uses a slightly tighter top inset than the former 32px rail.
    */
-  const rightWorkflowPadBottom = { base: 10, desktop: 10 } as const
+  const rightRailPadTop = { base: 3, desktop: 0 } as const
 
   const contentPadStart = edgePad
   const contentPadEnd = isWide ? ruleGap : edgePad
@@ -1617,17 +1721,189 @@ export default function Home() {
     bordered: false as const,
     compact: true as const,
     variant: "secondary" as const,
+    styles: cdsCompactSelectFieldStyles,
   }
 
-  const homeRailSegmentedControl = (
-    <SegmentedTabs<HomeRailTabId>
-      accessibilityLabel={t("home.railModeLabel")}
-      activeTab={activeTab}
-      onChange={handleRailTabsChange}
-      tabs={railTabs}
-      alignSelf="flex-start"
-      maxWidth="100%"
-    />
+  const sellTypeDropdown =
+    activeTab.id === "sell" ? (
+      <Box display="inline-flex" style={{ width: "auto", maxWidth: "100%" }}>
+        <Button
+          compact
+          variant="secondary"
+          borderRadius={500}
+          minWidth="auto"
+          paddingX={3}
+          type="button"
+          endIcon="caretDown"
+          accessibilityLabel={`${t("home.sellTypeAccessibility")}, ${activeSellTypeDropdownLabel}`}
+          aria-haspopup="dialog"
+          aria-expanded={sellTypeChooserOpen}
+          aria-controls={sellTypeChooserPanelId}
+          onClick={() => setSellTypeChooserOpen(true)}
+        >
+          {activeSellTypeDropdownLabel}
+        </Button>
+      </Box>
+    ) : null
+
+  const homeRailWorkflowHeader = (
+    <VStack
+      gap={workflowSellTypeBelowRail ? 2 : 0}
+      alignItems="stretch"
+      width="100%"
+    >
+      <HStack
+        width="100%"
+        alignItems="center"
+        justifyContent="space-between"
+        gap={2}
+        minWidth={0}
+      >
+        <Box minWidth={0} flexShrink={1}>
+          <SegmentedTabs<HomeRailTabId>
+            accessibilityLabel={t("home.railModeLabel")}
+            activeTab={activeTab}
+            onChange={handleRailTabsChange}
+            tabs={railTabs}
+            alignSelf="flex-start"
+            maxWidth="100%"
+          />
+        </Box>
+        {!workflowSellTypeBelowRail && sellTypeDropdown ? (
+          <Box flexShrink={0}>{sellTypeDropdown}</Box>
+        ) : null}
+      </HStack>
+      {workflowSellTypeBelowRail && sellTypeDropdown ? (
+        <Box width="100%" minWidth={0}>
+          {sellTypeDropdown}
+        </Box>
+      ) : null}
+    </VStack>
+  )
+
+  /**
+   * Coinbase "Order Types" style chooser. Sits as an absolutely-positioned
+   * overlay on top of the rail workflow content, sliding in from the right
+   * (and out to the right) via CSS transforms when `sellTypeChooserOpen`
+   * toggles. The form layer behind it dims and slides slightly left so the
+   * transition reads as a screen swap, not a popover.
+   */
+  const sellTypeChooserPanel = (
+    <VStack
+      gap={4}
+      alignItems="stretch"
+      width="100%"
+      paddingY={homeRailBodyPadY}
+      style={{ paddingLeft: 20, paddingRight: 20, boxSizing: "border-box" }}
+    >
+      <HStack
+        width="100%"
+        alignItems="center"
+        gap={2}
+        minWidth={0}
+        style={{ minHeight: 40 }}
+      >
+        <Box flexShrink={0}>
+          <IconButton
+            name="caretLeft"
+            variant="secondary"
+            type="button"
+            accessibilityLabel={t("home.sellTypeChooserBack")}
+            onClick={() => setSellTypeChooserOpen(false)}
+          />
+        </Box>
+        <Box
+          flexGrow={1}
+          minWidth={0}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <TextTitle3
+            as="p"
+            color="fg"
+            id={sellTypeChooserHeadingId}
+            style={{ margin: 0, fontWeight: 700, textAlign: "center" }}
+          >
+            {t("home.sellTypeChooserTitle")}
+          </TextTitle3>
+        </Box>
+        <Box flexShrink={0} style={{ width: 40, height: 40 }} aria-hidden />
+      </HStack>
+      <VStack gap={1} alignItems="stretch" width="100%">
+        {sellTypeChooserOptions.map((opt) => {
+          const isActive = activeSellTypeTab.id === opt.id
+          return (
+            <Interactable
+              key={opt.id}
+              type="button"
+              onClick={() => handleSellTypeChooserSelect(opt.id)}
+              block
+              borderRadius={400}
+              paddingX={3}
+              paddingY={homeRailBodyPadY}
+              background={isActive ? "bgSecondary" : "bg"}
+              borderColor={isActive ? "bgSecondary" : "bg"}
+              borderWidth={0}
+              accessibilityLabel={`${opt.title}. ${opt.description}`}
+              aria-pressed={isActive}
+              blendStyles={{
+                hoveredBackground: homeRailTheme.color.bgSecondaryWash,
+                pressedBackground: homeRailTheme.color.bgSecondary,
+                hoveredOpacity: 1,
+                pressedOpacity: 1,
+              }}
+              style={{
+                border: "none",
+                margin: 0,
+                textAlign: "start",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <HStack gap={3} alignItems="center" width="100%" minWidth={0}>
+                <Box
+                  aria-hidden
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  flexShrink={0}
+                  width={40}
+                  height={40}
+                  borderRadius={1000}
+                  background="bgPrimary"
+                >
+                  <Icon name={opt.iconName} size="s" color="fgInverse" />
+                </Box>
+                <VStack
+                  gap={0.5}
+                  alignItems="stretch"
+                  minWidth={0}
+                  flexGrow={1}
+                >
+                  <TextLabel1
+                    as="p"
+                    color="fg"
+                    style={{ margin: 0, fontWeight: 700 }}
+                  >
+                    {opt.title}
+                  </TextLabel1>
+                  <TextBody
+                    as="p"
+                    color="fgMuted"
+                    style={{ margin: 0, lineHeight: 1.4 }}
+                  >
+                    {opt.description}
+                  </TextBody>
+                </VStack>
+                <Box aria-hidden flexShrink={0} display="flex">
+                  <Icon name="caretRight" size="s" color="fgMuted" />
+                </Box>
+              </HStack>
+            </Interactable>
+          )
+        })}
+      </VStack>
+    </VStack>
   )
 
   const visuallyHidden: CSSProperties = {
@@ -1662,6 +1938,76 @@ export default function Home() {
                 : t("home.ttlPreset7d"),
       })),
     [t],
+  )
+
+  const postPaymentKindSelectOptions = useMemo(
+    () => [
+      { value: "link", label: t("home.postPaymentKindLink") },
+      { value: "physical", label: t("home.postPaymentKindPhysical") },
+    ],
+    [t],
+  )
+
+  /** Match compact `TextInput` / `InputLabel` (label1, fg) for the kind control value. */
+  const postPaymentKindSelectSurface = useMemo(
+    () => ({
+      bordered: false as const,
+      borderWidth: 0 as const,
+      focusedBorderWidth: 0 as const,
+      compact: true as const,
+      variant: "secondary" as const,
+      blendStyles: {
+        hoveredBackground: "transparent",
+        pressedBackground: "transparent",
+        hoveredOpacity: 1,
+        pressedOpacity: 1,
+      } as const,
+      /** Same token as `InputLabel` on compact fields (e.g. payout wallet). */
+      font: "label1" as const,
+      /** Select root box defaults to content-width; force it to fill the start slot so
+       * caret/text positions don't drift between "Link" and "Physical". */
+      style: { width: "100%" } as const,
+      styles: {
+        ...cdsCompactSelectFieldStyles,
+        // Compound field: Select is the left segment — pad insets, square the inner edge
+        // where it meets the URL input, round the outer-left corners to match TextInput.
+        control: {
+          width: "100%",
+          minHeight: 62,
+          boxSizing: "border-box",
+          background: "transparent",
+          paddingLeft: 0,
+          paddingRight: 0,
+          borderTopLeftRadius: 8,
+          borderBottomLeftRadius: 8,
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+        } as const,
+        // DefaultSelectControl pads the control (`paddingStart: 1`) and value (`paddingX: 1`),
+        // which leaves a visible gap before the secondary fill when embedded in TextInput `start`.
+        controlInputNode: {
+          ...cdsCompactSelectFieldStyles.controlInputNode,
+          minHeight: 62,
+          paddingInlineStart: 0,
+          justifyContent: "flex-start",
+        },
+        // Apply the left inset on the value label itself so the caret/text origin
+        // matches the URL input's leading edge (instead of padding the outer control).
+        controlValueNode: {
+          paddingInlineStart: 20,
+          paddingInlineEnd: 0,
+        },
+        /** Keep floating-ui width behavior; only enforce a readable minimum. */
+        dropdown: {
+          minWidth: 200,
+          boxSizing: "border-box" as const,
+        },
+        optionLabel: {
+          whiteSpace: "nowrap",
+        },
+      },
+    }),
+    [],
   )
 
   const homeRailAmountHero = (
@@ -1825,20 +2171,106 @@ export default function Home() {
           </TextCaption>
         ) : null}
       </VStack>
-      <TextInput
-        compact
-        {...homeFormTextInputSurface}
-        label={t("home.postPaymentOpens")}
-        helperText={t("home.postPaymentOpensHelper")}
-        value={protectedLinkUrl}
-        onChange={(e) => {
-          setProtectedLinkUrl(e.target.value)
-          invalidateQrIfFormChanged()
-        }}
-        autoComplete="off"
-        spellCheck={false}
-        placeholder={t("home.postPaymentOpensPlaceholder")}
-      />
+      {activeDeliveryTab.id === "direct" ? (
+        <>
+          <Box className="home-postpay-direct-input" width="100%">
+            <TextInput
+              compact={false}
+              {...homeFormTextInputSurface}
+              accessibilityLabel={t("home.postPaymentOpens")}
+              helperText={
+                postPaymentUnlockKind === "physical"
+                  ? t("home.postPaymentOpensHelperPhysical")
+                  : t("home.postPaymentOpensHelper")
+              }
+              start={
+                <Box
+                  className="home-postpay-direct-input__kind"
+                  width="auto"
+                  minWidth={150}
+                  maxWidth="42%"
+                  flexShrink={0}
+                  flexGrow={0}
+                  alignSelf="stretch"
+                  display="flex"
+                  justifyContent="flex-start"
+                >
+                  <Select
+                    type="single"
+                    value={postPaymentUnlockKind}
+                    onChange={(next) => {
+                      if (next === "link" || next === "physical") {
+                        setPostPaymentUnlockKind(next)
+                        invalidateQrIfFormChanged()
+                      }
+                    }}
+                    options={postPaymentKindSelectOptions}
+                    {...postPaymentKindSelectSurface}
+                    accessibilityLabel={t("home.postPaymentKindAccessibility")}
+                    controlAccessibilityLabel={t(
+                      "home.postPaymentKindAccessibility",
+                    )}
+                  />
+                </Box>
+              }
+              value={protectedLinkUrl}
+              onChange={(e) => {
+                setProtectedLinkUrl(e.target.value)
+                invalidateQrIfFormChanged()
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={t("home.postPaymentOpensPlaceholder")}
+              readOnly={postPaymentUnlockKind === "physical"}
+            />
+          </Box>
+          {postPaymentUnlockKind === "physical" ? (
+            <TextInput
+              compact={false}
+              {...homeFormTextInputSurface}
+              label={t("home.physicalInstructionsLabel")}
+              helperText={t("home.physicalInstructionsHelper")}
+              inputNode={
+                <NativeTextArea
+                  className="home-physical-instructions-textarea"
+                  compact={false}
+                  font="body"
+                  value={physicalInstructions}
+                  placeholder={t("home.physicalInstructionsPlaceholder")}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+                    setPhysicalInstructions(e.target.value)
+                    invalidateQrIfFormChanged()
+                  }}
+                  rows={5}
+                  width="100%"
+                  style={{
+                    minHeight: 120,
+                    resize: "vertical" as const,
+                    display: "block",
+                    textAlign: "start",
+                    verticalAlign: "top",
+                  }}
+                />
+              }
+            />
+          ) : null}
+        </>
+      ) : (
+        <TextInput
+          compact
+          {...homeFormTextInputSurface}
+          accessibilityLabel={t("home.postPaymentOpens")}
+          helperText={t("home.postPaymentOpensHelper")}
+          value={protectedLinkUrl}
+          onChange={(e) => {
+            setProtectedLinkUrl(e.target.value)
+            invalidateQrIfFormChanged()
+          }}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={t("home.postPaymentOpensPlaceholder")}
+        />
+      )}
     </VStack>
   )
 
@@ -1936,7 +2368,7 @@ export default function Home() {
         }}
         autoComplete="off"
       />
-      <VStack gap={1} alignItems="stretch" width="100%">
+      <VStack gap={2} alignItems="stretch" width="100%">
         <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
           {t("home.receiptMode")}
         </TextLabel1>
@@ -1968,7 +2400,7 @@ export default function Home() {
   )
 
   const homeRailResourceDeliveryBlock = (
-    <VStack gap={2} alignItems="stretch" width="100%">
+    <VStack gap={3} alignItems="stretch" width="100%">
       <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
         {t("home.deliveryMode")}
       </TextLabel1>
@@ -1998,7 +2430,7 @@ export default function Home() {
   )
 
   const homeRailCapabilityDeliveryBlock = (
-    <VStack gap={2} alignItems="stretch" width="100%">
+    <VStack gap={3} alignItems="stretch" width="100%">
       <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
         {t("home.deliveryMode")}
       </TextLabel1>
@@ -2250,36 +2682,13 @@ export default function Home() {
   )
 
   const homeSellRule = (
-    <Box width="100%" paddingY={4}>
+    <Box width="100%" style={{ paddingTop: 20, paddingBottom: 20 }}>
       <Divider />
     </Box>
   )
 
-  const homeSellTypeBlock = (
-    <VStack gap={2} alignItems="stretch" width="100%">
-      <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
-        {t("home.sellType")}
-      </TextLabel1>
-      <SegmentedTabs<HomeSellTypeTabId>
-        accessibilityLabel={t("home.sellTypeAccessibility")}
-        activeTab={activeSellTypeTab}
-        onChange={handleSellTypeTabsChange}
-        tabs={sellTypeTabs}
-        alignSelf="flex-start"
-        maxWidth="100%"
-      />
-      <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
-        {activeSellTypeTab.id === "resource"
-          ? t("home.resourceChargeBlurb")
-          : t("home.capabilityChargeBlurb")}
-      </TextBody>
-    </VStack>
-  )
-
   const homeSellRailWorkflow = (
     <VStack gap={0} alignItems="stretch" width="100%">
-      {homeSellTypeBlock}
-      {homeSellRule}
       {homeRailAmountHero}
       {homeSellRule}
       {activeSellTypeTab.id === "resource"
@@ -2306,7 +2715,13 @@ export default function Home() {
   )
 
   const homeFormSubmit = (
-    <VStack gap={2} alignItems="stretch" width="100%">
+    <VStack
+      gap={2}
+      alignItems="stretch"
+      width="100%"
+      paddingTop={3}
+      paddingBottom={homeRailBodyPadY}
+    >
       <Button
         block
         variant="primary"
@@ -2870,6 +3285,8 @@ export default function Home() {
    * Transaction rail: Sell/Buy/API tabs → amount → fields → delivery → CTA;
    * generated QR/URL/share live in `homeRailResultSection` below the CTA.
    */
+  const showSellTypeChooser = activeTab.id === "sell" && sellTypeChooserOpen
+
   const rightPane = (
     <Box
       ref={homeWorkflowRailRef}
@@ -2877,25 +3294,96 @@ export default function Home() {
       display="flex"
       flexDirection="column"
       width="100%"
-      height="100%"
-      minHeight={0}
-      style={{ flex: "1 1 0%", minHeight: 0 }}
+      /**
+       * Do not set `height="100%"` or `flex: 1 1 0%` here: the desktop rail
+       * sits in a sticky column with `maxHeight` + `overflowY: auto`. Forcing
+       * this box to the viewport height made the inner `overflow: hidden`
+       * wrapper match that height and **clip** everything below the fold
+       * (capability receipt mode, delivery mode, create CTA).
+       *
+       * `minHeight="100%"` only sets a floor: the rail fills the sticky column
+       * when content is short so the column’s `background="bg"` reads as one
+       * continuous panel top-to-bottom without dead bands below the CTA.
+       */
+      minHeight="100%"
+      style={{ alignSelf: "stretch" }}
     >
-      <Box width="100%" paddingBottom={6} {...rightColumnInnerPad}>
-        <VStack gap={5} alignItems="stretch" width="100%">
-          {homeRailSegmentedControl}
-          {activeTab.id === "sell" ? (
-            <>
-              {homeSellRailWorkflow}
-              {homeFormSubmit}
-              {homeRailResultSection}
-            </>
-          ) : activeTab.id === "buy" ? (
-            <BuyFlowPanel variant="rail" />
-          ) : activeTab.id === "api" ? (
-            <ApiDocsPanel variant="rail" />
-          ) : null}
-        </VStack>
+      <Box
+        width="100%"
+        height="100%"
+        paddingTop={homeRailBodyPadY}
+        paddingBottom={homeRailBodyPadY}
+        {...rightColumnInnerPad}
+        style={{
+          position: "relative",
+          overflowX: "hidden",
+          overflowY: "visible",
+        }}
+      >
+        {/*
+         * Form layer (default rail content). When the sell-type chooser opens
+         * we slide it slightly left and fade it; it stays mounted so form
+         * state and scroll position are preserved underneath the chooser.
+         */}
+        <Box
+          width="100%"
+          aria-hidden={showSellTypeChooser}
+          style={{
+            transform: showSellTypeChooser
+              ? "translateX(-12%)"
+              : "translateX(0)",
+            opacity: showSellTypeChooser ? 0 : 1,
+            transition:
+              "transform 240ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease",
+            pointerEvents: showSellTypeChooser ? "none" : "auto",
+          }}
+        >
+          <VStack gap={6} alignItems="stretch" width="100%">
+            {homeRailWorkflowHeader}
+            {activeTab.id === "sell" ? (
+              <>
+                {homeSellRailWorkflow}
+                {homeFormSubmit}
+                {homeRailResultSection}
+              </>
+            ) : activeTab.id === "buy" ? (
+              <BuyFlowPanel variant="rail" />
+            ) : activeTab.id === "api" ? (
+              <ApiDocsPanel variant="rail" />
+            ) : null}
+          </VStack>
+        </Box>
+        {/*
+         * Chooser overlay (Coinbase-style "Order Types" pattern). Always
+         * mounted so the slide-in / slide-out animation runs both ways; we
+         * gate interaction with `pointer-events` and ARIA visibility.
+         */}
+        {activeTab.id === "sell" ? (
+          <Box
+            id={sellTypeChooserPanelId}
+            role="dialog"
+            aria-modal={false}
+            aria-labelledby={sellTypeChooserHeadingId}
+            aria-hidden={!showSellTypeChooser}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              boxSizing: "border-box",
+              transform: showSellTypeChooser
+                ? "translateX(0)"
+                : "translateX(100%)",
+              opacity: showSellTypeChooser ? 1 : 0,
+              transition:
+                "transform 240ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease",
+              pointerEvents: showSellTypeChooser ? "auto" : "none",
+              background: "var(--color-bg)",
+            }}
+          >
+            {sellTypeChooserPanel}
+          </Box>
+        ) : null}
       </Box>
     </Box>
   )
@@ -2973,8 +3461,9 @@ export default function Home() {
               height="100%"
               minWidth={0}
               minHeight={0}
-              paddingTop={padTop}
-              paddingBottom={rightWorkflowPadBottom}
+              background="bg"
+              paddingTop={rightRailPadTop}
+              paddingBottom={0}
               display="flex"
               flexDirection="column"
               alignItems="stretch"
@@ -3002,7 +3491,11 @@ export default function Home() {
             {homeHeroLead}
             {homeDemoProofBand}
             <HomeHorizontalRule />
-            <Box width="100%" paddingBottom={rightWorkflowPadBottom}>
+            <Box
+              width="100%"
+              background="bg"
+              paddingBottom={homeRailBodyPadY}
+            >
               {rightPane}
             </Box>
             <HomeHorizontalRule />

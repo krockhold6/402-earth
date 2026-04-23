@@ -802,5 +802,20 @@
   "home.exampleUseCasesSubtitle": "Show what people can actually sell",
   "home.howItWorksSectionSubtitle": "Simple 3–5 step flow",
   "home.bottomCtaTitle": "Start selling resources or capabilities",
-  "home.bottomCtaButton": "Open the workflow"
+  "home.bottomCtaButton": "Open the workflow",
+  "home.postPaymentKindLink": "Link",
+  "home.postPaymentKindPhysical": "Physical",
+  "home.postPaymentKindAccessibility": "What opens after payment — delivery type",
+  "home.postPaymentOpensHelperPhysical": "No hosted link is required. Add instructions so buyers know how to receive the physical item (pickup, shipping, location, hours, etc.).",
+  "home.physicalInstructionsLabel": "Buyer instructions",
+  "home.physicalInstructionsHelper": "These instructions are shown to the buyer immediately after successful payment.",
+  "home.errorPhysicalInstructions": "Enter instructions for how the buyer receives the physical item.",
+  "home.errorPhysicalInstructionsLength": "Instructions are too long (maximum {{max}} characters).",
+  "buy.physicalInstructionsCaption": "Your fulfillment details",
+  "buy.openPhysicalFulfillment": "Download instructions",
+  "buy.physicalUnlockedSub": "We opened a text file with your instructions. You can also use the button below again.",
+  "pay.physicalInstructionsCaption": "Your fulfillment details",
+  "pay.openPhysicalFulfillment": "Download instructions",
+  "pay.physicalUnlockedSub": "We opened a text file with your instructions. You can also use the button below again.",
+  "home.physicalInstructionsPlaceholder": "Example: Pickup at 123 Main St, Mon–Fri 9–5. Bring your payment receipt."
 }

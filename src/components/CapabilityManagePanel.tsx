@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next"
 import { createWalletClient, custom } from "viem"
 import { base } from "viem/chains"
 import { Button } from "@coinbase/cds-web/buttons"
+import { cdsCompactSelectFieldStyles } from "@/cds/appCdsFieldDefaults"
 import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
 import { Select } from "@coinbase/cds-web/alpha/select"
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
@@ -974,6 +975,7 @@ export function CapabilityManagePanel({
                       compact
                       bordered={false}
                       variant="foregroundMuted"
+                      styles={cdsCompactSelectFieldStyles}
                       accessibilityLabel={t("home.capabilityWindowTitle")}
                       controlAccessibilityLabel={t("home.capabilityWindowTitle")}
                     />
@@ -1073,6 +1075,7 @@ export function CapabilityManagePanel({
                   compact
                   bordered={false}
                   variant="foregroundMuted"
+                  styles={cdsCompactSelectFieldStyles}
                   accessibilityLabel={t("home.capabilityManageLifecycleLabel")}
                   controlAccessibilityLabel={t("home.capabilityManageLifecycleLabel")}
                 />

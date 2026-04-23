@@ -35,6 +35,7 @@ import {
 import { decodeQrFromImageFile } from "@/lib/decodeQrFromImageFile"
 import {
   openPaidResource,
+  readPhysicalFulfillmentInstructions,
   resolvePaidNavigateUrl,
 } from "@/lib/paidResourceUnlock"
 
@@ -120,6 +121,11 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
   const paidNavigableUrl = useMemo(() => {
     if (state !== "paid") return null
     return resolvePaidNavigateUrl(paidType, paidValue)
+  }, [state, paidType, paidValue])
+
+  const paidPhysicalInstructions = useMemo(() => {
+    if (state !== "paid") return null
+    return readPhysicalFulfillmentInstructions(paidType, paidValue)
   }, [state, paidType, paidValue])
 
   /** Brief success UI, then same-tab navigation (better on mobile than `window.open` after async pay). */
@@ -530,6 +536,32 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
                   {paidNavigableUrl}
                 </TextCaption>
               </>
+            ) : paidPhysicalInstructions ? (
+              <VStack gap={2} alignItems="stretch" width="100%">
+                <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+                  {t("buy.physicalInstructionsCaption")}
+                </TextCaption>
+                <Box
+                  bordered
+                  borderRadius={300}
+                  background="bgSecondary"
+                  padding={3}
+                  style={{ margin: 0 }}
+                >
+                  <TextBody
+                    color="fg"
+                    as="p"
+                    style={{
+                      margin: 0,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {paidPhysicalInstructions}
+                  </TextBody>
+                </Box>
+              </VStack>
             ) : (
               <Box
                 as="pre"
@@ -556,12 +588,16 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
               onClick={() => openPaidResource(paidType, paidValue)}
               block={isRail}
             >
-              {t("buy.openResource")}
+              {paidPhysicalInstructions
+                ? t("buy.openPhysicalFulfillment")
+                : t("buy.openResource")}
             </Button>
             <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
               {paidNavigableUrl
                 ? t("buy.unlockedSubNavHint")
-                : t("buy.unlockedSub")}
+                : paidPhysicalInstructions
+                  ? t("buy.physicalUnlockedSub")
+                  : t("buy.unlockedSub")}
             </TextCaption>
             <Button
               type="button"

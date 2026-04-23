@@ -33,6 +33,7 @@ import { readCapabilityAsyncJobId } from "@/lib/capabilityPaidPayload"
 import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
 import {
   openPaidResource,
+  readPhysicalFulfillmentInstructions,
   resolvePaidNavigateUrl,
 } from "@/lib/paidResourceUnlock"
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
@@ -431,6 +432,14 @@ export default function Pay() {
   const deliveryUrl = useMemo(() => {
     if (!paidPayload) return null
     return resolvePaidNavigateUrl(paidPayload.type, paidPayload.value)
+  }, [paidPayload])
+
+  const payPhysicalInstructions = useMemo(() => {
+    if (!paidPayload) return null
+    return readPhysicalFulfillmentInstructions(
+      paidPayload.type,
+      paidPayload.value,
+    )
   }, [paidPayload])
 
   const asyncCapabilityJobId = useMemo(() => {
@@ -1642,6 +1651,33 @@ export default function Pay() {
                         </Button>
                       </VStack>
                     ) : null}
+                    {payPhysicalInstructions ? (
+                      <VStack gap={2} alignItems="stretch" width="100%">
+                        <TextCaption color="fgMuted" as="p" style={{ margin: 0 }}>
+                          {t("pay.physicalInstructionsCaption")}
+                        </TextCaption>
+                        <Box
+                          bordered
+                          borderRadius={300}
+                          background="bgSecondary"
+                          padding={3}
+                          style={{ margin: 0 }}
+                        >
+                          <TextBody
+                            color="fg"
+                            as="p"
+                            style={{
+                              margin: 0,
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {payPhysicalInstructions}
+                          </TextBody>
+                        </Box>
+                      </VStack>
+                    ) : null}
                     <Button
                       variant={
                         capabilityOutcomeHref || asyncCapabilityResultHref
@@ -1653,7 +1689,9 @@ export default function Pay() {
                     >
                       {capabilityOutcomeHref || asyncCapabilityResultHref
                         ? t("pay.session.openTechnicalPayload")
-                        : t("pay.session.openResource")}
+                        : payPhysicalInstructions
+                          ? t("pay.openPhysicalFulfillment")
+                          : t("pay.session.openResource")}
                     </Button>
                     {deliveryUrl ? (
                       <VStack gap={2} alignItems="stretch">
@@ -1687,7 +1725,9 @@ export default function Pay() {
                       </VStack>
                     ) : null}
                     <TextCaption color="fgMuted" as="p">
-                      {t("pay.session.autoOpenFallback")}
+                      {payPhysicalInstructions
+                        ? t("pay.physicalUnlockedSub")
+                        : t("pay.session.autoOpenFallback")}
                     </TextCaption>
                   </VStack>
                 ) : null}
