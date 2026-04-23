@@ -24,7 +24,11 @@ export const homeResourceCreateSchema = z.object({
   receiverAddress: wallet,
   destinationUrl: z.string().trim().optional(),
   deliveryMode: z.enum(["direct", "protected"]),
-  protectedTtlSeconds: z.number().int().min(60).max(604800).optional(),
+  protectedTtlSeconds: z
+    .number()
+    .int()
+    .refine((n) => n === 0 || (n >= 60 && n <= 604800))
+    .optional(),
   protectedOneTime: z.boolean().optional(),
 })
 

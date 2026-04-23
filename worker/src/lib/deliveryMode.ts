@@ -40,10 +40,16 @@ export function normalizeDeliveryMode(
   return normalizeResourceDeliveryMode(raw)
 }
 
+/** Stored as `protected_ttl_seconds = 0`; unlock row still needs a finite `expires_at`. */
+const PROTECTED_UNLOCK_NO_EXPIRY_TOKEN_SECONDS = Math.floor(
+  100 * 365.25 * 24 * 60 * 60,
+)
+
 export function effectiveProtectedTtlSeconds(
   resource: ResourceDefinition,
 ): number {
   const n = resource.protectedTtlSeconds
+  if (n === 0) return PROTECTED_UNLOCK_NO_EXPIRY_TOKEN_SECONDS
   if (typeof n === 'number' && Number.isFinite(n) && n > 0) return Math.floor(n)
   return 900
 }

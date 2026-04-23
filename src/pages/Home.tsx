@@ -35,7 +35,6 @@ import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { useTheme } from "@coinbase/cds-web/hooks/useTheme"
 import { Interactable } from "@coinbase/cds-web/system/Interactable"
 import { Carousel, CarouselItem } from "@coinbase/cds-web/carousel"
-import { MessagingCard } from "@coinbase/cds-web/cards"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
 import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
 import type { IconName } from "@coinbase/cds-common/types"
@@ -108,6 +107,23 @@ const HOME_COMMERCE_RAIL_LOGO_STYLE: CSSProperties = {
   objectFit: "contain",
 }
 
+/** 402 wordmark + “Commerce” — image height and type share the same cap (80px). */
+const HOME_COMMERCE_TITLE_WORDMARK_IMAGE_STYLE: CSSProperties = {
+  display: "block",
+  width: 220,
+  height: 80,
+  maxWidth: "100%",
+  objectFit: "contain",
+}
+
+const HOME_COMMERCE_TITLE_TEXT_STYLE: CSSProperties = {
+  fontSize: "clamp(40px, 8vw, 80px)",
+  fontWeight: 700,
+  lineHeight: 1.05,
+  letterSpacing: "-0.03em",
+  margin: 0,
+}
+
 /** Icons for `home.why402Examples` lines (… → machine). */
 const HOME_WHY402_EXAMPLE_ICONS = [
   "dinnerPlate",
@@ -118,7 +134,7 @@ const HOME_WHY402_EXAMPLE_ICONS = [
   "robot",
 ] as const satisfies readonly IconName[]
 
-const PROTECTED_TTL_PRESETS = [900, 3600, 86400, 604800] as const
+const PROTECTED_TTL_PRESETS = [0, 900, 3600, 86400, 604800] as const
 
 function sanitizeHomeAmountInput(raw: string): string {
   let v = raw.replace(/[^\d.]/g, "")
@@ -197,29 +213,6 @@ function apiSellType(resource: ApiResource): "resource" | "capability" {
 /** Golden ratio φ; left column : right column = φ : 1 (messaging side is wider). */
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2
 
-/** Text-only `MessagingCard`s: single column, media slot hidden. */
-const HOME_CAPABILITIES_CARD_STYLES = {
-  layoutContainer: {
-    display: "flex",
-    flexDirection: "column" as const,
-    minWidth: 0,
-    width: "100%",
-  },
-  mediaContainer: {
-    display: "none",
-    width: 0,
-    minWidth: 0,
-    height: 0,
-    overflow: "hidden",
-  },
-  contentContainer: {
-    minWidth: 0,
-    maxWidth: "100%",
-    justifyContent: "flex-start",
-    padding: 24,
-  },
-} as const
-
 /**
  * Distance from viewport top for `position: sticky` on the right transaction rail,
  * below the sticky `PageHeader` (~56px) plus a little air.
@@ -228,13 +221,12 @@ const DESKTOP_QR_STICKY_TOP_PX = 64
 
 /** Creators: spectrum Gray10 (matches “Background alternate” in light theme). */
 const HOME_AUDIENCE_CREATORS_CARD_BG = "rgb(var(--gray10))"
-/** Software: semantic inverse (= spectrum Gray100 role in each color scheme). */
-const HOME_AUDIENCE_SOFTWARE_CARD_BG = "var(--color-bgInverse)"
 
 type HomeAudienceMessagingCardRow = {
   id: string
   titleKey: string
   descriptionKey: string
+  imageSrc: string
   iconName: IconName
 }
 
@@ -243,30 +235,35 @@ const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     id: "home-creators-1",
     titleKey: "home.creatorsCard1Title",
     descriptionKey: "home.creatorsCard1Description",
+    imageSrc: publicUrl("img/home-audience-creators-banner-3.jpg"),
     iconName: "chainLink",
   },
   {
     id: "home-creators-2",
     titleKey: "home.creatorsCard2Title",
     descriptionKey: "home.creatorsCard2Description",
+    imageSrc: publicUrl("img/home-audience-creators-banner-4.jpg"),
     iconName: "download",
   },
   {
     id: "home-creators-3",
     titleKey: "home.creatorsCard3Title",
     descriptionKey: "home.creatorsCard3Description",
+    imageSrc: publicUrl("img/home-audience-creators-banner-6.png"),
     iconName: "educationBook",
   },
   {
     id: "home-creators-4",
     titleKey: "home.creatorsCard4Title",
     descriptionKey: "home.creatorsCard4Description",
+    imageSrc: publicUrl("img/home-audience-creators-banner-7.png"),
     iconName: "lock",
   },
   {
     id: "home-creators-5",
     titleKey: "home.creatorsCard5Title",
     descriptionKey: "home.creatorsCard5Description",
+    imageSrc: publicUrl("img/home-audience-creators-banner-8.png"),
     iconName: "drops",
   },
 ]
@@ -276,95 +273,116 @@ const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     id: "home-software-1",
     titleKey: "home.softwareCard1Title",
     descriptionKey: "home.softwareCard1Description",
+    imageSrc: publicUrl("img/home-audience-software-1.svg"),
     iconName: "api",
   },
   {
     id: "home-software-2",
     titleKey: "home.softwareCard2Title",
     descriptionKey: "home.softwareCard2Description",
+    imageSrc: publicUrl("img/home-audience-software-2.svg"),
     iconName: "lightningBolt",
   },
   {
     id: "home-software-3",
     titleKey: "home.softwareCard3Title",
     descriptionKey: "home.softwareCard3Description",
+    imageSrc: publicUrl("img/home-audience-software-3.svg"),
     iconName: "continuous",
   },
   {
     id: "home-software-4",
     titleKey: "home.softwareCard4Title",
     descriptionKey: "home.softwareCard4Description",
+    imageSrc: publicUrl("img/home-audience-software-1.svg"),
     iconName: "compose",
   },
 ]
 
-/** Fixed height for full-width audience carousel hero banners (Resources + Capabilities). */
-const HOME_AUDIENCE_BANNER_HEIGHT_PX = 300
-
-/** Resources section banner; asset: `public/img/home-audience-creators-banner-9.jpg`. */
-const HOME_AUDIENCE_SHARED_BANNER_SRC = publicUrl(
-  "img/home-audience-creators-banner-9.jpg",
-)
-/** Scale image to cover the fixed-height banner (no letterboxing). */
-const HOME_AUDIENCE_SHARED_BANNER_BG_STYLE: CSSProperties = {
-  backgroundImage: `url(${HOME_AUDIENCE_SHARED_BANNER_SRC})`,
-  backgroundRepeat: "no-repeat",
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-}
-
-/** Capabilities section banner; asset: `public/img/home-audience-creators-banner-8.jpg`. */
-const HOME_AUDIENCE_SOFTWARE_BANNER_SRC = publicUrl(
-  "img/home-audience-creators-banner-8.jpg",
-)
-const HOME_AUDIENCE_SOFTWARE_BANNER_BG_STYLE: CSSProperties = {
-  backgroundImage: `url(${HOME_AUDIENCE_SOFTWARE_BANNER_SRC})`,
-  backgroundRepeat: "no-repeat",
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-}
-
 function renderHomeAudienceMessagingCard(
   card: HomeAudienceMessagingCardRow,
   t: (key: string) => string,
-  audience: "creators" | "software",
 ) {
   const titleText = t(card.titleKey)
-  const isCreators = audience === "creators"
-  const cardBackground = isCreators
-    ? HOME_AUDIENCE_CREATORS_CARD_BG
-    : HOME_AUDIENCE_SOFTWARE_CARD_BG
-  const titleColor = isCreators ? "fg" : "fgInverse"
-  const descriptionColor = isCreators ? "fgMuted" : "fgInverse"
+  const descriptionText = t(card.descriptionKey)
   return (
-    <MessagingCard
+    <Box
       as="article"
-      type="upsell"
-      width={385}
-      mediaPlacement="end"
-      title={
-        <VStack gap={1.5} alignItems="flex-start" width="100%">
-          <Box aria-hidden display="flex">
-            <Icon name={card.iconName} size="m" color={titleColor} />
-          </Box>
-          <Text color={titleColor} font="title3" as="span">
-            {titleText}
-          </Text>
-        </VStack>
-      }
-      description={
-        <Text color={descriptionColor} font="label2" overflow="wrap">
-          {t(card.descriptionKey)}
-        </Text>
-      }
-      styles={{
-        root: {
-          backgroundColor: cardBackground,
-        },
-        ...HOME_CAPABILITIES_CARD_STYLES,
-        textContainer: { gap: 24 },
+      display="flex"
+      flexDirection="column"
+      alignItems="flex-start"
+      width={404}
+      minWidth={0}
+      maxWidth="100%"
+      style={{
+        flex: "0 0 auto",
+        borderRadius: 16,
+        gap: 10,
+        padding: 0,
+        background: "unset",
       }}
-    />
+      color="fg"
+      aria-label={`${titleText}. ${descriptionText}`}
+    >
+      <Box
+        width="100%"
+        style={{
+          height: 355,
+          borderRadius: 8,
+          overflow: "hidden",
+          flex: "0 0 auto",
+        }}
+      >
+        <Box
+          as="img"
+          src={card.imageSrc}
+          alt=""
+          aria-hidden
+          width="100%"
+          style={{
+            height: 355,
+            objectFit: "cover",
+            objectPosition: "center",
+            display: "block",
+          }}
+        />
+      </Box>
+      <HStack
+        alignItems="center"
+        width="100%"
+        minWidth={0}
+        style={{ flex: "0 0 auto", minHeight: 37, gap: 12 }}
+        paddingX={0}
+        paddingY={0}
+      >
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          flexShrink={0}
+          style={{ width: 23, height: 21 }}
+          aria-hidden
+        >
+          <Icon name={card.iconName} size="m" color="fg" />
+        </Box>
+        <Text
+          as="h3"
+          color="fg"
+          style={{
+            margin: 0,
+            fontSize: 18,
+            lineHeight: "37px",
+            fontWeight: 700,
+            flex: 1,
+            minWidth: 0,
+            fontFamily:
+              'var(--defaultFont-sans, "OpenAI Sans", system-ui), system-ui, sans-serif',
+          }}
+        >
+          {titleText}
+        </Text>
+      </HStack>
+    </Box>
   )
 }
 
@@ -391,70 +409,6 @@ function HomeHorizontalRule() {
         }}
       />
     </Box>
-  )
-}
-
-/**
- * Coinbase-style list row: one `Interactable` control, primary icon disc + label,
- * hover/press wash via `blendStyles` (same interaction model as mobile money actions).
- */
-function HomeLinkActionRow({
-  iconName,
-  label,
-  onClick,
-}: {
-  iconName: IconName
-  label: string
-  onClick: () => void
-}) {
-  const theme = useTheme()
-  return (
-    <Interactable
-      type="button"
-      onClick={onClick}
-      block
-      borderRadius={400}
-      paddingX={3}
-      paddingY={2}
-      background="bg"
-      borderColor="bg"
-      borderWidth={0}
-      blendStyles={{
-        hoveredBackground: theme.color.bgSecondaryWash,
-        pressedBackground: theme.color.bgSecondary,
-        hoveredOpacity: 1,
-        pressedOpacity: 1,
-      }}
-      style={{
-        border: "none",
-        margin: 0,
-        textAlign: "start",
-        WebkitTapHighlightColor: "transparent",
-      }}
-    >
-      <HStack gap={3} alignItems="center" width="100%" minWidth={0}>
-        <Box
-          aria-hidden
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          flexShrink={0}
-          width={40}
-          height={40}
-          borderRadius={1000}
-          background="bgPrimary"
-        >
-          <Icon name={iconName} size="s" color="fgInverse" />
-        </Box>
-        <TextLabel1
-          as="span"
-          color="fg"
-          style={{ margin: 0, fontWeight: 700, textAlign: "start" }}
-        >
-          {label}
-        </TextLabel1>
-      </HStack>
-    </Interactable>
   )
 }
 
@@ -909,7 +863,10 @@ export default function Home() {
           return
         }
         const ttl = protectedTtlSeconds
-        if (!Number.isFinite(ttl) || ttl < 60 || ttl > 604800) {
+        if (
+          !Number.isFinite(ttl) ||
+          (ttl !== 0 && (ttl < 60 || ttl > 604800))
+        ) {
           setCreateError(t("home.errorProtectedTtl"))
           clearPaymentSuccessState()
           setIsCreating(false)
@@ -1005,19 +962,6 @@ export default function Home() {
       /* unavailable */
     }
   }, [paymentUrl])
-
-  const sharePayment = useCallback(async () => {
-    if (!paymentUrl) return
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: label, text: label, url: paymentUrl })
-        return
-      }
-      await navigator.clipboard.writeText(paymentUrl)
-    } catch {
-      /* cancelled or unavailable */
-    }
-  }, [label, paymentUrl])
 
   const downloadQr = useCallback(() => {
     const canvas = qrCanvasRef.current
@@ -1155,35 +1099,32 @@ export default function Home() {
           <Box
             as="h2"
             color="fg"
-            font="headline"
             aria-label={t("home.commerceAriaTitle")}
-            style={{
-              ...HOME_HERO_HEADLINE_TEXT_STYLE,
-              display: "flex",
-              flexDirection: "column",
-              flexWrap: "nowrap",
-              alignItems: "flex-start",
-              rowGap: 0,
-            }}
+            style={{ margin: 0, width: "100%" }}
           >
-            <Box
-              as="img"
-              key={commerceImages.wordmark402}
-              src={commerceImages.wordmark402}
-              alt=""
-              aria-hidden
-              flexShrink={0}
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "flex-start",
-                alignItems: "flex-start",
-                width: 220,
-                height: 80,
-                maxWidth: "100%",
-              }}
-            />
-            <Box as="span">Commerce</Box>
+            <HStack
+              gap={3}
+              alignItems="center"
+              flexWrap="wrap"
+              width="100%"
+            >
+              <Box
+                as="img"
+                key={commerceImages.wordmark402}
+                src={commerceImages.wordmark402}
+                alt=""
+                aria-hidden
+                flexShrink={0}
+                style={HOME_COMMERCE_TITLE_WORDMARK_IMAGE_STYLE}
+              />
+              <Box
+                as="span"
+                font="headline"
+                style={HOME_COMMERCE_TITLE_TEXT_STYLE}
+              >
+                Commerce
+              </Box>
+            </HStack>
           </Box>
           <VStack gap={4} alignItems="stretch" width="100%" minWidth={0}>
             <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
@@ -1297,7 +1238,7 @@ export default function Home() {
     </Box>
   )
 
-  /** Carousel chrome for audience rows; cards use `MessagingCard` + heading `Icon`s. */
+  /** Carousel chrome for audience rows; cards are image + icon/title (CDS layout). */
   const homeAudienceCarouselStyles = {
     carousel: { gap: 16 },
     carouselContainer: { minWidth: 0 },
@@ -1312,18 +1253,6 @@ export default function Home() {
       paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
     >
       <VStack alignItems="stretch" width="100%" style={{ gap: 38 }}>
-        <Box
-          width="100%"
-          minWidth={0}
-          borderRadius={400}
-          overflow="hidden"
-          role="img"
-          aria-label={t("home.audienceCreatorsBannerAlt")}
-          style={{
-            height: HOME_AUDIENCE_BANNER_HEIGHT_PX,
-            ...HOME_AUDIENCE_SHARED_BANNER_BG_STYLE,
-          }}
-        />
         <VStack alignItems="stretch" width="100%" style={{ gap: 24 }}>
           <TextTitle3
             color="fg"
@@ -1356,7 +1285,7 @@ export default function Home() {
           >
             {HOME_CREATORS_CARDS.map((card) => (
               <CarouselItem key={card.id} id={card.id}>
-                {renderHomeAudienceMessagingCard(card, t, "creators")}
+                {renderHomeAudienceMessagingCard(card, t)}
               </CarouselItem>
             ))}
           </Carousel>
@@ -1374,18 +1303,6 @@ export default function Home() {
       paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
     >
       <VStack alignItems="stretch" width="100%" style={{ gap: 38 }}>
-        <Box
-          width="100%"
-          minWidth={0}
-          borderRadius={400}
-          overflow="hidden"
-          role="img"
-          aria-label={t("home.audienceSoftwareBannerAlt")}
-          style={{
-            height: HOME_AUDIENCE_BANNER_HEIGHT_PX,
-            ...HOME_AUDIENCE_SOFTWARE_BANNER_BG_STYLE,
-          }}
-        />
         <VStack alignItems="stretch" width="100%" style={{ gap: 24 }}>
           <TextTitle3
             color="fg"
@@ -1418,7 +1335,7 @@ export default function Home() {
           >
             {HOME_SOFTWARE_CARDS.map((card) => (
               <CarouselItem key={card.id} id={card.id}>
-                {renderHomeAudienceMessagingCard(card, t, "software")}
+                {renderHomeAudienceMessagingCard(card, t)}
               </CarouselItem>
             ))}
           </Carousel>
@@ -1929,13 +1846,15 @@ export default function Home() {
       PROTECTED_TTL_PRESETS.map((sec) => ({
         value: String(sec),
         label:
-          sec === 900
-            ? t("home.ttlPreset15m")
-            : sec === 3600
-              ? t("home.ttlPreset1h")
-              : sec === 86400
-                ? t("home.ttlPreset24h")
-                : t("home.ttlPreset7d"),
+          sec === 0
+            ? t("home.ttlPresetNone")
+            : sec === 900
+              ? t("home.ttlPreset15m")
+              : sec === 3600
+                ? t("home.ttlPreset1h")
+                : sec === 86400
+                  ? t("home.ttlPreset24h")
+                  : t("home.ttlPreset7d"),
       })),
     [t],
   )
@@ -2004,6 +1923,11 @@ export default function Home() {
         },
         optionLabel: {
           whiteSpace: "nowrap",
+        },
+        /** Default end stack uses `flexGrow: 1`, splitting the control 50/50 and parking the caret at the far edge. */
+        controlEndNode: {
+          flexGrow: 0,
+          marginInlineStart: -4,
         },
       },
     }),
@@ -2969,11 +2893,6 @@ export default function Home() {
               >
                 {t("home.downloadQrCode")}
               </Button>
-              <HomeLinkActionRow
-                iconName="share"
-                label={t("home.share")}
-                onClick={sharePayment}
-              />
             </VStack>
           </VStack>
         </Box>
@@ -3011,7 +2930,6 @@ export default function Home() {
         ) : null}
 
         <Box
-          bordered
           borderRadius={400}
           background="bgSecondary"
           padding={{ base: 4, desktop: 4 }}
@@ -3259,6 +3177,49 @@ export default function Home() {
     </Box>
   )
 
+  const homeLeftPanelFooter = (
+    <Box
+      as="footer"
+      width="100%"
+      minWidth={0}
+      paddingStart={contentPadStart}
+      paddingEnd={contentPadEnd}
+      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
+    >
+      <VStack gap={3} alignItems="stretch" width="100%" maxWidth={680}>
+        <Divider
+          direction="horizontal"
+          background="bgLine"
+          style={{ width: "100%" }}
+        />
+        <HStack
+          gap={4}
+          flexWrap="wrap"
+          alignItems="center"
+          rowGap={2}
+          columnGap={4}
+        >
+          <TextCaption color="fgMuted" as="span">
+            {t("howItWorks.footerCopyright", {
+              year: new Date().getFullYear(),
+            })}
+          </TextCaption>
+          <HStack gap={2} alignItems="center" flexWrap="wrap">
+            <RouterLink to="/terms" className="how-it-works-footer-link">
+              {t("howItWorks.footerTerms")}
+            </RouterLink>
+            <TextCaption color="fgMuted" as="span" aria-hidden>
+              ·
+            </TextCaption>
+            <RouterLink to="/privacy" className="how-it-works-footer-link">
+              {t("howItWorks.footerPrivacy")}
+            </RouterLink>
+          </HStack>
+        </HStack>
+      </VStack>
+    </Box>
+  )
+
   /** Wide: narrative column (hero → commerce → resources → … → CTA); workflow + QR live in the right column. */
   const leftPaneDesktop = (
     <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
@@ -3278,12 +3239,13 @@ export default function Home() {
       {homeWhy402}
       <HomeHorizontalRule />
       {homeBottomCta}
+      {homeLeftPanelFooter}
     </VStack>
   )
 
   /**
    * Transaction rail: Sell/Buy/API tabs → amount → fields → delivery → CTA;
-   * generated QR/URL/share live in `homeRailResultSection` below the CTA.
+   * generated QR/URL live in `homeRailResultSection` below the CTA.
    */
   const showSellTypeChooser = activeTab.id === "sell" && sellTypeChooserOpen
 
@@ -3512,6 +3474,7 @@ export default function Home() {
             {homeWhy402}
             <HomeHorizontalRule />
             {homeBottomCta}
+            {homeLeftPanelFooter}
           </VStack>
         </Box>
       )}

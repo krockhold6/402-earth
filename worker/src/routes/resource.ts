@@ -441,12 +441,15 @@ async function handlePostResourceOnly(
   if (ttlRaw !== undefined && ttlRaw !== null && ttlRaw !== '') {
     const n =
       typeof ttlRaw === 'number' ? ttlRaw : parseInt(String(ttlRaw).trim(), 10)
-    if (!Number.isFinite(n) || n < 60 || n > 604800) {
+    if (n === 0) {
+      protectedTtlSeconds = 0
+    } else if (!Number.isFinite(n) || n < 60 || n > 604800) {
       return badRequest(
-        'protectedTtlSeconds must be an integer from 60 to 604800 (1 minute to 7 days)',
+        'protectedTtlSeconds must be 0 (no expiry), or an integer from 60 to 604800 (1 minute to 7 days)',
       )
+    } else {
+      protectedTtlSeconds = Math.floor(n)
     }
-    protectedTtlSeconds = Math.floor(n)
   }
 
   const oneTimeUnlockRaw = parseOptionalBool(

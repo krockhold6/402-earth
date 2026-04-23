@@ -115,7 +115,13 @@ function buildOpenApi() {
                     unlockType: { type: "string", enum: ["json", "text", "link"] },
                     unlockValue: {},
                     deliveryMode: { type: "string", enum: ["direct", "protected"] },
-                    protectedTtlSeconds: { type: "integer", minimum: 60, maximum: 604800 },
+                    protectedTtlSeconds: {
+                      type: "integer",
+                      minimum: 0,
+                      maximum: 604800,
+                      description:
+                        "Unlock token TTL in seconds; 0 means no practical expiry (tokens use a long horizon).",
+                    },
                     oneTimeUnlock: { type: "boolean" },
                   },
                 },
