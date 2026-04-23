@@ -28,6 +28,9 @@ export type InternalCapabilityDescriptor = {
     delivery_mode: string | null
     http_method: string | null
     endpoint: string | null
+    capability_exposure?: string | null
+    mcp_type?: string | null
+    mcp_requires_payment?: boolean | null
   }
   result_retention_profile: {
     receipt_mode: string | null
@@ -68,6 +71,10 @@ export function buildInternalCapabilityDescriptor(
       delivery_mode: resource.deliveryMode ?? null,
       http_method: resource.httpMethod ?? null,
       endpoint: resource.endpoint ?? null,
+      capability_exposure: resource.capabilityExposure ?? 'api',
+      mcp_type: resource.mcpType ?? null,
+      mcp_requires_payment:
+        resource.mcpRequiresPayment == null ? true : resource.mcpRequiresPayment,
     },
     result_retention_profile: {
       receipt_mode: resource.receiptMode ?? null,

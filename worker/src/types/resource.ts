@@ -16,6 +16,8 @@ export type CapabilityOriginTrust =
 
 /** Capability-only lifecycle (Phase 4). Resources use null. */
 export type CapabilityLifecycle = 'active' | 'disabled' | 'archived'
+export type CapabilityExposure = 'api' | 'mcp' | 'both'
+export type CapabilityMcpType = 'tool' | 'resource' | 'prompt'
 
 /** Stored `delivery_mode` — resources never use `async`. */
 export type StoredDeliveryMode = ResourceDeliveryMode | CapabilityDeliveryMode
@@ -59,6 +61,13 @@ export interface ResourceDefinition {
   capabilityOriginTrust: CapabilityOriginTrust | null
   /** active | disabled | archived — null when sellType is resource. */
   capabilityLifecycle: CapabilityLifecycle | null
+  /** Exposure surface for this capability (defaults to api for legacy rows). */
+  capabilityExposure?: CapabilityExposure | null
+  /** MCP metadata when exposure includes mcp. */
+  mcpName?: string | null
+  mcpDescription?: string | null
+  mcpType?: CapabilityMcpType | null
+  mcpRequiresPayment?: boolean | null
   /** Seller notification email for async terminal events (Phase 5). */
   capabilityNotifyEmail: string | null
   /** Optional HTTPS webhook for async terminal events. */

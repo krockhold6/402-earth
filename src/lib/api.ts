@@ -12,6 +12,8 @@ export function apiUrl(path: string): string {
 }
 
 export type SellType = "resource" | "capability"
+export type CapabilityExposure = "api" | "mcp" | "both"
+export type CapabilityMcpType = "tool" | "resource" | "prompt"
 
 /** Public resource from Worker v3 `GET /api/resource/:slug`. */
 export type ApiResource = {
@@ -55,6 +57,11 @@ export type ApiResource = {
     | null
   /** Phase 4 — active / disabled / archived. */
   capabilityLifecycle?: "active" | "disabled" | "archived"
+  capabilityExposure?: CapabilityExposure | null
+  mcpName?: string | null
+  mcpDescription?: string | null
+  mcpType?: CapabilityMcpType | null
+  mcpRequiresPayment?: boolean | null
   /** When trust + lifecycle allow execution (from Worker). */
   executionAllowed?: boolean
   /**
@@ -723,6 +730,11 @@ export type CreateResourceInput =
       resultFormat: string
       deliveryMode: "direct" | "protected" | "async"
       receiptMode: "standard" | "detailed"
+      capabilityExposure?: CapabilityExposure
+      mcpName?: string
+      mcpDescription?: string
+      mcpType?: CapabilityMcpType
+      mcpRequiresPayment?: boolean
       slug?: string
     }
 
@@ -742,7 +754,14 @@ export async function createResource(
       result_format: input.resultFormat.trim(),
       delivery_mode: input.deliveryMode,
       receipt_mode: input.receiptMode,
+      capability_exposure: input.capabilityExposure ?? "api",
+      mcp_type: input.mcpType ?? "tool",
+      mcp_requires_payment: input.mcpRequiresPayment ?? true,
     }
+    const mcpName = input.mcpName?.trim()
+    if (mcpName) body.mcp_name = mcpName
+    const mcpDescription = input.mcpDescription?.trim()
+    if (mcpDescription) body.mcp_description = mcpDescription
     const s = input.slug?.trim()
     if (s) body.slug = s
   } else {

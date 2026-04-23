@@ -64,6 +64,8 @@ import {
   normalizeCapabilityDeliveryMode,
 } from '../lib/deliveryMode'
 import {
+  parseCapabilityExposure,
+  parseCapabilityMcpType,
   isValidHttpMethod,
   parseNonEmptyString,
   parseReceiptMode,
@@ -245,6 +247,12 @@ export function sellerCapabilityResourceView(
     auto_pause_reason: resource.capabilityAutoPauseReason,
     manual_paused_until: resource.capabilityManualPausedUntil,
   }
+  base.capability_exposure = resource.capabilityExposure ?? 'api'
+  base.mcp_name = resource.mcpName ?? null
+  base.mcp_description = resource.mcpDescription ?? null
+  base.mcp_type = resource.mcpType ?? null
+  base.mcp_requires_payment =
+    resource.mcpRequiresPayment == null ? true : resource.mcpRequiresPayment
   base.created_at = resource.createdAt
   base.updated_at = resource.updatedAt
   return base
@@ -884,6 +892,40 @@ export async function handlePatchSellerCapability(
   )
   if (!receiptParsed.ok) return badRequest(receiptParsed.message)
 
+  const exposureParsed = parseCapabilityExposure(
+    o.capability_exposure ?? o.capabilityExposure ?? r.capabilityExposure ?? 'api',
+  )
+  if (!exposureParsed.ok) return badRequest(exposureParsed.message)
+  const capabilityExposure = exposureParsed.value
+  const mcpTypeParsed = parseCapabilityMcpType(
+    o.mcp_type ?? o.mcpType ?? r.mcpType ?? (capabilityExposure === 'api' ? null : 'tool'),
+  )
+  if (!mcpTypeParsed.ok) return badRequest(mcpTypeParsed.message)
+  const mcpType = mcpTypeParsed.value
+  const mcpNameRaw =
+    typeof o.mcp_name === 'string'
+      ? o.mcp_name.trim()
+      : typeof o.mcpName === 'string'
+        ? o.mcpName.trim()
+        : typeof r.mcpName === 'string'
+          ? r.mcpName.trim()
+          : ''
+  const mcpDescriptionRaw =
+    typeof o.mcp_description === 'string'
+      ? o.mcp_description.trim()
+      : typeof o.mcpDescription === 'string'
+        ? o.mcpDescription.trim()
+        : typeof r.mcpDescription === 'string'
+          ? r.mcpDescription.trim()
+          : ''
+  const mcpRequiresPaymentRaw =
+    o.mcp_requires_payment ??
+    o.mcpRequiresPayment ??
+    r.mcpRequiresPayment ??
+    true
+  const mcpRequiresPayment =
+    typeof mcpRequiresPaymentRaw === 'boolean' ? mcpRequiresPaymentRaw : true
+
   const deliveryRaw =
     typeof o.delivery_mode === 'string'
       ? o.delivery_mode
@@ -953,6 +995,15 @@ export async function handlePatchSellerCapability(
     capabilityOriginHost: ep.hostname,
     capabilityOriginTrust: trustEv.trust,
     capabilityLifecycle: lifecycle,
+    capabilityExposure,
+    mcpName:
+      capabilityExposure === 'api'
+        ? null
+        : mcpNameRaw || capName.value,
+    mcpDescription:
+      capabilityExposure === 'api' ? null : mcpDescriptionRaw || null,
+    mcpType: capabilityExposure === 'api' ? null : mcpType,
+    mcpRequiresPayment: capabilityExposure === 'api' ? null : mcpRequiresPayment,
     updatedAt: t,
   })
 

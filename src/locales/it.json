@@ -807,7 +807,7 @@
   "home.postPaymentKindPhysical": "Physical",
   "home.postPaymentKindAccessibility": "What opens after payment — delivery type",
   "home.postPaymentOpensHelperPhysical": "No hosted link is required. Add instructions so buyers know how to receive the physical item (pickup, shipping, location, hours, etc.).",
-  "home.physicalInstructionsLabel": "Buyer instructions",
+  "home.physicalInstructionsLabel": "Note",
   "home.physicalInstructionsHelper": "These instructions are shown to the buyer immediately after successful payment.",
   "home.errorPhysicalInstructions": "Enter instructions for how the buyer receives the physical item.",
   "home.errorPhysicalInstructionsLength": "Instructions are too long (maximum {{max}} characters).",

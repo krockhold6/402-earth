@@ -17,6 +17,8 @@ import {
   parseCapabilityEndpoint,
 } from '../lib/capabilityOriginTrust'
 import {
+  parseCapabilityExposure,
+  parseCapabilityMcpType,
   isValidHttpMethod,
   parseNonEmptyString,
   parseReceiptMode,
@@ -76,6 +78,12 @@ export function publicResourceDefinition(
     base.capabilityOriginHost = resource.capabilityOriginHost
     base.capabilityOriginTrust = resource.capabilityOriginTrust
     base.capabilityLifecycle = lc
+    base.capabilityExposure = resource.capabilityExposure ?? 'api'
+    base.mcpName = resource.mcpName ?? null
+    base.mcpDescription = resource.mcpDescription ?? null
+    base.mcpType = resource.mcpType ?? null
+    base.mcpRequiresPayment =
+      resource.mcpRequiresPayment == null ? true : resource.mcpRequiresPayment === true
     const trust = resource.capabilityOriginTrust
     if (lc === 'active' && trust != null && env) {
       base.executionAllowed = isExecutionPermittedForTrust(env, trust)
@@ -245,6 +253,35 @@ async function handlePostCapability(
   const receiptParsed = parseReceiptMode(o.receipt_mode ?? o.receiptMode)
   if (!receiptParsed.ok) return badRequest(receiptParsed.message)
 
+  const exposureParsed = parseCapabilityExposure(
+    o.capability_exposure ?? o.capabilityExposure ?? 'api',
+  )
+  if (!exposureParsed.ok) return badRequest(exposureParsed.message)
+  const capabilityExposure = exposureParsed.value
+  const mcpTypeParsed = parseCapabilityMcpType(
+    o.mcp_type ?? o.mcpType ?? (capabilityExposure === 'api' ? null : 'tool'),
+  )
+  if (!mcpTypeParsed.ok) return badRequest(mcpTypeParsed.message)
+  const mcpType = mcpTypeParsed.value
+  const mcpNameRaw =
+    typeof o.mcp_name === 'string'
+      ? o.mcp_name.trim()
+      : typeof o.mcpName === 'string'
+        ? o.mcpName.trim()
+        : ''
+  const mcpDescriptionRaw =
+    typeof o.mcp_description === 'string'
+      ? o.mcp_description.trim()
+      : typeof o.mcpDescription === 'string'
+        ? o.mcpDescription.trim()
+        : ''
+  const mcpName = mcpNameRaw === '' ? capabilityName.value : mcpNameRaw
+  const mcpDescription = mcpDescriptionRaw === '' ? null : mcpDescriptionRaw
+  const mcpRequiresPaymentRaw =
+    o.mcp_requires_payment ?? o.mcpRequiresPayment ?? true
+  const mcpRequiresPayment =
+    typeof mcpRequiresPaymentRaw === 'boolean' ? mcpRequiresPaymentRaw : true
+
   const slugOptRaw = typeof o.slug === 'string' ? o.slug.trim() : ''
   let slug: string
   if (slugOptRaw !== '') {
@@ -301,6 +338,11 @@ async function handlePostCapability(
     capabilityOriginHost: endpointParsed.hostname,
     capabilityOriginTrust: trustStr,
     capabilityLifecycle: 'active',
+    capabilityExposure,
+    mcpName: capabilityExposure === 'api' ? null : mcpName,
+    mcpDescription: capabilityExposure === 'api' ? null : mcpDescription,
+    mcpType: capabilityExposure === 'api' ? null : mcpType,
+    mcpRequiresPayment: capabilityExposure === 'api' ? null : mcpRequiresPayment,
     createdAt: t,
     updatedAt: t,
   })
@@ -530,6 +572,11 @@ async function handlePostResourceOnly(
     capabilityOriginHost: null,
     capabilityOriginTrust: null,
     capabilityLifecycle: null,
+    capabilityExposure: null,
+    mcpName: null,
+    mcpDescription: null,
+    mcpType: null,
+    mcpRequiresPayment: null,
     createdAt: t,
     updatedAt: t,
   })

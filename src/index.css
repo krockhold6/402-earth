@@ -197,11 +197,3 @@ body {
   padding-inline-end: var(--space-2, 16px);
 }
 
-/* Home — buyer instructions: long English example reads as one line; scroll if needed on narrow widths. */
-#root .home-physical-instructions-textarea::placeholder {
-  white-space: nowrap;
-}
-
-#root .home-physical-instructions-textarea:placeholder-shown {
-  overflow-x: auto;
-}

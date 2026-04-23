@@ -53,6 +53,16 @@ const LIFECYCLE_OPTIONS: { id: CapabilityLifecycle; labelKey: string }[] = [
   { id: "disabled", labelKey: "home.capabilityManageLifecycleDisabled" },
   { id: "archived", labelKey: "home.capabilityManageLifecycleArchived" },
 ]
+const CAPABILITY_EXPOSURE_OPTIONS = [
+  { value: "api", labelKey: "home.capabilityExposureApi" },
+  { value: "mcp", labelKey: "home.capabilityExposureMcp" },
+  { value: "both", labelKey: "home.capabilityExposureBoth" },
+] as const
+const MCP_TYPE_OPTIONS = [
+  { value: "tool", labelKey: "home.mcpTypeTool" },
+  { value: "resource", labelKey: "home.mcpTypeResource" },
+  { value: "prompt", labelKey: "home.mcpTypePrompt" },
+] as const
 
 export function CapabilityManagePanel({
   slug,
@@ -78,6 +88,15 @@ export function CapabilityManagePanel({
   const [editEndpoint, setEditEndpoint] = useState("")
   const [editLifecycle, setEditLifecycle] =
     useState<CapabilityLifecycle>("active")
+  const [editCapabilityExposure, setEditCapabilityExposure] = useState<
+    "api" | "mcp" | "both"
+  >("api")
+  const [editMcpName, setEditMcpName] = useState("")
+  const [editMcpDescription, setEditMcpDescription] = useState("")
+  const [editMcpType, setEditMcpType] = useState<"tool" | "resource" | "prompt">(
+    "tool",
+  )
+  const [editMcpRequiresPayment, setEditMcpRequiresPayment] = useState(true)
   const [allowHost, setAllowHost] = useState("")
   const [notifyEmail, setNotifyEmail] = useState("")
   const [notifyEnabled, setNotifyEnabled] = useState(false)
@@ -213,6 +232,11 @@ export function CapabilityManagePanel({
           setEditName(r.capabilityName ?? r.label ?? "")
           setEditEndpoint(r.endpoint ?? "")
           setEditLifecycle(r.capabilityLifecycle ?? "active")
+          setEditCapabilityExposure(r.capabilityExposure ?? "api")
+          setEditMcpName(r.mcpName?.trim() ?? "")
+          setEditMcpDescription(r.mcpDescription?.trim() ?? "")
+          setEditMcpType(r.mcpType ?? "tool")
+          setEditMcpRequiresPayment(r.mcpRequiresPayment !== false)
           setAllowHost(r.capabilityOriginHost?.trim() ?? "")
           const sr = r as SellerCapabilityResource
           const n = sr.notification
@@ -445,6 +469,11 @@ export function CapabilityManagePanel({
           capability_name: editName.trim(),
           endpoint: editEndpoint.trim(),
           capability_lifecycle: editLifecycle,
+          capability_exposure: editCapabilityExposure,
+          mcp_name: editMcpName.trim(),
+          mcp_description: editMcpDescription.trim(),
+          mcp_type: editMcpType,
+          mcp_requires_payment: editMcpRequiresPayment,
           notify_enabled: notifyEnabled,
           notify_email: notifyEmail.trim(),
           notify_webhook_url: notifyWebhookUrl.trim(),
@@ -1056,6 +1085,105 @@ export function CapabilityManagePanel({
               onChange={(e) => setEditEndpoint(e.target.value)}
               autoComplete="off"
             />
+            <VStack gap={1} alignItems="stretch" width="100%">
+              <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+                {t("home.capabilityExposure")}
+              </TextLabel1>
+              <Box alignSelf="flex-start" maxWidth="100%">
+                <Select
+                  type="single"
+                  value={editCapabilityExposure}
+                  onChange={(next) => {
+                    if (next == null) return
+                    setEditCapabilityExposure(next as "api" | "mcp" | "both")
+                  }}
+                  options={CAPABILITY_EXPOSURE_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t(o.labelKey),
+                  }))}
+                  compact
+                  bordered={false}
+                  variant="foregroundMuted"
+                  styles={cdsCompactSelectFieldStyles}
+                  accessibilityLabel={t("home.capabilityExposure")}
+                  controlAccessibilityLabel={t("home.capabilityExposure")}
+                />
+              </Box>
+              <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+                {t("home.capabilityExposureHelp")}
+              </TextCaption>
+            </VStack>
+            {editCapabilityExposure === "mcp" || editCapabilityExposure === "both" ? (
+              <VStack gap={2} alignItems="stretch" width="100%">
+                <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+                  {t("home.capabilityMcpFieldsHelp")}
+                </TextCaption>
+                <TextInput
+                  compact
+                  label={t("home.mcpName")}
+                  value={editMcpName}
+                  onChange={(e) => setEditMcpName(e.target.value)}
+                  autoComplete="off"
+                />
+                <TextInput
+                  compact
+                  label={t("home.mcpDescription")}
+                  value={editMcpDescription}
+                  onChange={(e) => setEditMcpDescription(e.target.value)}
+                  autoComplete="off"
+                />
+                <VStack gap={1} alignItems="stretch" width="100%">
+                  <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+                    {t("home.mcpType")}
+                  </TextLabel1>
+                  <Box alignSelf="flex-start" maxWidth="100%">
+                    <Select
+                      type="single"
+                      value={editMcpType}
+                      onChange={(next) => {
+                        if (next == null) return
+                        setEditMcpType(next as "tool" | "resource" | "prompt")
+                      }}
+                      options={MCP_TYPE_OPTIONS.map((o) => ({
+                        value: o.value,
+                        label: t(o.labelKey),
+                      }))}
+                      compact
+                      bordered={false}
+                      variant="foregroundMuted"
+                      styles={cdsCompactSelectFieldStyles}
+                      accessibilityLabel={t("home.mcpType")}
+                      controlAccessibilityLabel={t("home.mcpType")}
+                    />
+                  </Box>
+                </VStack>
+                <VStack gap={1} alignItems="stretch" width="100%">
+                  <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+                    {t("home.mcpRequiresPayment")}
+                  </TextLabel1>
+                  <Box alignSelf="flex-start" maxWidth="100%">
+                    <Select
+                      type="single"
+                      value={editMcpRequiresPayment ? "yes" : "no"}
+                      onChange={(next) => {
+                        if (next == null) return
+                        setEditMcpRequiresPayment(next === "yes")
+                      }}
+                      options={[
+                        { value: "yes", label: t("home.yes") },
+                        { value: "no", label: t("home.no") },
+                      ]}
+                      compact
+                      bordered={false}
+                      variant="foregroundMuted"
+                      styles={cdsCompactSelectFieldStyles}
+                      accessibilityLabel={t("home.mcpRequiresPayment")}
+                      controlAccessibilityLabel={t("home.mcpRequiresPayment")}
+                    />
+                  </Box>
+                </VStack>
+              </VStack>
+            ) : null}
             <VStack gap={1} alignItems="stretch" width="100%">
               <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
                 {t("home.capabilityManageLifecycleLabel")}

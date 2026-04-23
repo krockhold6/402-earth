@@ -107,15 +107,6 @@ const HOME_COMMERCE_RAIL_LOGO_STYLE: CSSProperties = {
   objectFit: "contain",
 }
 
-/** 402 wordmark + “Commerce” — image height and type share the same cap (80px). */
-const HOME_COMMERCE_TITLE_WORDMARK_IMAGE_STYLE: CSSProperties = {
-  display: "block",
-  width: 220,
-  height: 80,
-  maxWidth: "100%",
-  objectFit: "contain",
-}
-
 const HOME_COMMERCE_TITLE_TEXT_STYLE: CSSProperties = {
   fontSize: "clamp(40px, 8vw, 80px)",
   fontWeight: 700,
@@ -491,6 +482,15 @@ export default function Home() {
   const [capHttpMethod, setCapHttpMethod] = useState("POST")
   const [capInputFormat, setCapInputFormat] = useState("json")
   const [capResultFormat, setCapResultFormat] = useState("json")
+  const [capabilityExposure, setCapabilityExposure] = useState<
+    "api" | "mcp" | "both"
+  >("api")
+  const [capMcpName, setCapMcpName] = useState("")
+  const [capMcpDescription, setCapMcpDescription] = useState("")
+  const [capMcpType, setCapMcpType] = useState<"tool" | "resource" | "prompt">(
+    "tool",
+  )
+  const [capMcpRequiresPayment, setCapMcpRequiresPayment] = useState(true)
   const [capReceiptMode, setCapReceiptMode] = useState<"standard" | "detailed">(
     "standard",
   )
@@ -781,6 +781,11 @@ export default function Home() {
         httpMethod: capHttpMethod,
         inputFormat: capInputFormat.trim(),
         resultFormat: capResultFormat.trim(),
+        capabilityExposure,
+        mcpName: capMcpName.trim(),
+        mcpDescription: capMcpDescription.trim(),
+        mcpType: capMcpType,
+        mcpRequiresPayment: capMcpRequiresPayment,
         deliveryMode: activeCapDeliveryTab.id,
         receiptMode: capReceiptMode,
       })
@@ -801,6 +806,11 @@ export default function Home() {
           httpMethod: parsed.data.httpMethod,
           inputFormat: parsed.data.inputFormat,
           resultFormat: parsed.data.resultFormat,
+          capabilityExposure: parsed.data.capabilityExposure,
+          mcpName: parsed.data.mcpName,
+          mcpDescription: parsed.data.mcpDescription,
+          mcpType: parsed.data.mcpType,
+          mcpRequiresPayment: parsed.data.mcpRequiresPayment,
           deliveryMode: parsed.data.deliveryMode,
           receiptMode: parsed.data.receiptMode,
         })
@@ -1108,15 +1118,6 @@ export default function Home() {
               flexWrap="wrap"
               width="100%"
             >
-              <Box
-                as="img"
-                key={commerceImages.wordmark402}
-                src={commerceImages.wordmark402}
-                alt=""
-                aria-hidden
-                flexShrink={0}
-                style={HOME_COMMERCE_TITLE_WORDMARK_IMAGE_STYLE}
-              />
               <Box
                 as="span"
                 font="headline"
@@ -1897,6 +1898,7 @@ export default function Home() {
           background: "transparent",
           paddingLeft: 0,
           paddingRight: 0,
+          justifyContent: "flex-start",
           borderTopLeftRadius: 8,
           borderBottomLeftRadius: 8,
           borderTopRightRadius: 0,
@@ -1906,15 +1908,20 @@ export default function Home() {
         // which leaves a visible gap before the secondary fill when embedded in TextInput `start`.
         controlInputNode: {
           ...cdsCompactSelectFieldStyles.controlInputNode,
+          width: "100px",
           minHeight: 62,
           paddingInlineStart: 0,
           justifyContent: "flex-start",
+          columnGap: 4,
         },
         // Apply the left inset on the value label itself so the caret/text origin
         // matches the URL input's leading edge (instead of padding the outer control).
         controlValueNode: {
           paddingInlineStart: 20,
           paddingInlineEnd: 0,
+          flexGrow: 0,
+          flexShrink: 0,
+          marginInlineEnd: 0,
         },
         /** Keep floating-ui width behavior; only enforce a readable minimum. */
         dropdown: {
@@ -1927,7 +1934,9 @@ export default function Home() {
         /** Default end stack uses `flexGrow: 1`, splitting the control 50/50 and parking the caret at the far edge. */
         controlEndNode: {
           flexGrow: 0,
-          marginInlineStart: -4,
+          marginInlineStart: 0,
+          marginLeft: 0,
+          paddingInlineStart: 0,
         },
       },
     }),
@@ -2150,7 +2159,7 @@ export default function Home() {
           </Box>
           {postPaymentUnlockKind === "physical" ? (
             <TextInput
-              compact={false}
+              compact
               {...homeFormTextInputSurface}
               label={t("home.physicalInstructionsLabel")}
               helperText={t("home.physicalInstructionsHelper")}
@@ -2160,7 +2169,7 @@ export default function Home() {
                   compact={false}
                   font="body"
                   value={physicalInstructions}
-                  placeholder={t("home.physicalInstructionsPlaceholder")}
+                  placeholder=""
                   onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
                     setPhysicalInstructions(e.target.value)
                     invalidateQrIfFormChanged()
@@ -2204,6 +2213,25 @@ export default function Home() {
         value: m,
         label: m,
       })),
+    [],
+  )
+  const inputFormatSelectOptions = useMemo(
+    () => [
+      { value: "json", label: "JSON" },
+      { value: "form", label: "Form" },
+      { value: "query", label: "Query params" },
+      { value: "none", label: "None" },
+    ],
+    [],
+  )
+  const resultFormatSelectOptions = useMemo(
+    () => [
+      { value: "json", label: "JSON" },
+      { value: "text", label: "Text" },
+      { value: "file", label: "File" },
+      { value: "redirect", label: "Redirect" },
+      { value: "html", label: "HTML" },
+    ],
     [],
   )
 
@@ -2270,56 +2298,159 @@ export default function Home() {
         controlAccessibilityLabel={t("home.method")}
         style={{ width: "100%", minWidth: 0 }}
       />
-      <TextInput
-        compact
-        {...homeFormTextInputSurface}
-        label={t("home.inputFormat")}
+      <Select
+        type="single"
         value={capInputFormat}
-        onChange={(e) => {
-          setCapInputFormat(e.target.value)
+        onChange={(next) => {
+          if (next == null) return
+          setCapInputFormat(String(next))
           invalidateQrIfFormChanged()
         }}
-        autoComplete="off"
+        options={inputFormatSelectOptions}
+        label={t("home.inputFormat").replace(/\s/g, "\u00A0")}
+        {...homeFormSelectSurface}
+        accessibilityLabel={t("home.inputFormat")}
+        controlAccessibilityLabel={t("home.inputFormat")}
+        style={{ width: "100%", minWidth: 0 }}
       />
-      <TextInput
-        compact
-        {...homeFormTextInputSurface}
-        label={t("home.resultFormat")}
+      <Select
+        type="single"
         value={capResultFormat}
-        onChange={(e) => {
-          setCapResultFormat(e.target.value)
+        onChange={(next) => {
+          if (next == null) return
+          setCapResultFormat(String(next))
           invalidateQrIfFormChanged()
         }}
-        autoComplete="off"
+        options={resultFormatSelectOptions}
+        label={t("home.resultFormat").replace(/\s/g, "\u00A0")}
+        {...homeFormSelectSurface}
+        accessibilityLabel={t("home.resultFormat")}
+        controlAccessibilityLabel={t("home.resultFormat")}
+        style={{ width: "100%", minWidth: 0 }}
       />
       <VStack gap={2} alignItems="stretch" width="100%">
         <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
-          {t("home.receiptMode")}
+          {t("home.capabilityExposure")}
         </TextLabel1>
-        <SegmentedTabs<"standard" | "detailed">
-          accessibilityLabel={t("home.receiptMode")}
+        <SegmentedTabs<"api" | "mcp" | "both">
+          accessibilityLabel={t("home.capabilityExposure")}
           activeTab={{
-            id: capReceiptMode,
+            id: capabilityExposure,
             label:
-              capReceiptMode === "detailed"
-                ? t("home.receiptDetailed")
-                : t("home.receiptStandard"),
+              capabilityExposure === "both"
+                ? t("home.capabilityExposureBoth")
+                : capabilityExposure === "mcp"
+                  ? t("home.capabilityExposureMcp")
+                  : t("home.capabilityExposureApi"),
           }}
           onChange={(next) => {
             if (!next) return
-            if (next.id === "standard" || next.id === "detailed") {
-              setCapReceiptMode(next.id)
+            if (next.id === "api" || next.id === "mcp" || next.id === "both") {
+              setCapabilityExposure(next.id)
               invalidateQrIfFormChanged()
             }
           }}
           tabs={[
-            { id: "standard", label: t("home.receiptStandard") },
-            { id: "detailed", label: t("home.receiptDetailed") },
+            { id: "api", label: t("home.capabilityExposureApi") },
+            { id: "mcp", label: t("home.capabilityExposureMcp") },
+            { id: "both", label: t("home.capabilityExposureBoth") },
           ]}
           alignSelf="flex-start"
           maxWidth="100%"
         />
+        <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+          {t("home.capabilityExposureHelp")}
+        </TextCaption>
       </VStack>
+      {capabilityExposure === "mcp" || capabilityExposure === "both" ? (
+        <VStack gap={3} alignItems="stretch" width="100%">
+          <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+            {t("home.capabilityMcpFieldsHelp")}
+          </TextCaption>
+          <TextInput
+            compact
+            {...homeFormTextInputSurface}
+            label={t("home.mcpName")}
+            value={capMcpName}
+            onChange={(e) => {
+              setCapMcpName(e.target.value)
+              invalidateQrIfFormChanged()
+            }}
+            autoComplete="off"
+          />
+          <TextInput
+            compact
+            {...homeFormTextInputSurface}
+            label={t("home.mcpDescription")}
+            value={capMcpDescription}
+            onChange={(e) => {
+              setCapMcpDescription(e.target.value)
+              invalidateQrIfFormChanged()
+            }}
+            autoComplete="off"
+          />
+          <VStack gap={2} alignItems="stretch" width="100%">
+            <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+              {t("home.mcpType")}
+            </TextLabel1>
+            <SegmentedTabs<"tool" | "resource" | "prompt">
+              accessibilityLabel={t("home.mcpType")}
+              activeTab={{
+                id: capMcpType,
+                label:
+                  capMcpType === "resource"
+                    ? t("home.mcpTypeResource")
+                    : capMcpType === "prompt"
+                      ? t("home.mcpTypePrompt")
+                      : t("home.mcpTypeTool"),
+              }}
+              onChange={(next) => {
+                if (!next) return
+                if (
+                  next.id === "tool" ||
+                  next.id === "resource" ||
+                  next.id === "prompt"
+                ) {
+                  setCapMcpType(next.id)
+                  invalidateQrIfFormChanged()
+                }
+              }}
+              tabs={[
+                { id: "tool", label: t("home.mcpTypeTool") },
+                { id: "resource", label: t("home.mcpTypeResource") },
+                { id: "prompt", label: t("home.mcpTypePrompt") },
+              ]}
+              alignSelf="flex-start"
+              maxWidth="100%"
+            />
+          </VStack>
+          <VStack gap={2} alignItems="stretch" width="100%">
+            <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+              {t("home.mcpRequiresPayment")}
+            </TextLabel1>
+            <SegmentedTabs<"yes" | "no">
+              accessibilityLabel={t("home.mcpRequiresPayment")}
+              activeTab={{
+                id: capMcpRequiresPayment ? "yes" : "no",
+                label: capMcpRequiresPayment ? t("home.yes") : t("home.no"),
+              }}
+              onChange={(next) => {
+                if (!next) return
+                if (next.id === "yes" || next.id === "no") {
+                  setCapMcpRequiresPayment(next.id === "yes")
+                  invalidateQrIfFormChanged()
+                }
+              }}
+              tabs={[
+                { id: "yes", label: t("home.yes") },
+                { id: "no", label: t("home.no") },
+              ]}
+              alignSelf="flex-start"
+              maxWidth="100%"
+            />
+          </VStack>
+        </VStack>
+      ) : null}
     </VStack>
   )
 
@@ -2353,8 +2484,36 @@ export default function Home() {
     </VStack>
   )
 
-  const homeRailCapabilityDeliveryBlock = (
+  const homeRailCapabilityExposureAndDeliveryBlock = (
     <VStack gap={3} alignItems="stretch" width="100%">
+      <VStack gap={2} alignItems="stretch" width="100%">
+        <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
+          {t("home.receiptMode")}
+        </TextLabel1>
+        <SegmentedTabs<"standard" | "detailed">
+          accessibilityLabel={t("home.receiptMode")}
+          activeTab={{
+            id: capReceiptMode,
+            label:
+              capReceiptMode === "detailed"
+                ? t("home.receiptDetailed")
+                : t("home.receiptStandard"),
+          }}
+          onChange={(next) => {
+            if (!next) return
+            if (next.id === "standard" || next.id === "detailed") {
+              setCapReceiptMode(next.id)
+              invalidateQrIfFormChanged()
+            }
+          }}
+          tabs={[
+            { id: "standard", label: t("home.receiptStandard") },
+            { id: "detailed", label: t("home.receiptDetailed") },
+          ]}
+          alignSelf="flex-start"
+          maxWidth="100%"
+        />
+      </VStack>
       <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
         {t("home.deliveryMode")}
       </TextLabel1>
@@ -2461,6 +2620,52 @@ export default function Home() {
             {capResultFormat.trim()}
           </TextBody>
         </HStack>
+        <HStack
+          gap={3}
+          justifyContent="space-between"
+          alignItems="flex-start"
+          width="100%"
+        >
+          <TextCaption color="fgMuted">{t("home.capabilityExposure")}</TextCaption>
+          <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+            {capabilityExposure === "both"
+              ? t("home.capabilityExposureApiMcp")
+              : capabilityExposure === "mcp"
+                ? t("home.capabilityExposureMcp")
+                : t("home.capabilityExposureApi")}
+          </TextBody>
+        </HStack>
+        {(capabilityExposure === "mcp" || capabilityExposure === "both") ? (
+          <HStack
+            gap={3}
+            justifyContent="space-between"
+            alignItems="flex-start"
+            width="100%"
+          >
+            <TextCaption color="fgMuted">{t("home.mcpType")}</TextCaption>
+            <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+              {capMcpType === "resource"
+                ? t("home.mcpTypeResource")
+                : capMcpType === "prompt"
+                  ? t("home.mcpTypePrompt")
+                  : t("home.mcpTypeTool")}
+            </TextBody>
+          </HStack>
+        ) : null}
+        {(capabilityExposure === "mcp" || capabilityExposure === "both") &&
+        capMcpName.trim() ? (
+          <HStack
+            gap={3}
+            justifyContent="space-between"
+            alignItems="flex-start"
+            width="100%"
+          >
+            <TextCaption color="fgMuted">{t("home.mcpName")}</TextCaption>
+            <TextBody color="fg" style={{ margin: 0, textAlign: "end" }}>
+              {capMcpName.trim()}
+            </TextBody>
+          </HStack>
+        ) : null}
         <HStack
           gap={3}
           justifyContent="space-between"
@@ -2621,7 +2826,7 @@ export default function Home() {
       {homeSellRule}
       {activeSellTypeTab.id === "resource"
         ? homeRailResourceDeliveryBlock
-        : homeRailCapabilityDeliveryBlock}
+        : homeRailCapabilityExposureAndDeliveryBlock}
       {activeSellTypeTab.id === "resource" &&
       activeDeliveryTab.id === "protected" ? (
         <>
@@ -2806,6 +3011,94 @@ export default function Home() {
                       : createdResource.network.trim()}
                   </TextBody>
                 </HStack>
+                {apiSellType(createdResource) === "capability" ? (
+                  <HStack
+                    gap={3}
+                    alignItems="flex-start"
+                    justifyContent="space-between"
+                    width="100%"
+                    minWidth={0}
+                  >
+                    <TextCaption color="fgMuted" as="span" style={{ flexShrink: 0 }}>
+                      {t("home.capabilityExposure")}
+                    </TextCaption>
+                    <TextBody
+                      as="p"
+                      color="fg"
+                      style={{
+                        margin: 0,
+                        textAlign: "end",
+                        lineHeight: 1.45,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {createdResource.capabilityExposure === "both"
+                        ? t("home.capabilityExposureApiMcp")
+                        : createdResource.capabilityExposure === "mcp"
+                          ? t("home.capabilityExposureMcp")
+                          : t("home.capabilityExposureApi")}
+                    </TextBody>
+                  </HStack>
+                ) : null}
+                {apiSellType(createdResource) === "capability" &&
+                (createdResource.capabilityExposure === "mcp" ||
+                  createdResource.capabilityExposure === "both") ? (
+                  <HStack
+                    gap={3}
+                    alignItems="flex-start"
+                    justifyContent="space-between"
+                    width="100%"
+                    minWidth={0}
+                  >
+                    <TextCaption color="fgMuted" as="span" style={{ flexShrink: 0 }}>
+                      {t("home.mcpType")}
+                    </TextCaption>
+                    <TextBody
+                      as="p"
+                      color="fg"
+                      style={{
+                        margin: 0,
+                        textAlign: "end",
+                        lineHeight: 1.45,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {createdResource.mcpType === "resource"
+                        ? t("home.mcpTypeResource")
+                        : createdResource.mcpType === "prompt"
+                          ? t("home.mcpTypePrompt")
+                          : t("home.mcpTypeTool")}
+                    </TextBody>
+                  </HStack>
+                ) : null}
+                {apiSellType(createdResource) === "capability" &&
+                (createdResource.capabilityExposure === "mcp" ||
+                  createdResource.capabilityExposure === "both") &&
+                createdResource.mcpName?.trim() ? (
+                  <HStack
+                    gap={3}
+                    alignItems="flex-start"
+                    justifyContent="space-between"
+                    width="100%"
+                    minWidth={0}
+                  >
+                    <TextCaption color="fgMuted" as="span" style={{ flexShrink: 0 }}>
+                      {t("home.mcpName")}
+                    </TextCaption>
+                    <TextBody
+                      as="p"
+                      color="fg"
+                      style={{
+                        margin: 0,
+                        textAlign: "end",
+                        lineHeight: 1.45,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {createdResource.mcpName}
+                    </TextBody>
+                  </HStack>
+                ) : null}
                 <HStack
                   gap={3}
                   alignItems="flex-start"
@@ -3267,7 +3560,7 @@ export default function Home() {
        * when content is short so the column’s `background="bg"` reads as one
        * continuous panel top-to-bottom without dead bands below the CTA.
        */
-      minHeight="100%"
+      minHeight={isWide ? "100%" : undefined}
       style={{ alignSelf: "stretch" }}
     >
       <Box

@@ -39,8 +39,22 @@ export const homeCapabilityCreateSchema = z.object({
   receiverAddress: wallet,
   endpoint: httpsEndpoint,
   httpMethod: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
-  inputFormat: z.string().trim().min(1, "Input format is required"),
-  resultFormat: z.string().trim().min(1, "Result format is required"),
+  inputFormat: z.enum(["json", "form", "query", "none"]),
+  resultFormat: z.enum(["json", "text", "file", "redirect", "html"]),
+  capabilityExposure: z.enum(["api", "mcp", "both"]).default("api"),
+  mcpName: z.string().trim().optional(),
+  mcpDescription: z.string().trim().optional(),
+  mcpType: z.enum(["tool", "resource", "prompt"]).default("tool"),
+  mcpRequiresPayment: z.boolean().default(true),
   deliveryMode: z.enum(["direct", "protected", "async"]),
   receiptMode: z.enum(["standard", "detailed"]),
+}).superRefine((data, ctx) => {
+  if (data.capabilityExposure === "api") return
+  if (!data.mcpType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["mcpType"],
+      message: "MCP type is required",
+    })
+  }
 })

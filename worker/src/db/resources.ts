@@ -1,5 +1,7 @@
 import type {
+  CapabilityExposure,
   CapabilityLifecycle,
+  CapabilityMcpType,
   CapabilityOriginTrust,
   ResourceDefinition,
   SellType,
@@ -48,6 +50,27 @@ function parseCapabilityOriginTrust(
     s === 'blocked'
   ) {
     return s as CapabilityOriginTrust
+  }
+  return null
+}
+
+function parseCapabilityExposure(
+  raw: unknown,
+  sellType: SellType,
+): CapabilityExposure | null {
+  if (sellType !== 'capability') return null
+  const s = raw != null ? String(raw).trim().toLowerCase() : ''
+  if (s === 'mcp' || s === 'both' || s === 'api') {
+    return s as CapabilityExposure
+  }
+  return 'api'
+}
+
+function parseCapabilityMcpType(raw: unknown): CapabilityMcpType | null {
+  if (raw == null || String(raw).trim() === '') return null
+  const s = String(raw).trim().toLowerCase()
+  if (s === 'tool' || s === 'resource' || s === 'prompt') {
+    return s as CapabilityMcpType
   }
   return null
 }
@@ -124,6 +147,18 @@ function rowToResource(row: Record<string, unknown>): ResourceDefinition {
       row.capability_lifecycle,
       sellType,
     ),
+    capabilityExposure: parseCapabilityExposure(row.capability_exposure, sellType),
+    mcpName:
+      row.mcp_name != null && String(row.mcp_name).trim() !== ''
+        ? String(row.mcp_name).trim()
+        : null,
+    mcpDescription:
+      row.mcp_description != null && String(row.mcp_description).trim() !== ''
+        ? String(row.mcp_description).trim()
+        : null,
+    mcpType: parseCapabilityMcpType(row.mcp_type),
+    mcpRequiresPayment:
+      row.mcp_requires_payment == null ? null : Number(row.mcp_requires_payment) !== 0,
     capabilityNotifyEmail:
       row.capability_notify_email != null &&
       String(row.capability_notify_email).trim() !== ''
@@ -209,6 +244,7 @@ export async function getResourceBySlug(
               sell_type, capability_name, endpoint, http_method, input_format, result_format, receipt_mode,
               capability_endpoint_canonical, capability_origin_host, capability_origin_trust,
               capability_lifecycle,
+              capability_exposure, mcp_name, mcp_description, mcp_type, mcp_requires_payment,
               capability_notify_email, capability_notify_webhook_url,
               capability_notify_enabled, capability_notify_on_complete, capability_notify_on_fail,
               capability_notify_email_enabled, capability_notify_webhook_enabled,
@@ -251,6 +287,11 @@ export type InsertResourceDefinitionInput = {
   capabilityOriginHost: string | null
   capabilityOriginTrust: string | null
   capabilityLifecycle: CapabilityLifecycle | null
+  capabilityExposure: CapabilityExposure | null
+  mcpName: string | null
+  mcpDescription: string | null
+  mcpType: CapabilityMcpType | null
+  mcpRequiresPayment: boolean | null
   createdAt: string
   updatedAt: string
 }
@@ -268,8 +309,9 @@ export async function insertResourceDefinition(
         sell_type, capability_name, endpoint, http_method, input_format, result_format, receipt_mode,
         capability_endpoint_canonical, capability_origin_host, capability_origin_trust,
         capability_lifecycle,
+        capability_exposure, mcp_name, mcp_description, mcp_type, mcp_requires_payment,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.slug,
@@ -296,6 +338,11 @@ export async function insertResourceDefinition(
       input.capabilityOriginHost,
       input.capabilityOriginTrust,
       input.capabilityLifecycle,
+      input.capabilityExposure,
+      input.mcpName,
+      input.mcpDescription,
+      input.mcpType,
+      input.mcpRequiresPayment == null ? null : input.mcpRequiresPayment ? 1 : 0,
       input.createdAt,
       input.updatedAt,
     )
@@ -485,6 +532,11 @@ export async function updateCapabilityResource(
     capabilityOriginHost: string | null
     capabilityOriginTrust: string | null
     capabilityLifecycle: CapabilityLifecycle
+    capabilityExposure: CapabilityExposure
+    mcpName: string | null
+    mcpDescription: string | null
+    mcpType: CapabilityMcpType | null
+    mcpRequiresPayment: boolean | null
     updatedAt: string
   },
 ): Promise<void> {
@@ -503,6 +555,11 @@ export async function updateCapabilityResource(
         capability_origin_host = ?,
         capability_origin_trust = ?,
         capability_lifecycle = ?,
+        capability_exposure = ?,
+        mcp_name = ?,
+        mcp_description = ?,
+        mcp_type = ?,
+        mcp_requires_payment = ?,
         updated_at = ?
       WHERE slug = ? AND sell_type = 'capability'`,
     )
@@ -519,6 +576,11 @@ export async function updateCapabilityResource(
       input.capabilityOriginHost,
       input.capabilityOriginTrust,
       input.capabilityLifecycle,
+      input.capabilityExposure,
+      input.mcpName,
+      input.mcpDescription,
+      input.mcpType,
+      input.mcpRequiresPayment == null ? null : input.mcpRequiresPayment ? 1 : 0,
       input.updatedAt,
       slug,
     )

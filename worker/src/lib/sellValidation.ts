@@ -59,3 +59,29 @@ export function parseReceiptMode(
   }
   return { ok: false, message: 'receipt_mode must be standard or detailed' }
 }
+
+export function parseCapabilityExposure(
+  raw: unknown,
+): { ok: true; value: 'api' | 'mcp' | 'both' } | { ok: false; message: string } {
+  if (raw == null || String(raw).trim() === '') {
+    return { ok: true, value: 'api' }
+  }
+  const s = String(raw).trim().toLowerCase()
+  if (s === 'api' || s === 'mcp' || s === 'both') {
+    return { ok: true, value: s }
+  }
+  return { ok: false, message: 'capability_exposure must be api, mcp, or both' }
+}
+
+export function parseCapabilityMcpType(
+  raw: unknown,
+): { ok: true; value: 'tool' | 'resource' | 'prompt' | null } | { ok: false; message: string } {
+  if (raw == null || String(raw).trim() === '') {
+    return { ok: true, value: null }
+  }
+  const s = String(raw).trim().toLowerCase()
+  if (s === 'tool' || s === 'resource' || s === 'prompt') {
+    return { ok: true, value: s }
+  }
+  return { ok: false, message: 'mcp_type must be tool, resource, or prompt' }
+}
