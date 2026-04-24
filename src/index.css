@@ -129,6 +129,15 @@ body {
  * bordered `input-interactable-area`. Keep a single outer radius and remove
  * built-in side padding so the start slot can align exactly.
  */
+#root .home-postpay-direct-input > div {
+  gap: 12px;
+}
+
+/* Home: "Note" (physical instructions) — same InputStack gap as post-pay field above. */
+#root .home-physical-instructions-input > div {
+  gap: 12px;
+}
+
 #root .home-postpay-direct-input [data-testid="input-interactable-area"] {
   border-radius: 8px;
   overflow: hidden;

@@ -277,10 +277,8 @@ async function handlePostCapability(
         : ''
   const mcpName = mcpNameRaw === '' ? capabilityName.value : mcpNameRaw
   const mcpDescription = mcpDescriptionRaw === '' ? null : mcpDescriptionRaw
-  const mcpRequiresPaymentRaw =
-    o.mcp_requires_payment ?? o.mcpRequiresPayment ?? true
-  const mcpRequiresPayment =
-    typeof mcpRequiresPaymentRaw === 'boolean' ? mcpRequiresPaymentRaw : true
+  /* MCP/Both are paid on 402; unpaid exposure is not a product path yet. */
+  const mcpRequiresPayment = capabilityExposure === 'api' ? null : true
 
   const slugOptRaw = typeof o.slug === 'string' ? o.slug.trim() : ''
   let slug: string

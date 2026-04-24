@@ -45,7 +45,8 @@ export const homeCapabilityCreateSchema = z.object({
   mcpName: z.string().trim().optional(),
   mcpDescription: z.string().trim().optional(),
   mcpType: z.enum(["tool", "resource", "prompt"]).default("tool"),
-  mcpRequiresPayment: z.boolean().default(true),
+  /** Server always enforces `true` for MCP/Both; field kept for schema shape. */
+  mcpRequiresPayment: z.literal(true).default(true),
   deliveryMode: z.enum(["direct", "protected", "async"]),
   receiptMode: z.enum(["standard", "detailed"]),
 }).superRefine((data, ctx) => {

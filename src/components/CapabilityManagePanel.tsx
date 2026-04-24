@@ -8,12 +8,19 @@ import { Link as RouterLink } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { createWalletClient, custom } from "viem"
 import { base } from "viem/chains"
-import { Button } from "@coinbase/cds-web/buttons"
+import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { cdsCompactSelectFieldStyles } from "@/cds/appCdsFieldDefaults"
+import { mcpNameFromCapabilityName } from "@/lib/mcpNameFromCapabilityName"
 import { Checkbox, TextInput } from "@coinbase/cds-web/controls"
 import { Select } from "@coinbase/cds-web/alpha/select"
 import { Box, HStack, VStack } from "@coinbase/cds-web/layout"
-import { TextBody, TextCaption, TextLabel1, TextTitle3 } from "@coinbase/cds-web/typography"
+import { Tooltip } from "@coinbase/cds-web/overlays/Tooltip"
+import {
+  TextBody,
+  TextCaption,
+  TextLabel1,
+  TextTitle3,
+} from "@coinbase/cds-web/typography"
 import {
   clearStoredSellerJwt,
   fetchSellerCapabilityDetail,
@@ -96,7 +103,6 @@ export function CapabilityManagePanel({
   const [editMcpType, setEditMcpType] = useState<"tool" | "resource" | "prompt">(
     "tool",
   )
-  const [editMcpRequiresPayment, setEditMcpRequiresPayment] = useState(true)
   const [allowHost, setAllowHost] = useState("")
   const [notifyEmail, setNotifyEmail] = useState("")
   const [notifyEnabled, setNotifyEnabled] = useState(false)
@@ -236,7 +242,6 @@ export function CapabilityManagePanel({
           setEditMcpName(r.mcpName?.trim() ?? "")
           setEditMcpDescription(r.mcpDescription?.trim() ?? "")
           setEditMcpType(r.mcpType ?? "tool")
-          setEditMcpRequiresPayment(r.mcpRequiresPayment !== false)
           setAllowHost(r.capabilityOriginHost?.trim() ?? "")
           const sr = r as SellerCapabilityResource
           const n = sr.notification
@@ -473,7 +478,7 @@ export function CapabilityManagePanel({
           mcp_name: editMcpName.trim(),
           mcp_description: editMcpDescription.trim(),
           mcp_type: editMcpType,
-          mcp_requires_payment: editMcpRequiresPayment,
+          mcp_requires_payment: true,
           notify_enabled: notifyEnabled,
           notify_email: notifyEmail.trim(),
           notify_webhook_url: notifyWebhookUrl.trim(),
@@ -1075,7 +1080,17 @@ export function CapabilityManagePanel({
               compact
               label={t("home.capabilityName")}
               value={editName}
-              onChange={(e) => setEditName(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value
+                setEditName(v)
+                if (
+                  editMcpName.trim() === "" &&
+                  (editCapabilityExposure === "mcp" || editCapabilityExposure === "both")
+                ) {
+                  const s = mcpNameFromCapabilityName(v)
+                  if (s) setEditMcpName(s)
+                }
+              }}
               autoComplete="off"
             />
             <TextInput
@@ -1093,9 +1108,17 @@ export function CapabilityManagePanel({
                 <Select
                   type="single"
                   value={editCapabilityExposure}
-                  onChange={(next) => {
+                    onChange={(next) => {
                     if (next == null) return
-                    setEditCapabilityExposure(next as "api" | "mcp" | "both")
+                    const exp = next as "api" | "mcp" | "both"
+                    setEditCapabilityExposure(exp)
+                    if (
+                      (exp === "mcp" || exp === "both") &&
+                      editMcpName.trim() === "" &&
+                      editName.trim() !== ""
+                    ) {
+                      setEditMcpName(mcpNameFromCapabilityName(editName))
+                    }
                   }}
                   options={CAPABILITY_EXPOSURE_OPTIONS.map((o) => ({
                     value: o.value,
@@ -1109,15 +1132,23 @@ export function CapabilityManagePanel({
                   controlAccessibilityLabel={t("home.capabilityExposure")}
                 />
               </Box>
-              <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+              <TextBody
+                color="fgMuted"
+                as="p"
+                style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+              >
                 {t("home.capabilityExposureHelp")}
-              </TextCaption>
+              </TextBody>
             </VStack>
             {editCapabilityExposure === "mcp" || editCapabilityExposure === "both" ? (
               <VStack gap={2} alignItems="stretch" width="100%">
-                <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+                <TextBody
+                  color="fgMuted"
+                  as="p"
+                  style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+                >
                   {t("home.capabilityMcpFieldsHelp")}
-                </TextCaption>
+                </TextBody>
                 <TextInput
                   compact
                   label={t("home.mcpName")}
@@ -1156,31 +1187,54 @@ export function CapabilityManagePanel({
                       controlAccessibilityLabel={t("home.mcpType")}
                     />
                   </Box>
+                  <TextBody
+                    color="fgMuted"
+                    as="p"
+                    style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+                  >
+                    {editMcpType === "resource"
+                      ? t("home.mcpTypeHelpResource")
+                      : editMcpType === "prompt"
+                        ? t("home.mcpTypeHelpPrompt")
+                        : t("home.mcpTypeHelpTool")}
+                  </TextBody>
                 </VStack>
                 <VStack gap={1} alignItems="stretch" width="100%">
-                  <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
-                    {t("home.mcpRequiresPayment")}
-                  </TextLabel1>
-                  <Box alignSelf="flex-start" maxWidth="100%">
-                    <Select
-                      type="single"
-                      value={editMcpRequiresPayment ? "yes" : "no"}
-                      onChange={(next) => {
-                        if (next == null) return
-                        setEditMcpRequiresPayment(next === "yes")
-                      }}
-                      options={[
-                        { value: "yes", label: t("home.yes") },
-                        { value: "no", label: t("home.no") },
-                      ]}
-                      compact
-                      bordered={false}
-                      variant="foregroundMuted"
-                      styles={cdsCompactSelectFieldStyles}
-                      accessibilityLabel={t("home.mcpRequiresPayment")}
-                      controlAccessibilityLabel={t("home.mcpRequiresPayment")}
-                    />
-                  </Box>
+                  <HStack
+                    gap={1}
+                    alignItems="center"
+                    justifyContent="flex-start"
+                    minWidth={0}
+                    flexWrap="wrap"
+                  >
+                    <TextLabel1
+                      color="fg"
+                      as="span"
+                      style={{ margin: 0, fontWeight: 600 }}
+                    >
+                      {t("home.mcpRequiresPayment")}
+                    </TextLabel1>
+                    <Tooltip
+                      content={t("home.mcpRequiresPaymentClientNote")}
+                      placement="top"
+                    >
+                      <IconButton
+                        name="info"
+                        type="button"
+                        transparent
+                        variant="foregroundMuted"
+                        compact
+                        accessibilityLabel={t("home.mcpRequiresPaymentInfoAria")}
+                      />
+                    </Tooltip>
+                  </HStack>
+                  <TextBody
+                    color="fgMuted"
+                    as="p"
+                    style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+                  >
+                    {t("home.mcpRequiresPaymentLockedBody")}
+                  </TextBody>
                 </VStack>
               </VStack>
             ) : null}

@@ -28,6 +28,7 @@ import {
   buildPhysicalUnlockJson,
   PHYSICAL_INSTRUCTIONS_MAX_LENGTH,
 } from "@/lib/paidResourceUnlock"
+import { mcpNameFromCapabilityName } from "@/lib/mcpNameFromCapabilityName"
 import { homeCapabilityCreateSchema } from "@/lib/sellSchemas"
 import { publicUrl } from "@/lib/publicUrl"
 import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
@@ -37,6 +38,7 @@ import { Interactable } from "@coinbase/cds-web/system/Interactable"
 import { Carousel, CarouselItem } from "@coinbase/cds-web/carousel"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
 import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
+import { Tooltip } from "@coinbase/cds-web/overlays/Tooltip"
 import type { IconName } from "@coinbase/cds-common/types"
 import type { TabValue } from "@coinbase/cds-common/tabs/useTabs"
 import { SegmentedTabs } from "@coinbase/cds-web/tabs"
@@ -490,7 +492,6 @@ export default function Home() {
   const [capMcpType, setCapMcpType] = useState<"tool" | "resource" | "prompt">(
     "tool",
   )
-  const [capMcpRequiresPayment, setCapMcpRequiresPayment] = useState(true)
   const [capReceiptMode, setCapReceiptMode] = useState<"standard" | "detailed">(
     "standard",
   )
@@ -682,7 +683,7 @@ export default function Home() {
    * Two-row chooser shown when `sellTypeChooserOpen` is true. Each row mirrors
    * the Coinbase "Order Types" panel: circular icon, bold title, supporting
    * description, trailing chevron. Translations use the dropdown labels so
-   * "Resolve / Capability" stays the canonical user-facing wording.
+   * "Resource / Capability" stays the canonical user-facing wording.
    */
   const sellTypeChooserOptions = useMemo<
     ReadonlyArray<{
@@ -785,7 +786,7 @@ export default function Home() {
         mcpName: capMcpName.trim(),
         mcpDescription: capMcpDescription.trim(),
         mcpType: capMcpType,
-        mcpRequiresPayment: capMcpRequiresPayment,
+        mcpRequiresPayment: true,
         deliveryMode: activeCapDeliveryTab.id,
         receiptMode: capReceiptMode,
       })
@@ -1580,20 +1581,32 @@ export default function Home() {
               borderRadius={400}
               width="100%"
               minWidth={0}
-              padding={5}
+              display="flex"
+              justifyContent="center"
+              alignItems="center"
               style={{
                 background: "rgb(var(--gray10))",
                 margin: 0,
+                padding: 14,
+                height: "fit-content",
               }}
             >
               <HStack
-                alignItems="flex-start"
-                justifyContent="space-between"
+                alignItems="center"
+                justifyContent="center"
                 width="100%"
                 gap={3}
                 minWidth={0}
               >
-                <Box style={{ flex: 1, minWidth: 0 }} minWidth={0}>
+                <Box
+                  minWidth={0}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
                   <TextBody
                     color="fg"
                     as="p"
@@ -2158,34 +2171,36 @@ export default function Home() {
             />
           </Box>
           {postPaymentUnlockKind === "physical" ? (
-            <TextInput
-              compact
-              {...homeFormTextInputSurface}
-              label={t("home.physicalInstructionsLabel")}
-              helperText={t("home.physicalInstructionsHelper")}
-              inputNode={
-                <NativeTextArea
-                  className="home-physical-instructions-textarea"
-                  compact={false}
-                  font="body"
-                  value={physicalInstructions}
-                  placeholder=""
-                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
-                    setPhysicalInstructions(e.target.value)
-                    invalidateQrIfFormChanged()
-                  }}
-                  rows={5}
-                  width="100%"
-                  style={{
-                    minHeight: 120,
-                    resize: "vertical" as const,
-                    display: "block",
-                    textAlign: "start",
-                    verticalAlign: "top",
-                  }}
-                />
-              }
-            />
+            <Box className="home-physical-instructions-input" width="100%">
+              <TextInput
+                compact={false}
+                {...homeFormTextInputSurface}
+                label={t("home.physicalInstructionsLabel")}
+                helperText={t("home.physicalInstructionsHelper")}
+                inputNode={
+                  <NativeTextArea
+                    className="home-physical-instructions-textarea"
+                    compact={false}
+                    font="body"
+                    value={physicalInstructions}
+                    placeholder=""
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+                      setPhysicalInstructions(e.target.value)
+                      invalidateQrIfFormChanged()
+                    }}
+                    rows={5}
+                    width="100%"
+                    style={{
+                      minHeight: 120,
+                      resize: "vertical" as const,
+                      display: "block",
+                      textAlign: "start",
+                      verticalAlign: "top",
+                    }}
+                  />
+                }
+              />
+            </Box>
           ) : null}
         </>
       ) : (
@@ -2243,7 +2258,15 @@ export default function Home() {
         label={t("home.capabilityName")}
         value={capabilityName}
         onChange={(e) => {
-          setCapabilityName(e.target.value)
+          const v = e.target.value
+          setCapabilityName(v)
+          if (
+            capMcpName.trim() === "" &&
+            (capabilityExposure === "mcp" || capabilityExposure === "both")
+          ) {
+            const s = mcpNameFromCapabilityName(v)
+            if (s) setCapMcpName(s)
+          }
           invalidateQrIfFormChanged()
         }}
         autoComplete="off"
@@ -2347,6 +2370,13 @@ export default function Home() {
             if (!next) return
             if (next.id === "api" || next.id === "mcp" || next.id === "both") {
               setCapabilityExposure(next.id)
+              if (
+                (next.id === "mcp" || next.id === "both") &&
+                capMcpName.trim() === "" &&
+                capabilityName.trim() !== ""
+              ) {
+                setCapMcpName(mcpNameFromCapabilityName(capabilityName))
+              }
               invalidateQrIfFormChanged()
             }
           }}
@@ -2358,15 +2388,23 @@ export default function Home() {
           alignSelf="flex-start"
           maxWidth="100%"
         />
-        <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+        <TextBody
+          color="fgMuted"
+          as="p"
+          style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+        >
           {t("home.capabilityExposureHelp")}
-        </TextCaption>
+        </TextBody>
       </VStack>
       {capabilityExposure === "mcp" || capabilityExposure === "both" ? (
         <VStack gap={3} alignItems="stretch" width="100%">
-          <TextCaption color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.45 }}>
+          <TextBody
+            color="fgMuted"
+            as="p"
+            style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+          >
             {t("home.capabilityMcpFieldsHelp")}
-          </TextCaption>
+          </TextBody>
           <TextInput
             compact
             {...homeFormTextInputSurface}
@@ -2389,7 +2427,7 @@ export default function Home() {
             }}
             autoComplete="off"
           />
-          <VStack gap={2} alignItems="stretch" width="100%">
+          <VStack gap={1} alignItems="stretch" width="100%">
             <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
               {t("home.mcpType")}
             </TextLabel1>
@@ -2423,31 +2461,54 @@ export default function Home() {
               alignSelf="flex-start"
               maxWidth="100%"
             />
+            <TextBody
+              color="fgMuted"
+              as="p"
+              style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+            >
+              {capMcpType === "resource"
+                ? t("home.mcpTypeHelpResource")
+                : capMcpType === "prompt"
+                  ? t("home.mcpTypeHelpPrompt")
+                  : t("home.mcpTypeHelpTool")}
+            </TextBody>
           </VStack>
-          <VStack gap={2} alignItems="stretch" width="100%">
-            <TextLabel1 color="fg" as="span" style={{ margin: 0, fontWeight: 600 }}>
-              {t("home.mcpRequiresPayment")}
-            </TextLabel1>
-            <SegmentedTabs<"yes" | "no">
-              accessibilityLabel={t("home.mcpRequiresPayment")}
-              activeTab={{
-                id: capMcpRequiresPayment ? "yes" : "no",
-                label: capMcpRequiresPayment ? t("home.yes") : t("home.no"),
-              }}
-              onChange={(next) => {
-                if (!next) return
-                if (next.id === "yes" || next.id === "no") {
-                  setCapMcpRequiresPayment(next.id === "yes")
-                  invalidateQrIfFormChanged()
-                }
-              }}
-              tabs={[
-                { id: "yes", label: t("home.yes") },
-                { id: "no", label: t("home.no") },
-              ]}
-              alignSelf="flex-start"
-              maxWidth="100%"
-            />
+          <VStack gap={1} alignItems="stretch" width="100%">
+            <HStack
+              gap={1}
+              alignItems="center"
+              justifyContent="flex-start"
+              minWidth={0}
+              flexWrap="wrap"
+            >
+              <TextLabel1
+                color="fg"
+                as="span"
+                style={{ margin: 0, fontWeight: 600 }}
+              >
+                {t("home.mcpRequiresPayment")}
+              </TextLabel1>
+              <Tooltip
+                content={t("home.mcpRequiresPaymentClientNote")}
+                placement="top"
+              >
+                <IconButton
+                  name="info"
+                  type="button"
+                  transparent
+                  variant="foregroundMuted"
+                  compact
+                  accessibilityLabel={t("home.mcpRequiresPaymentInfoAria")}
+                />
+              </Tooltip>
+            </HStack>
+            <TextBody
+              color="fgMuted"
+              as="p"
+              style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
+            >
+              {t("home.mcpRequiresPaymentLockedBody")}
+            </TextBody>
           </VStack>
         </VStack>
       ) : null}
@@ -2527,15 +2588,27 @@ export default function Home() {
       />
       {activeCapDeliveryTab.id === "direct" ? (
         <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
-          {t("home.capDeliveryDirectHelp")}
+          {t(
+            capabilityExposure === "mcp" || capabilityExposure === "both"
+              ? "home.capDeliveryDirectHelpMcp"
+              : "home.capDeliveryDirectHelp",
+          )}
         </TextBody>
       ) : activeCapDeliveryTab.id === "protected" ? (
         <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
-          {t("home.capDeliveryProtectedHelp")}
+          {t(
+            capabilityExposure === "mcp" || capabilityExposure === "both"
+              ? "home.capDeliveryProtectedHelpMcp"
+              : "home.capDeliveryProtectedHelp",
+          )}
         </TextBody>
       ) : (
         <TextBody color="fgMuted" as="p" style={{ margin: 0, lineHeight: 1.5 }}>
-          {t("home.capDeliveryAsyncHelp")}
+          {t(
+            capabilityExposure === "mcp" || capabilityExposure === "both"
+              ? "home.capDeliveryAsyncHelpMcp"
+              : "home.capDeliveryAsyncHelp",
+          )}
         </TextBody>
       )}
     </VStack>
@@ -3477,7 +3550,8 @@ export default function Home() {
       minWidth={0}
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
-      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
+      paddingTop={0}
+      style={{ paddingBottom: 30 }}
     >
       <VStack gap={3} alignItems="stretch" width="100%" maxWidth={680}>
         <Divider
@@ -3491,6 +3565,7 @@ export default function Home() {
           alignItems="center"
           rowGap={2}
           columnGap={4}
+          style={{ marginLeft: 20, marginRight: 20 }}
         >
           <TextCaption color="fgMuted" as="span">
             {t("howItWorks.footerCopyright", {

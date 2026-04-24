@@ -46,6 +46,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@coinbase/cds-web/overlays/Tooltip": path.resolve(
+        __dirname,
+        "./src/shims/coinbaseCdsOverlaysTooltip.ts",
+      ),
     },
   },
   server: {

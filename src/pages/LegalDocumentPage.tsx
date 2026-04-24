@@ -1,26 +1,27 @@
 import { useTranslation } from "react-i18next"
 import { Box, VStack } from "@coinbase/cds-web/layout"
-import { TextBody, TextTitle3 } from "@coinbase/cds-web/typography"
+import { TextTitle1 } from "@coinbase/cds-web/typography"
+import { LegalDocumentBody } from "@/legal/LegalDocumentBody"
+import { PRIVACY_POLICY_EN } from "@/legal/privacyEn"
+import { TERMS_OF_SERVICE_EN } from "@/legal/termsEn"
+import type { LegalPageEn } from "@/legal/types"
 
 type LegalVariant = "terms" | "privacy"
 
-const COPY: Record<
-  LegalVariant,
-  { titleKey: string; bodyKey: string }
-> = {
-  terms: {
-    titleKey: "legal.termsTitle",
-    bodyKey: "legal.termsStub",
-  },
-  privacy: {
-    titleKey: "legal.privacyTitle",
-    bodyKey: "legal.privacyStub",
-  },
+const DOCS: Record<LegalVariant, LegalPageEn> = {
+  terms: TERMS_OF_SERVICE_EN,
+  privacy: PRIVACY_POLICY_EN,
+}
+
+const COPY: Record<LegalVariant, { titleKey: string }> = {
+  terms: { titleKey: "legal.termsTitle" },
+  privacy: { titleKey: "legal.privacyTitle" },
 }
 
 export default function LegalDocumentPage({ variant }: { variant: LegalVariant }) {
   const { t } = useTranslation()
-  const keys = COPY[variant]
+  const { titleKey } = COPY[variant]
+  const page = DOCS[variant]
 
   return (
     <Box
@@ -54,13 +55,20 @@ export default function LegalDocumentPage({ variant }: { variant: LegalVariant }
             "max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 2rem))",
         }}
       >
-        <VStack gap={3} alignItems="stretch" width="100%" maxWidth={720}>
-          <TextTitle3 color="fg" as="h1">
-            {t(keys.titleKey)}
-          </TextTitle3>
-          <TextBody color="fgMuted" as="p" style={{ margin: 0 }}>
-            {t(keys.bodyKey)}
-          </TextBody>
+        <VStack
+          gap={4}
+          alignItems="stretch"
+          width="100%"
+          maxWidth={720}
+        >
+          <TextTitle1
+            color="fg"
+            as="h1"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            {t(titleKey)}
+          </TextTitle1>
+          <LegalDocumentBody page={page} />
         </VStack>
       </Box>
     </Box>

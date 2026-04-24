@@ -918,13 +918,8 @@ export async function handlePatchSellerCapability(
         : typeof r.mcpDescription === 'string'
           ? r.mcpDescription.trim()
           : ''
-  const mcpRequiresPaymentRaw =
-    o.mcp_requires_payment ??
-    o.mcpRequiresPayment ??
-    r.mcpRequiresPayment ??
-    true
-  const mcpRequiresPayment =
-    typeof mcpRequiresPaymentRaw === 'boolean' ? mcpRequiresPaymentRaw : true
+  /* MCP/Both: always require payment; unpaid exposure is not supported yet. */
+  const mcpRequiresPayment = capabilityExposure === 'api' ? null : true
 
   const deliveryRaw =
     typeof o.delivery_mode === 'string'

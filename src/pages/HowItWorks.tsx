@@ -146,6 +146,7 @@ export default function HowItWorks() {
             alignItems="center"
             rowGap={2}
             columnGap={4}
+            style={{ marginLeft: 20, marginRight: 20 }}
           >
             <TextCaption color="fgMuted" as="span">
               {t("howItWorks.footerCopyright", {
