@@ -219,8 +219,11 @@ type HomeAudienceMessagingCardRow = {
   id: string
   titleKey: string
   descriptionKey: string
-  imageSrc: string
+  /** Full-bleed photo hero; omit when `heroVisual` is `"dotGrid"`. */
+  imageSrc?: string
   iconName: IconName
+  /** `"dotGrid"` = vector dot grid with centered icon (Capabilities cards). */
+  heroVisual?: "image" | "dotGrid"
 }
 
 const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
@@ -266,31 +269,103 @@ const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
     id: "home-software-1",
     titleKey: "home.softwareCard1Title",
     descriptionKey: "home.softwareCard1Description",
-    imageSrc: publicUrl("img/home-audience-software-1.svg"),
-    iconName: "api",
+    iconName: "developerAPIProduct",
+    heroVisual: "dotGrid",
   },
   {
     id: "home-software-2",
     titleKey: "home.softwareCard2Title",
     descriptionKey: "home.softwareCard2Description",
-    imageSrc: publicUrl("img/home-audience-software-2.svg"),
     iconName: "lightningBolt",
+    heroVisual: "dotGrid",
   },
   {
     id: "home-software-3",
     titleKey: "home.softwareCard3Title",
     descriptionKey: "home.softwareCard3Description",
-    imageSrc: publicUrl("img/home-audience-software-3.svg"),
-    iconName: "continuous",
+    iconName: "auto",
+    heroVisual: "dotGrid",
   },
   {
     id: "home-software-4",
     titleKey: "home.softwareCard4Title",
     descriptionKey: "home.softwareCard4Description",
-    imageSrc: publicUrl("img/home-audience-software-1.svg"),
     iconName: "compose",
+    heroVisual: "dotGrid",
   },
 ]
+
+function HomeAudienceCardDotGridHero({
+  cardId,
+  iconName,
+}: {
+  cardId: string
+  iconName: IconName
+}) {
+  const theme = useTheme()
+  /** Inverse of page chrome: dark hero on light app, light hero on dark app. */
+  const surface = theme.color.bgInverse
+  const dot = theme.color.bgLineInverse
+  const patternId = `home-audience-dotgrid-${cardId}`
+  return (
+    <Box
+      position="relative"
+      width="100%"
+      style={{
+        height: 355,
+        borderRadius: 8,
+        overflow: "hidden",
+        flex: "0 0 auto",
+        backgroundColor: surface,
+      }}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="100%"
+        height="100%"
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "block",
+          pointerEvents: "none",
+        }}
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <pattern
+            id={patternId}
+            width={12}
+            height={12}
+            patternUnits="userSpaceOnUse"
+          >
+            <circle cx={6} cy={6} r={1} fill={dot} fillOpacity={0.22} />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill={surface} />
+        <rect width="100%" height="100%" fill={`url(#${patternId})`} />
+      </svg>
+      <Box
+        position="relative"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        width="100%"
+        style={{ height: 355, zIndex: 1 }}
+        aria-hidden
+      >
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          style={{ transform: "scale(2.75)", transformOrigin: "center" }}
+        >
+          <Icon name={iconName} size="l" color="fgInverse" />
+        </Box>
+      </Box>
+    </Box>
+  )
+}
 
 function renderHomeAudienceMessagingCard(
   card: HomeAudienceMessagingCardRow,
@@ -298,6 +373,7 @@ function renderHomeAudienceMessagingCard(
 ) {
   const titleText = t(card.titleKey)
   const descriptionText = t(card.descriptionKey)
+  const useDotGrid = card.heroVisual === "dotGrid"
   return (
     <Box
       as="article"
@@ -317,29 +393,33 @@ function renderHomeAudienceMessagingCard(
       color="fg"
       aria-label={`${titleText}. ${descriptionText}`}
     >
-      <Box
-        width="100%"
-        style={{
-          height: 355,
-          borderRadius: 8,
-          overflow: "hidden",
-          flex: "0 0 auto",
-        }}
-      >
+      {useDotGrid ? (
+        <HomeAudienceCardDotGridHero cardId={card.id} iconName={card.iconName} />
+      ) : (
         <Box
-          as="img"
-          src={card.imageSrc}
-          alt=""
-          aria-hidden
           width="100%"
           style={{
             height: 355,
-            objectFit: "cover",
-            objectPosition: "center",
-            display: "block",
+            borderRadius: 8,
+            overflow: "hidden",
+            flex: "0 0 auto",
           }}
-        />
-      </Box>
+        >
+          <Box
+            as="img"
+            src={card.imageSrc}
+            alt=""
+            aria-hidden
+            width="100%"
+            style={{
+              height: 355,
+              objectFit: "cover",
+              objectPosition: "center",
+              display: "block",
+            }}
+          />
+        </Box>
+      )}
       <HStack
         alignItems="center"
         width="100%"
@@ -2204,20 +2284,22 @@ export default function Home() {
           ) : null}
         </>
       ) : (
-        <TextInput
-          compact
-          {...homeFormTextInputSurface}
-          accessibilityLabel={t("home.postPaymentOpens")}
-          helperText={t("home.postPaymentOpensHelper")}
-          value={protectedLinkUrl}
-          onChange={(e) => {
-            setProtectedLinkUrl(e.target.value)
-            invalidateQrIfFormChanged()
-          }}
-          autoComplete="off"
-          spellCheck={false}
-          placeholder={t("home.postPaymentOpensPlaceholder")}
-        />
+        <Box className="home-postpay-protected-url-input" width="100%">
+          <TextInput
+            compact
+            {...homeFormTextInputSurface}
+            accessibilityLabel={t("home.postPaymentOpens")}
+            helperText={t("home.postPaymentOpensHelper")}
+            value={protectedLinkUrl}
+            onChange={(e) => {
+              setProtectedLinkUrl(e.target.value)
+              invalidateQrIfFormChanged()
+            }}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={t("home.postPaymentOpensPlaceholder")}
+          />
+        </Box>
       )}
     </VStack>
   )
