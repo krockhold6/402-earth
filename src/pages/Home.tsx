@@ -854,7 +854,9 @@ export default function Home() {
           id="home-composer-orientation"
           style={{
             margin: 0,
-            fontSize: "clamp(2rem, 5.5vw, 3.25rem)",
+            fontSize: isWide
+              ? "6rem"
+              : "clamp(2rem, 5.5vw, 3.25rem)",
             fontWeight: 700,
             lineHeight: 1.05,
             letterSpacing: "-0.03em",
@@ -898,7 +900,11 @@ export default function Home() {
         minWidth={0}
         flexWrap="wrap"
       >
-        <TextCaption color="fgMuted" as="span" style={{ margin: 0 }}>
+        <TextCaption
+          color="fgMuted"
+          as="span"
+          style={{ margin: 0, textTransform: "none" }}
+        >
           {t("home.objectTypeLabel")}
         </TextCaption>
         <Box display="inline-flex" style={{ width: "auto", maxWidth: "100%" }}>
@@ -1175,20 +1181,26 @@ export default function Home() {
         // which leaves a visible gap before the secondary fill when embedded in TextInput `start`.
         controlInputNode: {
           ...cdsCompactSelectFieldStyles.controlInputNode,
-          width: "112px",
+          // Fill the kind column; a fixed sub-width squishes the label and chevron together.
+          width: "100%",
+          minWidth: 0,
           minHeight: 62,
           paddingInlineStart: 0,
           justifyContent: "flex-start",
-          columnGap: 4,
+          columnGap: 8,
         },
         // Apply the left inset on the value label itself so the caret/text origin
         // matches the URL input's leading edge (instead of padding the outer control).
         controlValueNode: {
-          paddingInlineStart: 16,
+          paddingInlineStart: 10,
           paddingInlineEnd: 0,
           flexGrow: 0,
-          flexShrink: 0,
+          flexShrink: 1,
+          minWidth: 0,
           marginInlineEnd: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         },
         /** Keep floating-ui width behavior; only enforce a readable minimum. */
         dropdown: {
@@ -1201,9 +1213,13 @@ export default function Home() {
         /** Default end stack uses `flexGrow: 1`, splitting the control 50/50 and parking the caret at the far edge. */
         controlEndNode: {
           flexGrow: 0,
+          flexShrink: 0,
           marginInlineStart: 0,
           marginLeft: 0,
           paddingInlineStart: 0,
+          // Trailing edge stays flush to the URL segment; `columnGap` on `controlInputNode` separates label from chevron.
+          paddingRight: 0,
+          paddingInlineEnd: 0,
         },
       },
     }),
@@ -1387,8 +1403,8 @@ export default function Home() {
               start={
                 <Box
                   className="home-postpay-direct-input__kind"
-                  width={120}
-                  minWidth={120}
+                  width={128}
+                  minWidth={128}
                   maxWidth="42%"
                   flexShrink={0}
                   flexGrow={0}

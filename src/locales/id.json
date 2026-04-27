@@ -526,7 +526,7 @@
   "home.physicalInstructionsLabel": "Note",
   "home.physicalInstructionsPlaceholder": "Example: Pickup at 123 Main St, Mon–Fri 9–5. Bring your payment receipt.",
   "home.postPaymentKindAccessibility": "What opens after payment — delivery type",
-  "home.postPaymentKindLink": "Link",
+  "home.postPaymentKindLink": "Product link",
   "home.postPaymentKindPhysical": "Physical",
   "home.postPaymentOpens": "What opens after payment",
   "home.postPaymentOpensHelper": "Paste a link to your file, video, or page. You host it, we handle access.",
