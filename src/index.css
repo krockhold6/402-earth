@@ -166,7 +166,6 @@ body {
 #root .home-postpay-direct-input [data-testid="input-interactable-area"] > div[class*="bgSecondary"] {
   align-items: center;
   align-self: stretch;
-  width: 20px;
 }
 
 /* Keep start row left-aligned; avoid centered offset in nested row wrappers. */
