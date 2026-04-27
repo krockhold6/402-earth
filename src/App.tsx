@@ -7,7 +7,6 @@ import {
   useSearchParams,
 } from "react-router-dom"
 import { Box } from "@coinbase/cds-web/layout"
-import { AppNavbar } from "@/components/AppNavbar"
 import Home from "./pages/Home"
 import Demo from "./pages/Demo"
 import HowItWorks from "./pages/HowItWorks"
@@ -44,7 +43,6 @@ function AppLayout() {
       width="100%"
       style={{ flex: "1 1 0%", minHeight: 0 }}
     >
-      <AppNavbar />
       <Box
         display="flex"
         flexDirection="column"

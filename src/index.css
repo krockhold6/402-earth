@@ -8,6 +8,8 @@ body {
   height: 100%;
   min-height: 100%;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   /* Overscroll / pre-paint: approximate CDS light/dark canvas */
   background-color: light-dark(#ffffff, rgb(15 16 18));
 }
@@ -18,6 +20,11 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* Body copy: consistent tracking on all <p> (TextBody/TextCaption with as="p", etc.) */
+#root p {
+  letter-spacing: 0.7px;
 }
 
 /*
@@ -124,6 +131,12 @@ body {
   flex-shrink: 0;
 }
 
+/* Home: post-payment URL field helper (CDS TextInput description) */
+#root .home-postpay-direct-input [id^="cds-textinput-description-"],
+#root .home-postpay-protected-url-input [id^="cds-textinput-description-"] {
+  letter-spacing: 0.2px;
+}
+
 /*
  * Home: "What opens after payment" — Link/Physical Select + URL share one
  * bordered `input-interactable-area`. Keep a single outer radius and remove
@@ -135,6 +148,11 @@ body {
 
 /* Home: "Note" (physical instructions) — same InputStack gap as post-pay field above. */
 #root .home-physical-instructions-input > div {
+  gap: 12px;
+}
+
+/* Home: protected/async URL field — same InputStack gap between control and helper text. */
+#root .home-postpay-protected-url-input > div {
   gap: 12px;
 }
 

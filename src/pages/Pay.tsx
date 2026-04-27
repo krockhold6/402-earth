@@ -43,7 +43,7 @@ import {
   TextTitle1,
   TextTitle2,
 } from "@coinbase/cds-web/typography"
-import { QRCodeSVG } from "qrcode.react"
+import { QRCodeCanvas } from "qrcode.react"
 
 const DEV_MOCK_SIGNATURE = "browser-mock-signature"
 const POLL_MS = 2500
@@ -1182,38 +1182,6 @@ export default function Pay() {
                       {paidPayloadErrBanner}
 
                       <VStack gap={3} alignItems="stretch" width="100%">
-                        <Button
-                          variant="primary"
-                          onClick={() => void handleDesktopInBrowserPay()}
-                          disabled={
-                            !canInteract ||
-                            !walletPayHref ||
-                            desktopPayBusy ||
-                            !hasInjectedWalletProvider()
-                          }
-                          block
-                        >
-                          {desktopPayBusy
-                            ? t("pay.working")
-                            : centerMeta?.isFree
-                              ? t("pay.desktopUnlockInBrowser")
-                              : t("pay.desktopPayInBrowser")}
-                        </Button>
-                        {showVerifyFallbackLink ? (
-                          <Button
-                            variant="foregroundMuted"
-                            onClick={handleOpenAdvancedManual}
-                            disabled={!canInteract}
-                            block
-                          >
-                            {t("pay.verifySecondaryLink")}
-                          </Button>
-                        ) : null}
-                        {!hasInjectedWalletProvider() ? (
-                          <TextCaption color="fgMuted" as="p">
-                            {t("pay.desktopErrNoWallet")}
-                          </TextCaption>
-                        ) : null}
                         {walletPayHref ? (
                           <HStack
                             gap={2}
@@ -1275,24 +1243,64 @@ export default function Pay() {
                             alignSelf="center"
                             style={{ lineHeight: 0 }}
                           >
-                            <QRCodeSVG
+                            <QRCodeCanvas
                               value={walletPayHref}
                               size={220}
+                              marginSize={2}
                               level="H"
-                              includeMargin={false}
+                              bgColor="#ffffff"
+                              fgColor="#000000"
                               imageSettings={qrCenterImageSettings(220)}
+                              style={{ borderRadius: 16 }}
                             />
                           </Box>
                           <Box
-                            background="bgSecondary"
                             borderRadius={400}
-                            padding={3}
+                            padding={0}
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
                             width="100%"
+                            style={{ color: "rgba(255, 255, 255, 0)" }}
                           >
                             <TextBody color="fg" style={{ textAlign: "center" }}>
                               {t("pay.desktopQrCaption")}
                             </TextBody>
                           </Box>
+                          <VStack gap={3} alignItems="stretch" width="100%">
+                            <Button
+                              variant="primary"
+                              onClick={() => void handleDesktopInBrowserPay()}
+                              disabled={
+                                !canInteract ||
+                                !walletPayHref ||
+                                desktopPayBusy ||
+                                !hasInjectedWalletProvider()
+                              }
+                              block
+                            >
+                              {desktopPayBusy
+                                ? t("pay.working")
+                                : centerMeta?.isFree
+                                  ? t("pay.desktopUnlockInBrowser")
+                                  : t("pay.desktopPayInBrowser")}
+                            </Button>
+                            {showVerifyFallbackLink ? (
+                              <Button
+                                variant="foregroundMuted"
+                                onClick={handleOpenAdvancedManual}
+                                disabled={!canInteract}
+                                block
+                              >
+                                {t("pay.verifySecondaryLink")}
+                              </Button>
+                            ) : null}
+                            {!hasInjectedWalletProvider() ? (
+                              <TextCaption color="fgMuted" as="p">
+                                {t("pay.desktopErrNoWallet")}
+                              </TextCaption>
+                            ) : null}
+                          </VStack>
                         </>
                       ) : (
                         <TextCaption color="fgMuted" as="p">
@@ -1714,12 +1722,15 @@ export default function Pay() {
                           borderRadius={400}
                           style={{ lineHeight: 0 }}
                         >
-                          <QRCodeSVG
+                          <QRCodeCanvas
                             value={deliveryUrl}
                             size={160}
+                            marginSize={2}
                             level="H"
-                            includeMargin={false}
+                            bgColor="#ffffff"
+                            fgColor="#000000"
                             imageSettings={qrCenterImageSettings(160)}
+                            style={{ borderRadius: 16 }}
                           />
                         </Box>
                       </VStack>

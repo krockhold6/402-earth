@@ -12,7 +12,7 @@ export default function ApiDocs() {
       color="fg"
       paddingTop={{ base: 4, desktop: 6 }}
       paddingX={{ base: 4, desktop: 6 }}
-      paddingBottom={{ base: 8, desktop: 10 }}
+      paddingBottom={0}
     >
       <ApiDocsPanel variant="page" />
     </Box>

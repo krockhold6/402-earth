@@ -361,7 +361,7 @@ export default function Demo() {
             />
             <HStack gap={4} flexWrap="wrap" alignItems="center">
               <TextCaption color="fgMuted" as="span">
-                {t("demo.footerCopyright", { year: new Date().getFullYear() })}
+                {t("demo.footerCopyright")}
               </TextCaption>
               <HStack gap={2} flexWrap="wrap">
                 <RouterLink to="/terms" className="how-it-works-footer-link">

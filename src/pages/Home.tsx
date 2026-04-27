@@ -1,5 +1,6 @@
 import {
   useCallback,
+  type ClipboardEvent,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -17,7 +18,7 @@ import { cdsCompactSelectFieldStyles } from "@/cds/appCdsFieldDefaults"
 import { Checkbox, NativeTextArea, TextInput } from "@coinbase/cds-web/controls"
 import { Icon } from "@coinbase/cds-web/icons"
 import { CapabilityManagePanel } from "@/components/CapabilityManagePanel"
-import { ApiDocsPanel } from "@/components/ApiDocsPanel"
+import { AppLocaleThemeControls } from "@/components/AppLocaleThemeControls"
 import { BuyFlowPanel } from "@/components/BuyFlowPanel"
 import {
   createResource,
@@ -30,12 +31,10 @@ import {
 } from "@/lib/paidResourceUnlock"
 import { mcpNameFromCapabilityName } from "@/lib/mcpNameFromCapabilityName"
 import { homeCapabilityCreateSchema } from "@/lib/sellSchemas"
-import { publicUrl } from "@/lib/publicUrl"
 import { qrCenterImageSettings } from "@/lib/qrCenterImageSettings"
 import { useMediaQuery } from "@coinbase/cds-web/hooks/useMediaQuery"
 import { useTheme } from "@coinbase/cds-web/hooks/useTheme"
 import { Interactable } from "@coinbase/cds-web/system/Interactable"
-import { Carousel, CarouselItem } from "@coinbase/cds-web/carousel"
 import { Divider } from "@coinbase/cds-web/layout/Divider"
 import { Box, Grid, GridColumn, HStack, VStack } from "@coinbase/cds-web/layout"
 import { Tooltip } from "@coinbase/cds-web/overlays/Tooltip"
@@ -43,89 +42,16 @@ import type { IconName } from "@coinbase/cds-common/types"
 import type { TabValue } from "@coinbase/cds-common/tabs/useTabs"
 import { SegmentedTabs } from "@coinbase/cds-web/tabs"
 import {
-  Text,
   TextBody,
   TextCaption,
   TextLabel1,
+  TextTitle1,
   TextTitle3,
-  TextTitle4,
 } from "@coinbase/cds-web/typography"
 import i18n from "@/i18n/config"
-import { useCdsColorScheme } from "@/providers/cdsColorSchemeContext"
 
 const HERO_AMOUNT_FONT_FAMILY =
   'CoinbaseSans, var(--defaultFont-sans, system-ui), system-ui, sans-serif'
-
-/** Matches hero main title; reused for the “Why 402 exists” heading. */
-const HOME_HERO_HEADLINE_TEXT_STYLE: CSSProperties = {
-  fontSize: "clamp(48px, 8vw, 85px)",
-  fontWeight: 700,
-  lineHeight: 1.05,
-  letterSpacing: "-0.03em",
-  margin: 0,
-}
-
-/**
- * Home narrative (Resources, Capabilities, how / examples / why) — display-scale line.
- * Fluid type: caps at the prior fixed size on large viewports, scales down on narrow
- * (same clamp pattern as `HOME_HERO_HEADLINE_TEXT_STYLE`).
- */
-const HOME_SECTION_DISPLAY_HERO_TITLE_STYLE: CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(2rem, 4.2vw + 1.25rem, 5.025rem)",
-  fontWeight: 700,
-  lineHeight: 1.02,
-  letterSpacing: "-0.03em",
-  fontFamily: HERO_AMOUNT_FONT_FAMILY,
-}
-
-/**
- * Vertical padding for home left-column **sections** (hero + demo band stay
- * tight; everything from Commerce through the bottom CTA uses this).
- */
-const HOME_NARRATIVE_SECTION_PAD_Y = { base: 8, desktop: 10 } as const
-
-/** Home commerce band wordmarks — light + dark (`public/img/home-commerce/`). */
-const HOME_COMMERCE_IMAGES_BY_SCHEME = {
-  light: {
-    wordmark402: "/img/home-commerce/402-large.svg",
-    base: "/img/home-commerce/base-logo.svg",
-    usdc: "/img/home-commerce/usdc.svg",
-    x402: "/img/home-commerce/x402.svg",
-  },
-  dark: {
-    wordmark402: "/img/home-commerce/402-large-dark.svg",
-    base: "/img/home-commerce/base-logo-dark.svg",
-    usdc: "/img/home-commerce/usdc-dark.svg",
-    x402: "/img/home-commerce/x402-dark.svg",
-  },
-} as const
-
-/** Shared slot for Base / USDC / x402 logos in the commerce rail cards. */
-const HOME_COMMERCE_RAIL_LOGO_STYLE: CSSProperties = {
-  width: 120,
-  height: 32,
-  maxWidth: "100%",
-  objectFit: "contain",
-}
-
-const HOME_COMMERCE_TITLE_TEXT_STYLE: CSSProperties = {
-  fontSize: "clamp(40px, 8vw, 80px)",
-  fontWeight: 700,
-  lineHeight: 1.05,
-  letterSpacing: "-0.03em",
-  margin: 0,
-}
-
-/** Icons for `home.why402Examples` lines (… → machine). */
-const HOME_WHY402_EXAMPLE_ICONS = [
-  "dinnerPlate",
-  "chainLink",
-  "qrCode",
-  "clock",
-  "api",
-  "robot",
-] as const satisfies readonly IconName[]
 
 const PROTECTED_TTL_PRESETS = [0, 900, 3600, 86400, 604800] as const
 
@@ -186,6 +112,12 @@ function validateCreatorReceiverAddress(raw: string):
   return { ok: true, normalized: t.toLowerCase() }
 }
 
+function formatMaskedWalletPreview(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!/^0x[a-fA-F0-9]{40}$/.test(trimmed)) return null
+  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`
+}
+
 function pickResourceReceiver(resource: {
   receiverAddress?: string
   paymentReceiverAddress?: string | null
@@ -207,257 +139,10 @@ function apiSellType(resource: ApiResource): "resource" | "capability" {
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2
 
 /**
- * Distance from viewport top for `position: sticky` on the right transaction rail,
- * below the sticky `PageHeader` (~56px) plus a little air.
+ * Offset from viewport top when the right rail is `position: sticky`.
+ * Keep at 0 so the panel aligns with the top of the main grid (no global header inset).
  */
-const DESKTOP_QR_STICKY_TOP_PX = 64
-
-/** Creators: spectrum Gray10 (matches “Background alternate” in light theme). */
-const HOME_AUDIENCE_CREATORS_CARD_BG = "rgb(var(--gray10))"
-
-type HomeAudienceMessagingCardRow = {
-  id: string
-  titleKey: string
-  descriptionKey: string
-  /** Full-bleed photo hero; omit when `heroVisual` is `"dotGrid"`. */
-  imageSrc?: string
-  iconName: IconName
-  /** `"dotGrid"` = vector dot grid with centered icon (Capabilities cards). */
-  heroVisual?: "image" | "dotGrid"
-}
-
-const HOME_CREATORS_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
-  {
-    id: "home-creators-1",
-    titleKey: "home.creatorsCard1Title",
-    descriptionKey: "home.creatorsCard1Description",
-    imageSrc: publicUrl("img/home-audience-creators-banner-3.jpg"),
-    iconName: "chainLink",
-  },
-  {
-    id: "home-creators-2",
-    titleKey: "home.creatorsCard2Title",
-    descriptionKey: "home.creatorsCard2Description",
-    imageSrc: publicUrl("img/home-audience-creators-banner-4.jpg"),
-    iconName: "download",
-  },
-  {
-    id: "home-creators-3",
-    titleKey: "home.creatorsCard3Title",
-    descriptionKey: "home.creatorsCard3Description",
-    imageSrc: publicUrl("img/home-audience-creators-banner-6.png"),
-    iconName: "educationBook",
-  },
-  {
-    id: "home-creators-4",
-    titleKey: "home.creatorsCard4Title",
-    descriptionKey: "home.creatorsCard4Description",
-    imageSrc: publicUrl("img/home-audience-creators-banner-7.png"),
-    iconName: "lock",
-  },
-  {
-    id: "home-creators-5",
-    titleKey: "home.creatorsCard5Title",
-    descriptionKey: "home.creatorsCard5Description",
-    imageSrc: publicUrl("img/home-audience-creators-banner-8.png"),
-    iconName: "drops",
-  },
-]
-
-const HOME_SOFTWARE_CARDS: ReadonlyArray<HomeAudienceMessagingCardRow> = [
-  {
-    id: "home-software-1",
-    titleKey: "home.softwareCard1Title",
-    descriptionKey: "home.softwareCard1Description",
-    iconName: "developerAPIProduct",
-    heroVisual: "dotGrid",
-  },
-  {
-    id: "home-software-2",
-    titleKey: "home.softwareCard2Title",
-    descriptionKey: "home.softwareCard2Description",
-    iconName: "lightningBolt",
-    heroVisual: "dotGrid",
-  },
-  {
-    id: "home-software-3",
-    titleKey: "home.softwareCard3Title",
-    descriptionKey: "home.softwareCard3Description",
-    iconName: "auto",
-    heroVisual: "dotGrid",
-  },
-  {
-    id: "home-software-4",
-    titleKey: "home.softwareCard4Title",
-    descriptionKey: "home.softwareCard4Description",
-    iconName: "compose",
-    heroVisual: "dotGrid",
-  },
-]
-
-function HomeAudienceCardDotGridHero({
-  cardId,
-  iconName,
-}: {
-  cardId: string
-  iconName: IconName
-}) {
-  const theme = useTheme()
-  /** Inverse of page chrome: dark hero on light app, light hero on dark app. */
-  const surface = theme.color.bgInverse
-  const dot = theme.color.bgLineInverse
-  const patternId = `home-audience-dotgrid-${cardId}`
-  return (
-    <Box
-      position="relative"
-      width="100%"
-      style={{
-        height: 355,
-        borderRadius: 8,
-        overflow: "hidden",
-        flex: "0 0 auto",
-        backgroundColor: surface,
-      }}
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="100%"
-        height="100%"
-        aria-hidden
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "block",
-          pointerEvents: "none",
-        }}
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <pattern
-            id={patternId}
-            width={12}
-            height={12}
-            patternUnits="userSpaceOnUse"
-          >
-            <circle cx={6} cy={6} r={1} fill={dot} fillOpacity={0.22} />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill={surface} />
-        <rect width="100%" height="100%" fill={`url(#${patternId})`} />
-      </svg>
-      <Box
-        position="relative"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        width="100%"
-        style={{ height: 355, zIndex: 1 }}
-        aria-hidden
-      >
-        <Box
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          style={{ transform: "scale(2.75)", transformOrigin: "center" }}
-        >
-          <Icon name={iconName} size="l" color="fgInverse" />
-        </Box>
-      </Box>
-    </Box>
-  )
-}
-
-function renderHomeAudienceMessagingCard(
-  card: HomeAudienceMessagingCardRow,
-  t: (key: string) => string,
-) {
-  const titleText = t(card.titleKey)
-  const descriptionText = t(card.descriptionKey)
-  const useDotGrid = card.heroVisual === "dotGrid"
-  return (
-    <Box
-      as="article"
-      display="flex"
-      flexDirection="column"
-      alignItems="flex-start"
-      width={404}
-      minWidth={0}
-      maxWidth="100%"
-      style={{
-        flex: "0 0 auto",
-        borderRadius: 16,
-        gap: 10,
-        padding: 0,
-        background: "unset",
-      }}
-      color="fg"
-      aria-label={`${titleText}. ${descriptionText}`}
-    >
-      {useDotGrid ? (
-        <HomeAudienceCardDotGridHero cardId={card.id} iconName={card.iconName} />
-      ) : (
-        <Box
-          width="100%"
-          style={{
-            height: 355,
-            borderRadius: 8,
-            overflow: "hidden",
-            flex: "0 0 auto",
-          }}
-        >
-          <Box
-            as="img"
-            src={card.imageSrc}
-            alt=""
-            aria-hidden
-            width="100%"
-            style={{
-              height: 355,
-              objectFit: "cover",
-              objectPosition: "center",
-              display: "block",
-            }}
-          />
-        </Box>
-      )}
-      <HStack
-        alignItems="center"
-        width="100%"
-        minWidth={0}
-        style={{ flex: "0 0 auto", minHeight: 37, gap: 12 }}
-        paddingX={0}
-        paddingY={0}
-      >
-        <Box
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          flexShrink={0}
-          style={{ width: 23, height: 21 }}
-          aria-hidden
-        >
-          <Icon name={card.iconName} size="m" color="fg" />
-        </Box>
-        <Text
-          as="h3"
-          color="fg"
-          style={{
-            margin: 0,
-            fontSize: 18,
-            lineHeight: "37px",
-            fontWeight: 700,
-            flex: 1,
-            minWidth: 0,
-            fontFamily:
-              'var(--defaultFont-sans, "OpenAI Sans", system-ui), system-ui, sans-serif',
-          }}
-        >
-          {titleText}
-        </Text>
-      </HStack>
-    </Box>
-  )
-}
+const DESKTOP_QR_STICKY_TOP_PX = 0
 
 /** Spans the full width of the grid column (viewport edge → vertical rule on wide). */
 function HomeHorizontalRule() {
@@ -487,8 +172,6 @@ function HomeHorizontalRule() {
 
 export default function Home() {
   const { t } = useTranslation()
-  const { colorScheme } = useCdsColorScheme()
-  const commerceImages = HOME_COMMERCE_IMAGES_BY_SCHEME[colorScheme]
   const isWide = useMediaQuery("(min-width: 960px)")
   /** When true, sell-type control stacks under the rail row (narrow workflow column). */
   const workflowSellTypeBelowRail = useMediaQuery("(max-width: 639px)")
@@ -540,6 +223,16 @@ export default function Home() {
     })
   }, [sellTypeTabs])
 
+  const [activeBuyTypeTab, setActiveBuyTypeTab] = useState<HomeSellTypeTab>(
+    () => ({ id: "resource", label: "" }),
+  )
+  useEffect(() => {
+    setActiveBuyTypeTab((cur) => {
+      const next = sellTypeTabs.find((tab) => tab.id === cur.id)
+      return next ?? sellTypeTabs[0]!
+    })
+  }, [sellTypeTabs])
+
   type HomeCapDeliveryTabId = "direct" | "protected" | "async"
   type HomeCapDeliveryTab = { id: HomeCapDeliveryTabId; label: string }
   const capabilityDeliveryTabs = useMemo<HomeCapDeliveryTab[]>(
@@ -577,59 +270,24 @@ export default function Home() {
   )
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
   const homeWorkflowRailRef = useRef<HTMLDivElement>(null)
+  const maskedReceiverAddress = useMemo(
+    () => formatMaskedWalletPreview(receiverAddress),
+    [receiverAddress],
+  )
+  const receiverAddressInputValue = useMemo(
+    () => maskedReceiverAddress ?? receiverAddress,
+    [maskedReceiverAddress, receiverAddress],
+  )
 
   const hasQr = paymentUrl !== ""
 
-  const why402ExampleLines = useMemo(
-    () =>
-      t("home.why402Examples")
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean),
-    [t],
-  )
-
-  const why402PillarCards = useMemo(
-    () => [
-      { title: t("home.why402EverydayTitle"), body: t("home.why402EverydayBody") },
-      { title: t("home.why402CreatorTitle"), body: t("home.why402CreatorBody") },
-      { title: t("home.why402MachineTitle"), body: t("home.why402MachineBody") },
-    ],
-    [t],
-  )
-
-  const homeFlowSteps = useMemo(
-    () => [
-      { title: t("howItWorks.step1Title"), body: t("howItWorks.step1Body") },
-      { title: t("howItWorks.step2Title"), body: t("howItWorks.step2Body") },
-      { title: t("howItWorks.step3Title"), body: t("howItWorks.step3Body") },
-      {
-        title: t("home.capabilitiesCard1Title"),
-        body: t("home.capabilitiesCard1Description"),
-      },
-      {
-        title: t("home.capabilitiesCard2Title"),
-        body: t("home.capabilitiesCard2Description"),
-      },
-    ],
-    [t],
-  )
-  const { howItWorksCoreSteps, howItWorksBuilderSteps } = useMemo(
-    () => ({
-      howItWorksCoreSteps: homeFlowSteps.slice(0, 3),
-      howItWorksBuilderSteps: homeFlowSteps.slice(3),
-    }),
-    [homeFlowSteps],
-  )
-
-  type HomeRailTabId = "sell" | "buy" | "api"
+  type HomeRailTabId = "sell" | "buy"
   type HomeRailTab = { id: HomeRailTabId; label: string }
 
   const railTabs = useMemo<HomeRailTab[]>(
     () => [
       { id: "sell", label: t("home.railTabSell") },
       { id: "buy", label: t("home.railTabBuy") },
-      { id: "api", label: t("home.railTabApi") },
     ],
     [t],
   )
@@ -645,37 +303,48 @@ export default function Home() {
     })
   }, [railTabs])
 
+  const [buyPreviewObjectKind, setBuyPreviewObjectKind] = useState<
+    "resource" | "capability" | null
+  >(null)
+
+  const handleBuyPreviewObjectKind = useCallback(
+    (kind: "resource" | "capability" | null) => {
+      setBuyPreviewObjectKind(kind)
+      if (kind) {
+        const nextTab = sellTypeTabs.find((tab) => tab.id === kind)
+        if (nextTab) setActiveBuyTypeTab(nextTab)
+      }
+    },
+    [sellTypeTabs],
+  )
+
+  useEffect(() => {
+    if (activeTab.id !== "buy") {
+      setBuyPreviewObjectKind(null)
+    }
+  }, [activeTab.id])
+
+  /**
+   * Object type (Resource / Capability) opens a full-rail chooser for
+   * both Sell and Buy. See `sellTypeChooserPanel` in `rightPane`.
+   */
+  const [objectTypePickerMode, setObjectTypePickerMode] = useState<
+    "off" | "sell" | "buy"
+  >("off")
+  const showObjectTypePicker = objectTypePickerMode !== "off"
+  const sellTypeChooserPanelId = "home-rail-sell-type-chooser"
+  const sellTypeChooserHeadingId = "home-rail-sell-type-chooser-title"
+  const homeRailTheme = useTheme()
+
   const handleRailTabsChange = useCallback(
     (next: TabValue<HomeRailTabId> | null) => {
       if (!next) return
+      setObjectTypePickerMode("off")
       const resolved = railTabs.find((tab) => tab.id === next.id)
       if (resolved) updateActiveTab(resolved)
     },
     [railTabs],
   )
-
-  /**
-   * Coinbase-style "Order Types" pattern: tapping the sell-type pill in the
-   * rail header slides the workflow form out and slides a full-rail chooser
-   * panel in from the right. Picking an option (or pressing back) reverses
-   * the animation and applies the new selection. See `sellTypeChooserPanel`
-   * and the sliding container in `rightPane`.
-   */
-  const [sellTypeChooserOpen, setSellTypeChooserOpen] = useState(false)
-  const sellTypeChooserPanelId = "home-rail-sell-type-chooser"
-  const sellTypeChooserHeadingId = "home-rail-sell-type-chooser-title"
-  const homeRailTheme = useTheme()
-
-  const handleScrollToWorkflow = useCallback(() => {
-    const sellTab = railTabs.find((tab) => tab.id === "sell")
-    if (sellTab) updateActiveTab(sellTab)
-    requestAnimationFrame(() => {
-      homeWorkflowRailRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      })
-    })
-  }, [railTabs])
 
   const canCreateOnRail = activeTab.id === "sell"
 
@@ -695,6 +364,16 @@ export default function Home() {
     clearPaymentSuccessState()
     setCreateError(null)
   }, [clearPaymentSuccessState])
+  const handleReceiverAddressPaste = useCallback(
+    (e: ClipboardEvent<HTMLInputElement>) => {
+      e.preventDefault()
+      const pasted = e.clipboardData.getData("text")
+      setReceiverAddress(pasted)
+      setReceiverAddressError(null)
+      invalidateQrIfFormChanged()
+    },
+    [invalidateQrIfFormChanged],
+  )
 
   type HomeDeliveryTabId = "direct" | "protected"
   type HomeDeliveryTab = { id: HomeDeliveryTabId; label: string }
@@ -736,16 +415,24 @@ export default function Home() {
     }
   }, [activeDeliveryTab.id])
 
-  const handleSellTypeChooserSelect = useCallback(
+  const handleObjectTypeChooserSelect = useCallback(
     (key: HomeSellTypeTabId) => {
       const resolved = sellTypeTabs.find((tab) => tab.id === key)
       if (resolved) {
-        setActiveSellTypeTab(resolved)
-        invalidateQrIfFormChanged()
+        if (objectTypePickerMode === "sell") {
+          setActiveSellTypeTab(resolved)
+          invalidateQrIfFormChanged()
+        } else if (objectTypePickerMode === "buy") {
+          setActiveBuyTypeTab(resolved)
+        }
       }
-      setSellTypeChooserOpen(false)
+      setObjectTypePickerMode("off")
     },
-    [sellTypeTabs, invalidateQrIfFormChanged],
+    [
+      objectTypePickerMode,
+      sellTypeTabs,
+      invalidateQrIfFormChanged,
+    ],
   )
 
   const activeSellTypeDropdownLabel = useMemo(() => {
@@ -759,8 +446,56 @@ export default function Home() {
     })
   }, [activeSellTypeTab.id, t])
 
+  const activeBuyTypeDropdownLabel = useMemo(() => {
+    if (activeBuyTypeTab.id === "resource") {
+      return t("home.sellTypeDropdownResource", {
+        defaultValue: t("home.sellTypeResource"),
+      })
+    }
+    return t("home.sellTypeDropdownCapability", {
+      defaultValue: t("home.sellTypeCapability"),
+    })
+  }, [activeBuyTypeTab.id, t])
+
+  const composerObjectKind = useMemo((): HomeSellTypeTabId => {
+    if (activeTab.id === "sell") {
+      return activeSellTypeTab.id
+    }
+    return buyPreviewObjectKind ?? activeBuyTypeTab.id
+  }, [
+    activeTab.id,
+    activeSellTypeTab.id,
+    buyPreviewObjectKind,
+    activeBuyTypeTab.id,
+  ])
+
+  const homeComposerContextCopy = useMemo(() => {
+    if (activeTab.id === "sell" && composerObjectKind === "resource") {
+      return {
+        title: t("home.composerSellResourceHeadline"),
+        sub: t("home.composerSellResourceSupport"),
+      }
+    }
+    if (activeTab.id === "sell" && composerObjectKind === "capability") {
+      return {
+        title: t("home.composerSellCapabilityHeadline"),
+        sub: t("home.composerSellCapabilitySupport"),
+      }
+    }
+    if (activeTab.id === "buy" && composerObjectKind === "resource") {
+      return {
+        title: t("home.composerBuyResourceHeadline"),
+        sub: t("home.composerBuyResourceSupport"),
+      }
+    }
+    return {
+      title: t("home.composerBuyCapabilityHeadline"),
+      sub: t("home.composerBuyCapabilitySupport"),
+    }
+  }, [activeTab.id, composerObjectKind, t])
+
   /**
-   * Two-row chooser shown when `sellTypeChooserOpen` is true. Each row mirrors
+   * Two-row chooser shown when the object-type picker is open. Each row mirrors
    * the Coinbase "Order Types" panel: circular icon, bold title, supporting
    * description, trailing chevron. Translations use the dropdown labels so
    * "Resource / Capability" stays the canonical user-facing wording.
@@ -1097,14 +832,6 @@ export default function Home() {
   const homeRailBodyPadY = 4 as const
   const padTop = { base: 4, desktop: 6 } as const
   const padBottom = { base: 8, desktop: 10 } as const
-  /**
-   * Workflow column (Sell rail): wide layout uses **no** vertical padding on the
-   * sticky column so the rail sits flush under the chrome (`top: 64px`) and
-   * fills to the bottom of the viewport without a dead band.
-   * Narrow layout uses a slightly tighter top inset than the former 32px rail.
-   */
-  const rightRailPadTop = { base: 3, desktop: 0 } as const
-
   const contentPadStart = edgePad
   const contentPadEnd = isWide ? ruleGap : edgePad
 
@@ -1113,610 +840,59 @@ export default function Home() {
     ? { paddingStart: ruleGap, paddingEnd: { base: 3, desktop: 3 } as const }
     : { paddingStart: edgePad, paddingEnd: edgePad }
 
-  /** Headline only; light proof band + “Why 402” live below. */
-  const homeHeroLead = (
+  /** Mode- and object-type context for the composer: headline + one support line. */
+  const homeComposerContext = (
     <Box
       width="100%"
       paddingStart={contentPadStart}
       paddingEnd={contentPadEnd}
     >
-      <VStack gap={5} alignItems="stretch" width="100%">
-        <Box
+      <VStack gap={2} alignItems="stretch" width="100%" maxWidth={720}>
+        <TextTitle1
           as="h1"
           color="fg"
-          font="headline"
+          id="home-composer-orientation"
           style={{
-            ...HOME_HERO_HEADLINE_TEXT_STYLE,
-            fontSize: "24px",
-            letterSpacing: "normal",
-            paddingBottom: 20,
+            margin: 0,
+            fontSize: "clamp(2rem, 5.5vw, 3.25rem)",
+            fontWeight: 700,
+            lineHeight: 1.05,
+            letterSpacing: "-0.03em",
           }}
         >
-          {t("home.heroLine1")}{" "}
-          {t("home.heroLine2")}
-        </Box>
+          {homeComposerContextCopy.title}
+        </TextTitle1>
+        <TextBody
+          as="p"
+          color="fgMuted"
+          style={{ margin: 0, lineHeight: 1.5, maxWidth: 640 }}
+        >
+          {homeComposerContextCopy.sub}
+        </TextBody>
       </VStack>
     </Box>
   )
 
-  /** Proof band — body copy; highlight uses `backgroundColor` on the paragraph. */
+  /** Quiet one-line trust under the composer context (replaces the old long proof band on Home). */
   const homeDemoProofBand = (
     <Box
       width="100%"
       paddingStart={contentPadStart}
       paddingEnd={6}
+      paddingTop={{ base: 1, desktop: 1 }}
       paddingBottom={{ base: 2, desktop: 3 }}
     >
-      <Box
-        borderRadius={400}
-        padding={0}
-        width="100%"
-        maxWidth={680}
-        className="home-demo-proof-band"
+      <TextCaption
+        color="fgMuted"
+        as="p"
+        style={{
+          margin: 0,
+          lineHeight: 1.5,
+          width: "100%",
+        }}
       >
-        <Box className="home-demo-proof-band__row">
-          <Box minWidth={0} flexShrink={1} width="100%">
-            <VStack gap={2} alignItems="stretch" width="100%">
-              <TextBody
-                color="fgMuted"
-                as="p"
-                style={{
-                  margin: 0,
-                  lineHeight: 1.5,
-                  width: "100%",
-                  backgroundColor: "var(--color-bgLineInverse)",
-                }}
-              >
-                {t("home.demoBandBody")}
-              </TextBody>
-            </VStack>
-          </Box>
-        </Box>
-      </Box>
-    </Box>
-  )
-
-  /** “402 Commerce” payment layer — wordmark + Base / USDC / x402 (below Hero, above Resources). */
-  const homeCommerceSection = (
-    <Box
-      width="100%"
-      minWidth={0}
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
-    >
-      <VStack gap={6} alignItems="stretch" width="100%" maxWidth="100%">
-        <VStack gap={3} alignItems="stretch" width="100%">
-          <Box
-            as="h2"
-            color="fg"
-            aria-label={t("home.commerceAriaTitle")}
-            style={{ margin: 0, width: "100%" }}
-          >
-            <HStack
-              gap={3}
-              alignItems="center"
-              flexWrap="wrap"
-              width="100%"
-            >
-              <Box
-                as="span"
-                font="headline"
-                style={HOME_COMMERCE_TITLE_TEXT_STYLE}
-              >
-                Commerce
-              </Box>
-            </HStack>
-          </Box>
-          <VStack gap={4} alignItems="stretch" width="100%" minWidth={0}>
-            <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
-              <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-                {t("home.commerceIntroHeading1")}
-              </TextTitle3>
-              <TextBody
-                color="fgMuted"
-                as="p"
-                style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
-              >
-                {t("home.commerceIntroBody1")}
-              </TextBody>
-            </VStack>
-            <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
-              <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-                {t("home.commerceIntroHeading2")}
-              </TextTitle3>
-              <TextBody
-                color="fgMuted"
-                as="p"
-                style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
-              >
-                {t("home.commerceIntroBody2")}
-              </TextBody>
-            </VStack>
-          </VStack>
-        </VStack>
-        <Box
-          display="flex"
-          flexDirection={isWide ? "row" : "column"}
-          alignItems="stretch"
-          width="100%"
-          minWidth={0}
-          style={{ gap: 12 }}
-        >
-          <Box
-            borderRadius={400}
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            width="100%"
-            minWidth={0}
-            style={{
-              backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
-              ...(isWide ? { minWidth: 140 } : {}),
-            }}
-            padding={{ base: 3, desktop: 4 }}
-            flexGrow={isWide ? 1 : undefined}
-            flexBasis={isWide ? "140px" : undefined}
-          >
-            <Box
-              as="img"
-              key={commerceImages.base}
-              src={commerceImages.base}
-              alt={t("home.commerceRailBase")}
-              flexShrink={0}
-              style={HOME_COMMERCE_RAIL_LOGO_STYLE}
-            />
-          </Box>
-          <Box
-            borderRadius={400}
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            width="100%"
-            minWidth={0}
-            style={{
-              backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
-              ...(isWide ? { minWidth: 140 } : {}),
-            }}
-            padding={{ base: 3, desktop: 4 }}
-            flexGrow={isWide ? 1 : undefined}
-            flexBasis={isWide ? "140px" : undefined}
-          >
-            <Box
-              as="img"
-              key={commerceImages.usdc}
-              src={commerceImages.usdc}
-              alt={t("home.commerceRailUsdc")}
-              flexShrink={0}
-              style={HOME_COMMERCE_RAIL_LOGO_STYLE}
-            />
-          </Box>
-          <Box
-            borderRadius={400}
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            width="100%"
-            minWidth={0}
-            style={{
-              backgroundColor: HOME_AUDIENCE_CREATORS_CARD_BG,
-              ...(isWide ? { minWidth: 140 } : {}),
-            }}
-            padding={{ base: 3, desktop: 4 }}
-            flexGrow={isWide ? 1 : undefined}
-            flexBasis={isWide ? "140px" : undefined}
-          >
-            <Box
-              as="img"
-              key={commerceImages.x402}
-              src={commerceImages.x402}
-              alt={t("home.commerceRailX402")}
-              flexShrink={0}
-              style={HOME_COMMERCE_RAIL_LOGO_STYLE}
-            />
-          </Box>
-        </Box>
-      </VStack>
-    </Box>
-  )
-
-  /** Carousel chrome for audience rows; cards are image + icon/title (CDS layout). */
-  const homeAudienceCarouselStyles = {
-    carousel: { gap: 16 },
-    carouselContainer: { minWidth: 0 },
-  } as const
-
-  const homeAudienceCreatorsCarousel = (
-    <Box
-      width="100%"
-      minWidth={0}
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
-    >
-      <VStack alignItems="stretch" width="100%" style={{ gap: 38 }}>
-        <VStack alignItems="stretch" width="100%" style={{ gap: 24 }}>
-          <TextTitle3
-            color="fg"
-            as="h2"
-            style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
-          >
-            {t("home.audienceCreatorsTitle")}
-          </TextTitle3>
-          <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
-            <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-              {t("home.audienceCreatorsSubhead")}
-            </TextTitle3>
-            <TextBody
-              color="fgMuted"
-              as="p"
-              style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
-            >
-              {t("home.audienceCreatorsBody")}
-            </TextBody>
-          </VStack>
-          <Carousel
-            width="100%"
-            minWidth={0}
-            snapMode="item"
-            hidePagination
-            styles={{
-              ...homeAudienceCarouselStyles,
-              navigation: { flexShrink: 0 },
-            }}
-          >
-            {HOME_CREATORS_CARDS.map((card) => (
-              <CarouselItem key={card.id} id={card.id}>
-                {renderHomeAudienceMessagingCard(card, t)}
-              </CarouselItem>
-            ))}
-          </Carousel>
-        </VStack>
-      </VStack>
-    </Box>
-  )
-
-  const homeAudienceSoftwareCarousel = (
-    <Box
-      width="100%"
-      minWidth={0}
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
-    >
-      <VStack alignItems="stretch" width="100%" style={{ gap: 38 }}>
-        <VStack alignItems="stretch" width="100%" style={{ gap: 24 }}>
-          <TextTitle3
-            color="fg"
-            as="h2"
-            style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
-          >
-            {t("home.audienceSoftwareTitle")}
-          </TextTitle3>
-          <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
-            <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-              {t("home.audienceSoftwareSubhead")}
-            </TextTitle3>
-            <TextBody
-              color="fgMuted"
-              as="p"
-              style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
-            >
-              {t("home.audienceSoftwareBody")}
-            </TextBody>
-          </VStack>
-          <Carousel
-            width="100%"
-            minWidth={0}
-            snapMode="item"
-            hidePagination
-            styles={{
-              ...homeAudienceCarouselStyles,
-              navigation: { flexShrink: 0 },
-            }}
-          >
-            {HOME_SOFTWARE_CARDS.map((card) => (
-              <CarouselItem key={card.id} id={card.id}>
-                {renderHomeAudienceMessagingCard(card, t)}
-              </CarouselItem>
-            ))}
-          </Carousel>
-        </VStack>
-      </VStack>
-    </Box>
-  )
-
-  const homeHowItWorksSection = (
-    <Box
-      width="100%"
-      minWidth={0}
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
-    >
-      <VStack alignItems="stretch" width="100%" style={{ gap: 32 }}>
-        <TextTitle3
-          color="fg"
-          as="h2"
-          style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
-        >
-          {t("home.howItWorksTitle")}
-        </TextTitle3>
-        <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
-          <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-            {t("home.howItWorksSubhead")}
-          </TextTitle3>
-          <TextBody
-            color="fgMuted"
-            as="p"
-            style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
-          >
-            {t("home.howItWorksBody")}
-          </TextBody>
-        </VStack>
-        <VStack gap={5} alignItems="stretch" width="100%" minWidth={0}>
-          <Text
-            color="fgMuted"
-            font="label2"
-            as="p"
-            style={{
-              margin: 0,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
-          >
-            {t("home.howItWorksGroupBasics")}
-          </Text>
-          <VStack
-            as="ol"
-            gap={5}
-            width="100%"
-            minWidth={0}
-            margin={0}
-            padding={0}
-            alignItems="stretch"
-            style={{ listStyle: "none" }}
-          >
-            {howItWorksCoreSteps.map((step, i) => (
-              <Box
-                as="li"
-                key={`home-flow-core-${i}`}
-                borderRadius={400}
-                width="100%"
-                minWidth={0}
-                padding={{ base: 5, desktop: 7 }}
-                style={{
-                  background: "rgb(var(--gray10))",
-                }}
-              >
-                <HStack
-                  gap={{ base: 3, desktop: 5 }}
-                  alignItems="flex-start"
-                  width="100%"
-                  minWidth={0}
-                >
-                  <Box
-                    aria-hidden
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                    flexShrink={0}
-                    width={48}
-                    height={48}
-                    borderRadius={1000}
-                    background="bgPrimary"
-                  >
-                    <Text color="fgInverse" font="title3" as="span">
-                      {i + 1}
-                    </Text>
-                  </Box>
-                  <VStack gap={2} alignItems="stretch" minWidth={0} style={{ flex: 1, minWidth: 0 }}>
-                    <TextTitle4
-                      color="fg"
-                      as="p"
-                      style={{ margin: 0, lineHeight: 1.35 }}
-                    >
-                      {step.title}
-                    </TextTitle4>
-                    <TextBody
-                      color="fgMuted"
-                      as="p"
-                      style={{
-                        margin: 0,
-                        lineHeight: 1.65,
-                      }}
-                    >
-                      {step.body}
-                    </TextBody>
-                  </VStack>
-                </HStack>
-              </Box>
-            ))}
-          </VStack>
-        </VStack>
-        {howItWorksBuilderSteps.length > 0 ? (
-          <VStack gap={4} alignItems="stretch" width="100%" minWidth={0}>
-            <Text
-              color="fgMuted"
-              font="label2"
-              as="p"
-              style={{
-                margin: 0,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              {t("home.howItWorksGroupBuilder")}
-            </Text>
-            <VStack
-              as="ol"
-              gap={5}
-              alignItems="stretch"
-              width="100%"
-              minWidth={0}
-              margin={0}
-              padding={0}
-              style={{ listStyle: "none" }}
-            >
-              {howItWorksBuilderSteps.map((step, i) => (
-                <Box
-                  as="li"
-                  key={`home-flow-xtra-${i}`}
-                  width="100%"
-                  minWidth={0}
-                  borderRadius={400}
-                >
-                  <HStack
-                    gap={{ base: 3, desktop: 5 }}
-                    alignItems="flex-start"
-                    width="100%"
-                    minWidth={0}
-                  >
-                    <Box
-                      width={4}
-                      alignSelf="stretch"
-                      flexShrink={0}
-                      borderRadius={1000}
-                      background="fgPrimary"
-                      style={{ minHeight: 48, opacity: 0.45 }}
-                    />
-                    <VStack
-                      gap={2}
-                      alignItems="stretch"
-                      minWidth={0}
-                      style={{ flex: 1, minWidth: 0 }}
-                    >
-                      <TextTitle4
-                        color="fg"
-                        as="p"
-                        style={{ margin: 0, lineHeight: 1.35 }}
-                      >
-                        {step.title}
-                      </TextTitle4>
-                      <TextBody
-                        color="fgMuted"
-                        as="p"
-                        style={{ margin: 0, lineHeight: 1.65 }}
-                      >
-                        {step.body}
-                      </TextBody>
-                    </VStack>
-                  </HStack>
-                </Box>
-              ))}
-            </VStack>
-          </VStack>
-        ) : null}
-      </VStack>
-    </Box>
-  )
-
-  const homeExampleUseCasesSection = (
-    <Box
-      width="100%"
-      minWidth={0}
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
-    >
-      <VStack alignItems="stretch" width="100%" style={{ gap: 32 }}>
-        <TextTitle3
-          color="fg"
-          as="h2"
-          style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
-        >
-          {t("home.exampleUseCasesTitle")}
-        </TextTitle3>
-        <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
-          <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-            {t("home.exampleUseCasesSubhead")}
-          </TextTitle3>
-          <TextBody
-            color="fgMuted"
-            as="p"
-            style={{ margin: 0, lineHeight: 1.5, width: "100%" }}
-          >
-            {t("home.exampleUseCasesIntro")}
-          </TextBody>
-        </VStack>
-        <Box
-          as="ul"
-          display="grid"
-          width="100%"
-          minWidth={0}
-          margin={0}
-          padding={0}
-          style={{
-            listStyle: "none",
-            gap: 16,
-            gridTemplateColumns: isWide
-              ? "repeat(2, minmax(0, 1fr))"
-              : "minmax(0, 1fr)",
-          }}
-        >
-          {why402ExampleLines.map((line, i) => (
-            <Box
-              as="li"
-              key={`home-use-case-${i}`}
-              borderRadius={400}
-              width="100%"
-              minWidth={0}
-              display="flex"
-              justifyContent="center"
-              alignItems="center"
-              style={{
-                background: "rgb(var(--gray10))",
-                margin: 0,
-                padding: 14,
-                height: "fit-content",
-              }}
-            >
-              <HStack
-                alignItems="center"
-                justifyContent="center"
-                width="100%"
-                gap={3}
-                minWidth={0}
-              >
-                <Box
-                  minWidth={0}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <TextBody
-                    color="fg"
-                    as="p"
-                    style={{ margin: 0, lineHeight: 1.5 }}
-                  >
-                    {line}
-                  </TextBody>
-                </Box>
-                <Box
-                  aria-hidden
-                  display="flex"
-                  flexShrink={0}
-                  alignItems="center"
-                  justifyContent="center"
-                  width={32}
-                  height={32}
-                  borderRadius={1000}
-                  background="bgPrimary"
-                >
-                  <Icon
-                    name={HOME_WHY402_EXAMPLE_ICONS[i] ?? "circleCheckmark"}
-                    size="s"
-                    color="fgInverse"
-                  />
-                </Box>
-              </HStack>
-            </Box>
-          ))}
-        </Box>
-      </VStack>
+        {t("home.composerTrustLine")}
+      </TextCaption>
     </Box>
   )
 
@@ -1735,27 +911,49 @@ export default function Home() {
     styles: cdsCompactSelectFieldStyles,
   }
 
-  const sellTypeDropdown =
-    activeTab.id === "sell" ? (
-      <Box display="inline-flex" style={{ width: "auto", maxWidth: "100%" }}>
-        <Button
-          compact
-          variant="secondary"
-          borderRadius={500}
-          minWidth="auto"
-          paddingX={3}
-          type="button"
-          endIcon="caretDown"
-          accessibilityLabel={`${t("home.sellTypeAccessibility")}, ${activeSellTypeDropdownLabel}`}
-          aria-haspopup="dialog"
-          aria-expanded={sellTypeChooserOpen}
-          aria-controls={sellTypeChooserPanelId}
-          onClick={() => setSellTypeChooserOpen(true)}
-        >
-          {activeSellTypeDropdownLabel}
-        </Button>
-      </Box>
-    ) : null
+  const homeObjectTypeControl = (forMode: "sell" | "buy", optionLabel: string) => {
+    const expanded = objectTypePickerMode === forMode
+    return (
+      <HStack
+        gap={2}
+        alignItems="center"
+        justifyContent="flex-end"
+        minWidth={0}
+        flexWrap="wrap"
+      >
+        <TextCaption color="fgMuted" as="span" style={{ margin: 0 }}>
+          {t("home.objectTypeLabel")}
+        </TextCaption>
+        <Box display="inline-flex" style={{ width: "auto", maxWidth: "100%" }}>
+          <Button
+            compact
+            variant="secondary"
+            borderRadius={500}
+            minWidth="auto"
+            paddingX={3}
+            type="button"
+            endIcon="caretDown"
+            accessibilityLabel={`${t("home.objectTypeLabel")}, ${optionLabel}`}
+            aria-haspopup="dialog"
+            aria-expanded={expanded}
+            aria-controls={sellTypeChooserPanelId}
+            onClick={() => {
+              setObjectTypePickerMode(forMode)
+            }}
+          >
+            {optionLabel}
+          </Button>
+        </Box>
+      </HStack>
+    )
+  }
+
+  const homeWorkflowObjectTypeControl =
+    activeTab.id === "sell"
+      ? homeObjectTypeControl("sell", activeSellTypeDropdownLabel)
+      : activeTab.id === "buy"
+        ? homeObjectTypeControl("buy", activeBuyTypeDropdownLabel)
+        : null
 
   const homeRailWorkflowHeader = (
     <VStack
@@ -1780,24 +978,21 @@ export default function Home() {
             maxWidth="100%"
           />
         </Box>
-        {!workflowSellTypeBelowRail && sellTypeDropdown ? (
-          <Box flexShrink={0}>{sellTypeDropdown}</Box>
+        {!workflowSellTypeBelowRail && homeWorkflowObjectTypeControl ? (
+          <Box flexShrink={0}>{homeWorkflowObjectTypeControl}</Box>
         ) : null}
       </HStack>
-      {workflowSellTypeBelowRail && sellTypeDropdown ? (
-        <Box width="100%" minWidth={0}>
-          {sellTypeDropdown}
+      {workflowSellTypeBelowRail && homeWorkflowObjectTypeControl ? (
+        <Box width="100%" minWidth={0} alignItems="flex-end" display="flex" flexDirection="row" justifyContent="flex-end">
+          {homeWorkflowObjectTypeControl}
         </Box>
       ) : null}
     </VStack>
   )
 
   /**
-   * Coinbase "Order Types" style chooser. Sits as an absolutely-positioned
-   * overlay on top of the rail workflow content, sliding in from the right
-   * (and out to the right) via CSS transforms when `sellTypeChooserOpen`
-   * toggles. The form layer behind it dims and slides slightly left so the
-   * transition reads as a screen swap, not a popover.
+   * Full-rail object-type chooser. Slides in from the right when
+   * `objectTypePickerMode` is not `off`.
    */
   const sellTypeChooserPanel = (
     <VStack
@@ -1820,7 +1015,7 @@ export default function Home() {
             variant="secondary"
             type="button"
             accessibilityLabel={t("home.sellTypeChooserBack")}
-            onClick={() => setSellTypeChooserOpen(false)}
+            onClick={() => setObjectTypePickerMode("off")}
           />
         </Box>
         <Box
@@ -1843,12 +1038,14 @@ export default function Home() {
       </HStack>
       <VStack gap={1} alignItems="stretch" width="100%">
         {sellTypeChooserOptions.map((opt) => {
-          const isActive = activeSellTypeTab.id === opt.id
+          const chooserActiveObjectTab =
+            objectTypePickerMode === "buy" ? activeBuyTypeTab : activeSellTypeTab
+          const isActive = chooserActiveObjectTab.id === opt.id
           return (
             <Interactable
               key={opt.id}
               type="button"
-              onClick={() => handleSellTypeChooserSelect(opt.id)}
+              onClick={() => handleObjectTypeChooserSelect(opt.id)}
               block
               borderRadius={400}
               paddingX={3}
@@ -2001,7 +1198,7 @@ export default function Home() {
         // which leaves a visible gap before the secondary fill when embedded in TextInput `start`.
         controlInputNode: {
           ...cdsCompactSelectFieldStyles.controlInputNode,
-          width: "100px",
+          width: "105px",
           minHeight: 62,
           paddingInlineStart: 0,
           justifyContent: "flex-start",
@@ -2180,13 +1377,14 @@ export default function Home() {
         <TextInput
           compact
           {...homeFormTextInputSurface}
-          label={t("home.payoutWallet")}
-          value={receiverAddress}
+          label={t("home.receiverLabel")}
+          value={receiverAddressInputValue}
           onChange={(e) => {
             setReceiverAddress(e.target.value)
             setReceiverAddressError(null)
             invalidateQrIfFormChanged()
           }}
+          onPaste={handleReceiverAddressPaste}
           autoComplete="off"
           spellCheck={false}
           placeholder="0x"
@@ -2358,13 +1556,14 @@ export default function Home() {
         <TextInput
           compact
           {...homeFormTextInputSurface}
-          label={t("home.payoutWallet")}
-          value={receiverAddress}
+          label={t("home.receiverLabel")}
+          value={receiverAddressInputValue}
           onChange={(e) => {
             setReceiverAddress(e.target.value)
             setReceiverAddressError(null)
             invalidateQrIfFormChanged()
           }}
+          onPaste={handleReceiverAddressPaste}
           autoComplete="off"
           spellCheck={false}
           placeholder="0x"
@@ -3490,214 +2689,112 @@ export default function Home() {
       </VStack>
     ) : null
 
-  const homeWhy402 = (
-    <Box
-      width="100%"
-      minWidth={0}
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
-    >
-      <VStack alignItems="stretch" width="100%" style={{ gap: 32 }}>
-        <TextTitle3
-          color="fg"
-          as="h2"
-          style={HOME_SECTION_DISPLAY_HERO_TITLE_STYLE}
-        >
-          {t("home.why402Heading")}
-        </TextTitle3>
-        <VStack gap={1} alignItems="stretch" width="100%" minWidth={0}>
-          <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-            {t("home.why402Tagline")}
-          </TextTitle3>
-          <TextBody
-            color="fgMuted"
-            as="p"
-            style={{ margin: 0, lineHeight: 1.6 }}
-          >
-            {t("home.why402Lead")}
-          </TextBody>
-        </VStack>
-        <Text
-          color="fgMuted"
-          font="label2"
-          as="p"
-          style={{
-            margin: 0,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-          }}
-        >
-          {t("home.why402PillarsEyebrow")}
-        </Text>
-        <Box
-          as="ol"
-          display="grid"
-          width="100%"
-          minWidth={0}
-          margin={0}
-          padding={0}
-          style={{
-            listStyle: "none",
-            gap: 16,
-            gridTemplateColumns: isWide
-              ? "repeat(3, minmax(0, 1fr))"
-              : "minmax(0, 1fr)",
-          }}
-        >
-          {why402PillarCards.map((pillar, i) => (
-            <Box
-              as="li"
-              key={`home-why402-pillar-${i}`}
-              borderRadius={400}
-              minWidth={0}
-              padding={{ base: 5, desktop: 6 }}
-              style={{ background: "rgb(var(--gray10))", margin: 0 }}
-            >
-              <VStack gap={2} alignItems="stretch" minWidth={0}>
-                <TextTitle4
-                  color="fg"
-                  as="p"
-                  style={{ margin: 0, lineHeight: 1.4 }}
-                >
-                  {pillar.title}
-                </TextTitle4>
-                <TextBody
-                  color="fgMuted"
-                  as="p"
-                  style={{ margin: 0, lineHeight: 1.55 }}
-                >
-                  {pillar.body}
-                </TextBody>
-              </VStack>
-            </Box>
-          ))}
-        </Box>
-        <Box
-          width="100%"
-          borderRadius={400}
-          background="bgSecondary"
-          padding={6}
-          minWidth={0}
-        >
-          <VStack gap={3} alignItems="stretch" width="100%" minWidth={0}>
-            <TextBody
-              color="fg"
-              as="p"
-              style={{ margin: 0, lineHeight: 1.55, fontWeight: 600 }}
-            >
-              {t("home.why402Built")}
-            </TextBody>
-            <TextBody
-              color="fgMuted"
-              as="p"
-              style={{ margin: 0, lineHeight: 1.6 }}
-            >
-              {t("home.why402Closer")}
-            </TextBody>
-          </VStack>
-        </Box>
-      </VStack>
-    </Box>
-  )
-
-  const homeBottomCta = (
-    <Box
-      width="100%"
-      minWidth={0}
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-      paddingY={HOME_NARRATIVE_SECTION_PAD_Y}
-    >
-      <VStack gap={4} alignItems="flex-start" width="100%" maxWidth={680}>
-        <TextTitle3 color="fg" as="h2" style={{ margin: 0 }}>
-          {t("home.bottomCtaTitle")}
-        </TextTitle3>
-        <Button
-          variant="primary"
-          type="button"
-          onClick={handleScrollToWorkflow}
-          style={{ borderRadius: "100px" }}
-        >
-          {t("home.bottomCtaButton")}
-        </Button>
-      </VStack>
-    </Box>
-  )
-
   const homeLeftPanelFooter = (
     <Box
       as="footer"
       width="100%"
       minWidth={0}
-      paddingStart={contentPadStart}
-      paddingEnd={contentPadEnd}
-      paddingTop={0}
-      style={{ paddingBottom: 30 }}
+      paddingStart={0}
+      paddingEnd={0}
+      style={{
+        paddingTop: 12,
+        paddingBottom: 12,
+        paddingInline: 48,
+        borderTop: "1px solid var(--color-bgLine)",
+        justifyContent: "flex-start",
+        alignItems: "flex-end",
+      }}
     >
-      <VStack gap={3} alignItems="stretch" width="100%" maxWidth={680}>
-        <Divider
-          direction="horizontal"
-          background="bgLine"
-          style={{ width: "100%" }}
-        />
+      <VStack
+        gap={4}
+        alignItems="stretch"
+        justifyContent="flex-start"
+        width="100%"
+        maxWidth="100%"
+      >
         <HStack
           gap={4}
           flexWrap="wrap"
           alignItems="center"
-          rowGap={2}
+          justifyContent="space-between"
+          rowGap={3}
           columnGap={4}
-          style={{ marginLeft: 20, marginRight: 20 }}
+          width="100%"
+          minWidth={0}
         >
-          <TextCaption color="fgMuted" as="span">
-            {t("howItWorks.footerCopyright", {
-              year: new Date().getFullYear(),
-            })}
-          </TextCaption>
-          <HStack gap={2} alignItems="center" flexWrap="wrap">
-            <RouterLink to="/terms" className="how-it-works-footer-link">
-              {t("howItWorks.footerTerms")}
-            </RouterLink>
-            <TextCaption color="fgMuted" as="span" aria-hidden>
-              ·
+          <Box
+            display="flex"
+            flexDirection="row"
+            alignItems="center"
+            gap={4}
+            minWidth={0}
+            style={{
+              flex: "1 1 auto",
+              minWidth: 0,
+              flexWrap: "nowrap",
+            }}
+          >
+            <TextCaption
+              color="fgMuted"
+              as="span"
+              flexShrink={0}
+              style={{ whiteSpace: "nowrap" }}
+            >
+              {t("howItWorks.footerCopyright")}
             </TextCaption>
-            <RouterLink to="/privacy" className="how-it-works-footer-link">
-              {t("howItWorks.footerPrivacy")}
-            </RouterLink>
-          </HStack>
+            <HStack gap={2} alignItems="center" flexWrap="nowrap" minWidth={0}>
+              <RouterLink to="/api" className="how-it-works-footer-link">
+                {t("home.apiReferenceLinkLabel")}
+              </RouterLink>
+              <TextCaption color="fgMuted" as="span" aria-hidden>
+                ·
+              </TextCaption>
+              <RouterLink to="/terms" className="how-it-works-footer-link">
+                {t("howItWorks.footerTerms")}
+              </RouterLink>
+              <TextCaption color="fgMuted" as="span" aria-hidden>
+                ·
+              </TextCaption>
+              <RouterLink to="/privacy" className="how-it-works-footer-link">
+                {t("howItWorks.footerPrivacy")}
+              </RouterLink>
+            </HStack>
+          </Box>
+          <Box flexShrink={0} minWidth={0}>
+            <AppLocaleThemeControls menuPlacement="bottom" />
+          </Box>
         </HStack>
       </VStack>
     </Box>
   )
 
-  /** Wide: narrative column (hero → commerce → resources → … → CTA); workflow + QR live in the right column. */
+  /** Wide: left column = composer context + trust line + footer; right = workflow rail. */
   const leftPaneDesktop = (
-    <VStack gap={0} alignItems="stretch" width="100%" maxWidth="100%">
-      {homeHeroLead}
-      {homeDemoProofBand}
-      <HomeHorizontalRule />
-      {homeCommerceSection}
-      <HomeHorizontalRule />
-      {homeAudienceCreatorsCarousel}
-      <HomeHorizontalRule />
-      {homeAudienceSoftwareCarousel}
-      <HomeHorizontalRule />
-      {homeHowItWorksSection}
-      <HomeHorizontalRule />
-      {homeExampleUseCasesSection}
-      <HomeHorizontalRule />
-      {homeWhy402}
-      <HomeHorizontalRule />
-      {homeBottomCta}
+    <Box
+      width="100%"
+      minHeight="100%"
+      display="flex"
+      flexDirection="column"
+      alignItems="stretch"
+    >
+      <Box
+        flexGrow={1}
+        minHeight={0}
+        width="100%"
+        display="flex"
+        flexDirection="column"
+      >
+        {homeComposerContext}
+        {homeDemoProofBand}
+      </Box>
       {homeLeftPanelFooter}
-    </VStack>
+    </Box>
   )
 
   /**
-   * Transaction rail: Sell/Buy/API tabs → amount → fields → delivery → CTA;
+   * Transaction rail: Sell/Buy → object type → form → delivery → CTA;
    * generated QR/URL live in `homeRailResultSection` below the CTA.
    */
-  const showSellTypeChooser = activeTab.id === "sell" && sellTypeChooserOpen
 
   const rightPane = (
     <Box
@@ -3723,13 +2820,13 @@ export default function Home() {
       <Box
         width="100%"
         height="100%"
-        paddingTop={homeRailBodyPadY}
-        paddingBottom={homeRailBodyPadY}
+        paddingTop={4}
         {...rightColumnInnerPad}
         style={{
           position: "relative",
           overflowX: "hidden",
           overflowY: "visible",
+          paddingBottom: 24,
         }}
       >
         {/*
@@ -3739,15 +2836,15 @@ export default function Home() {
          */}
         <Box
           width="100%"
-          aria-hidden={showSellTypeChooser}
+          aria-hidden={showObjectTypePicker}
           style={{
-            transform: showSellTypeChooser
+            transform: showObjectTypePicker
               ? "translateX(-12%)"
               : "translateX(0)",
-            opacity: showSellTypeChooser ? 0 : 1,
+            opacity: showObjectTypePicker ? 0 : 1,
             transition:
               "transform 240ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease",
-            pointerEvents: showSellTypeChooser ? "none" : "auto",
+            pointerEvents: showObjectTypePicker ? "none" : "auto",
           }}
         >
           <VStack gap={6} alignItems="stretch" width="100%">
@@ -3758,11 +2855,12 @@ export default function Home() {
                 {homeFormSubmit}
                 {homeRailResultSection}
               </>
-            ) : activeTab.id === "buy" ? (
-              <BuyFlowPanel variant="rail" />
-            ) : activeTab.id === "api" ? (
-              <ApiDocsPanel variant="rail" />
-            ) : null}
+            ) : (
+              <BuyFlowPanel
+                variant="rail"
+                onPreviewObjectKindChange={handleBuyPreviewObjectKind}
+              />
+            )}
           </VStack>
         </Box>
         {/*
@@ -3770,32 +2868,30 @@ export default function Home() {
          * mounted so the slide-in / slide-out animation runs both ways; we
          * gate interaction with `pointer-events` and ARIA visibility.
          */}
-        {activeTab.id === "sell" ? (
-          <Box
-            id={sellTypeChooserPanelId}
-            role="dialog"
-            aria-modal={false}
-            aria-labelledby={sellTypeChooserHeadingId}
-            aria-hidden={!showSellTypeChooser}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              boxSizing: "border-box",
-              transform: showSellTypeChooser
-                ? "translateX(0)"
-                : "translateX(100%)",
-              opacity: showSellTypeChooser ? 1 : 0,
-              transition:
-                "transform 240ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease",
-              pointerEvents: showSellTypeChooser ? "auto" : "none",
-              background: "var(--color-bg)",
-            }}
-          >
-            {sellTypeChooserPanel}
-          </Box>
-        ) : null}
+        <Box
+          id={sellTypeChooserPanelId}
+          role="dialog"
+          aria-modal={false}
+          aria-labelledby={sellTypeChooserHeadingId}
+          aria-hidden={!showObjectTypePicker}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            boxSizing: "border-box",
+            transform: showObjectTypePicker
+              ? "translateX(0)"
+              : "translateX(100%)",
+            opacity: showObjectTypePicker ? 1 : 0,
+            transition:
+              "transform 240ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease",
+            pointerEvents: showObjectTypePicker ? "auto" : "none",
+            background: "var(--color-bg)",
+          }}
+        >
+          {sellTypeChooserPanel}
+        </Box>
       </Box>
     </Box>
   )
@@ -3837,7 +2933,7 @@ export default function Home() {
               minWidth={0}
               minHeight={0}
               paddingTop={padTop}
-              paddingBottom={padBottom}
+              paddingBottom={0}
               style={{ overflowY: "auto" }}
             >
               {leftPaneDesktop}
@@ -3874,7 +2970,7 @@ export default function Home() {
               minWidth={0}
               minHeight={0}
               background="bg"
-              paddingTop={rightRailPadTop}
+              paddingTop={0}
               paddingBottom={0}
               display="flex"
               flexDirection="column"
@@ -3894,13 +2990,9 @@ export default function Home() {
           </GridColumn>
         </Grid>
       ) : (
-        <Box
-          width="100%"
-          paddingTop={padTop}
-          paddingBottom={padBottom}
-        >
+        <Box width="100%" paddingTop={0} paddingBottom={padBottom}>
           <VStack gap={0} alignItems="stretch" width="100%">
-            {homeHeroLead}
+            {homeComposerContext}
             {homeDemoProofBand}
             <HomeHorizontalRule />
             <Box
@@ -3911,19 +3003,6 @@ export default function Home() {
               {rightPane}
             </Box>
             <HomeHorizontalRule />
-            {homeCommerceSection}
-            <HomeHorizontalRule />
-            {homeAudienceCreatorsCarousel}
-            <HomeHorizontalRule />
-            {homeAudienceSoftwareCarousel}
-            <HomeHorizontalRule />
-            {homeHowItWorksSection}
-            <HomeHorizontalRule />
-            {homeExampleUseCasesSection}
-            <HomeHorizontalRule />
-            {homeWhy402}
-            <HomeHorizontalRule />
-            {homeBottomCta}
             {homeLeftPanelFooter}
           </VStack>
         </Box>

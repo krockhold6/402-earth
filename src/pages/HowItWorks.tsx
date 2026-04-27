@@ -149,9 +149,7 @@ export default function HowItWorks() {
             style={{ marginLeft: 20, marginRight: 20 }}
           >
             <TextCaption color="fgMuted" as="span">
-              {t("howItWorks.footerCopyright", {
-                year: new Date().getFullYear(),
-              })}
+              {t("howItWorks.footerCopyright")}
             </TextCaption>
             <HStack gap={2} alignItems="center" flexWrap="wrap">
               <RouterLink

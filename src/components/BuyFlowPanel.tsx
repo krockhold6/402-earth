@@ -23,7 +23,6 @@ import {
   TextCaption,
   TextTitle2,
   TextTitle3,
-  TextTitle4,
 } from "@coinbase/cds-web/typography"
 import { createPaymentAttempt, fetchResource, type ApiResource } from "@/lib/api"
 import { capabilityBuyerBlockedMessage } from "@/lib/capabilityBuyerPolicyCopy"
@@ -100,9 +99,14 @@ const railInputSurface = {
 
 type BuyFlowPanelProps = {
   variant?: BuyFlowPanelVariant
+  /** When a resource is loaded or cleared, for Home composer object-type orientation. */
+  onPreviewObjectKindChange?: (kind: "resource" | "capability" | null) => void
 }
 
-export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
+export function BuyFlowPanel({
+  variant = "page",
+  onPreviewObjectKindChange,
+}: BuyFlowPanelProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const isRail = variant === "rail"
@@ -151,6 +155,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
   }, [])
 
   const resetToIdle = useCallback(() => {
+    onPreviewObjectKindChange?.(null)
     clearErrors()
     setState("idle")
     setSlug(null)
@@ -159,7 +164,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     setPaidType("json")
     setPaste("")
     setQrScanError(null)
-  }, [clearErrors])
+  }, [clearErrors, onPreviewObjectKindChange])
 
   const onPasteChange = useCallback((value: string) => {
     setQrScanError(null)
@@ -191,6 +196,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     setQrScanError(null)
     const s = extractSlugFrom402Input(paste)
     if (!s) {
+      onPreviewObjectKindChange?.(null)
       setResource(null)
       setSlug(null)
       setPaidValue(null)
@@ -200,6 +206,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     }
 
     setState("loading")
+    onPreviewObjectKindChange?.(null)
     setResource(null)
     setSlug(s)
     setPaidValue(null)
@@ -208,6 +215,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
     try {
       const data = await fetchResource(s)
       if (!data.ok || !data.resource) {
+        onPreviewObjectKindChange?.(null)
         setFlowError("load", data.error?.trim() || t("buy.loadFailed"))
         setResource(null)
         setSlug(null)
@@ -218,6 +226,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         r.sellType === "capability" || r.sell_type === "capability"
       const peek = r.capability_buyer_execution
       if (isCap && peek && peek.allowed === false) {
+        onPreviewObjectKindChange?.(null)
         setFlowError(
           "load",
           capabilityBuyerBlockedMessage(peek.code, peek.summary, t) ||
@@ -226,14 +235,16 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
         setResource(null)
         return
       }
+      onPreviewObjectKindChange?.(isCap ? "capability" : "resource")
       setResource(r)
       setState("loaded")
     } catch {
+      onPreviewObjectKindChange?.(null)
       setFlowError("load", t("buy.loadFailed"))
       setResource(null)
       setSlug(null)
     }
-  }, [clearErrors, paste, setFlowError, t])
+  }, [clearErrors, onPreviewObjectKindChange, paste, setFlowError, t])
 
   const handlePay = useCallback(async () => {
     if (!slug || !resource) return
@@ -634,15 +645,7 @@ export function BuyFlowPanel({ variant = "page" }: BuyFlowPanelProps) {
               {t("buy.heroSub")}
             </TextBody>
           </VStack>
-        ) : (
-          <TextTitle4
-            color="fg"
-            as="p"
-            style={{ margin: 0, lineHeight: 1.4, letterSpacing: "-0.02em" }}
-          >
-            {t("buy.railHeadline")}
-          </TextTitle4>
-        )
+        ) : null
       ) : null}
 
       {showIdleChrome ? inputBlock : null}

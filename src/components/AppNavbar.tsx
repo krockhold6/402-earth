@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { Button, IconButton } from "@coinbase/cds-web/buttons"
 import { Dropdown, MenuItem } from "@coinbase/cds-web/dropdown"
 import { useA11yControlledVisibility } from "@coinbase/cds-web/hooks/useA11yControlledVisibility"
@@ -71,6 +71,8 @@ const MOBILE_NAV_MAX = "(max-width: 959px)"
 
 export function AppNavbar() {
   const { t, i18n } = useTranslation()
+  const { pathname } = useLocation()
+  const isHome = pathname === "/"
   const isCompactNav = useMediaQuery(MOBILE_NAV_MAX)
   const { colorScheme, toggleColorScheme } = useCdsColorScheme()
   const [translatorOpen, setTranslatorOpen] = useState(false)
@@ -123,6 +125,123 @@ export function AppNavbar() {
     [activeLangCode],
   )
 
+  const navEnd =
+    isHome ? undefined : isCompactNav ? (
+      <>
+        <HStack gap={2} alignItems="center">
+          <Dropdown
+            accessibilityLabel={t("nav.languageMenu")}
+            content={translatorContent}
+            contentPosition={{ placement: "bottom-end", gap: 1 }}
+            controlledElementAccessibilityProps={translatorControlledA11y}
+            maxHeight={320}
+            minWidth={200}
+            onChange={handleTranslatorChange}
+            onCloseMenu={() => setTranslatorOpen(false)}
+            onOpenMenu={() => setTranslatorOpen(true)}
+          >
+            <Box display="inline-flex" style={{ width: "auto" }}>
+              <Button
+                compact
+                variant="secondary"
+                borderRadius={500}
+                minWidth="auto"
+                paddingX={3}
+                type="button"
+                endIcon="caretDown"
+                accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
+                {...translatorTriggerA11y}
+              >
+                {activeLangLabel}
+              </Button>
+            </Box>
+          </Dropdown>
+          <Box display="inline-flex">
+            <IconButton
+              name="appSwitcher"
+              variant="secondary"
+              type="button"
+              accessibilityLabel={t("nav.openAppMenu")}
+              {...appMenuTriggerA11y}
+              onClick={() => setAppMenuOpen(true)}
+            />
+          </Box>
+        </HStack>
+        {appMenuOpen ? (
+          <Tray
+            accessibilityLabel={t("nav.appMenu")}
+            id={appMenuControlledA11y.id}
+            pin="right"
+            title={t("nav.appMenu")}
+            onCloseComplete={() => setAppMenuOpen(false)}
+          >
+            {({ handleClose }) => (
+              <VStack
+                gap={2}
+                paddingX={3}
+                paddingY={2}
+                width="100%"
+                alignItems="stretch"
+              >
+                <Button
+                  className="app-nav-theme-toggle"
+                  variant="secondary"
+                  type="button"
+                  width="100%"
+                  startIcon={colorScheme === "light" ? "moon" : "light"}
+                  onClick={() => {
+                    toggleColorScheme()
+                    handleClose()
+                  }}
+                >
+                  {colorScheme === "light"
+                    ? t("nav.themeSwitchToDark")
+                    : t("nav.themeSwitchToLight")}
+                </Button>
+              </VStack>
+            )}
+          </Tray>
+        ) : null}
+      </>
+    ) : (
+      <HStack gap={2} alignItems="center">
+        <Dropdown
+          accessibilityLabel={t("nav.languageMenu")}
+          content={translatorContent}
+          contentPosition={{ placement: "bottom-end", gap: 1 }}
+          controlledElementAccessibilityProps={translatorControlledA11y}
+          maxHeight={320}
+          minWidth={200}
+          onChange={handleTranslatorChange}
+          onCloseMenu={() => setTranslatorOpen(false)}
+          onOpenMenu={() => setTranslatorOpen(true)}
+        >
+          <Box display="inline-flex" style={{ width: "auto" }}>
+            <Button
+              compact
+              variant="secondary"
+              borderRadius={500}
+              minWidth="auto"
+              paddingX={3}
+              type="button"
+              endIcon="caretDown"
+              accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
+              {...translatorTriggerA11y}
+            >
+              {activeLangLabel}
+            </Button>
+          </Box>
+        </Dropdown>
+        <IconButton
+          name={colorScheme === "light" ? "moon" : "light"}
+          variant="secondary"
+          type="button"
+          accessibilityLabel={t("nav.menuTheme")}
+          onClick={toggleColorScheme}
+        />
+      </HStack>
+    )
+
   return (
     <PageHeader
       background="bg"
@@ -145,125 +264,7 @@ export function AppNavbar() {
           </Box>
         </HStack>
       }
-      end={
-        isCompactNav ? (
-          <>
-            <HStack gap={2} alignItems="center">
-              <Dropdown
-                accessibilityLabel={t("nav.languageMenu")}
-                content={translatorContent}
-                contentPosition={{ placement: "bottom-end", gap: 1 }}
-                controlledElementAccessibilityProps={translatorControlledA11y}
-                maxHeight={320}
-                minWidth={200}
-                onChange={handleTranslatorChange}
-                onCloseMenu={() => setTranslatorOpen(false)}
-                onOpenMenu={() => setTranslatorOpen(true)}
-              >
-                <Box display="inline-flex" style={{ width: "auto" }}>
-                  <Button
-                    compact
-                    variant="secondary"
-                    borderRadius={500}
-                    minWidth="auto"
-                    paddingX={3}
-                    type="button"
-                    endIcon="caretDown"
-                    accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
-                    {...translatorTriggerA11y}
-                  >
-                    {activeLangLabel}
-                  </Button>
-                </Box>
-              </Dropdown>
-              <Box display="inline-flex">
-                <IconButton
-                  name="appSwitcher"
-                  variant="secondary"
-                  type="button"
-                  accessibilityLabel={t("nav.openAppMenu")}
-                  {...appMenuTriggerA11y}
-                  onClick={() => setAppMenuOpen(true)}
-                />
-              </Box>
-            </HStack>
-            {appMenuOpen ? (
-              <Tray
-                accessibilityLabel={t("nav.appMenu")}
-                id={appMenuControlledA11y.id}
-                pin="right"
-                title={t("nav.appMenu")}
-                onCloseComplete={() => setAppMenuOpen(false)}
-              >
-                {({ handleClose }) => (
-                  <VStack
-                    gap={2}
-                    paddingX={3}
-                    paddingY={2}
-                    width="100%"
-                    alignItems="stretch"
-                  >
-                    <Button
-                      className="app-nav-theme-toggle"
-                      variant="secondary"
-                      type="button"
-                      width="100%"
-                      startIcon={
-                        colorScheme === "light" ? "moon" : "light"
-                      }
-                      onClick={() => {
-                        toggleColorScheme()
-                        handleClose()
-                      }}
-                    >
-                      {colorScheme === "light"
-                        ? t("nav.themeSwitchToDark")
-                        : t("nav.themeSwitchToLight")}
-                    </Button>
-                  </VStack>
-                )}
-              </Tray>
-            ) : null}
-          </>
-        ) : (
-          <HStack gap={2} alignItems="center">
-            <Dropdown
-              accessibilityLabel={t("nav.languageMenu")}
-              content={translatorContent}
-              contentPosition={{ placement: "bottom-end", gap: 1 }}
-              controlledElementAccessibilityProps={translatorControlledA11y}
-              maxHeight={320}
-              minWidth={200}
-              onChange={handleTranslatorChange}
-              onCloseMenu={() => setTranslatorOpen(false)}
-              onOpenMenu={() => setTranslatorOpen(true)}
-            >
-              <Box display="inline-flex" style={{ width: "auto" }}>
-                <Button
-                  compact
-                  variant="secondary"
-                  borderRadius={500}
-                  minWidth="auto"
-                  paddingX={3}
-                  type="button"
-                  endIcon="caretDown"
-                  accessibilityLabel={`${t("nav.languageMenu")}, ${activeLangLabel}`}
-                  {...translatorTriggerA11y}
-                >
-                  {activeLangLabel}
-                </Button>
-              </Box>
-            </Dropdown>
-            <IconButton
-              name={colorScheme === "light" ? "moon" : "light"}
-              variant="secondary"
-              type="button"
-              accessibilityLabel={t("nav.menuTheme")}
-              onClick={toggleColorScheme}
-            />
-          </HStack>
-        )
-      }
+      end={navEnd}
     />
   )
 }
