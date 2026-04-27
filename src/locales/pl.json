@@ -444,7 +444,6 @@
   "home.composerSellCapabilitySupport": "Charge for an API, tool, prompt, or paid outcome.",
   "home.composerSellResourceHeadline": "Sell access.",
   "home.composerSellResourceSupport": "Create a payment link for a file, page, link, or product.",
-  "home.composerTrustLine": "USDC on Base, receipts, and payment-gated access in one link.",
   "home.copyPaymentUrl": "Copy payment URL",
   "home.createErrorHttp": "Nie można utworzyć zasobu (HTTP {{status}}).",
   "home.createErrorNetwork": "Błąd sieci — sprawdź połączenie lub konfigurację API.",

@@ -85,7 +85,6 @@
   "home.composerBuyResourceSupport": "Open a file, page, link, or product after payment.",
   "home.composerBuyCapabilityHeadline": "Pay to run a capability.",
   "home.composerBuyCapabilitySupport": "Unlock execution and get the result after payment.",
-  "home.composerTrustLine": "USDC on Base, receipts, and payment-gated access in one link.",
   "home.objectTypeLabel": "Type",
   "home.apiReferenceLinkLabel": "API",
   "home.demoBandBody": "Start by adding a name, your payout wallet, and a link to what you’re selling. Then make a payment link, share it anywhere, and get paid when someone unlocks it.",

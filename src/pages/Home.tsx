@@ -873,29 +873,6 @@ export default function Home() {
     </Box>
   )
 
-  /** Quiet one-line trust under the composer context (replaces the old long proof band on Home). */
-  const homeDemoProofBand = (
-    <Box
-      width="100%"
-      paddingStart={contentPadStart}
-      paddingEnd={6}
-      paddingTop={{ base: 1, desktop: 1 }}
-      paddingBottom={{ base: 2, desktop: 3 }}
-    >
-      <TextCaption
-        color="fgMuted"
-        as="p"
-        style={{
-          margin: 0,
-          lineHeight: 1.5,
-          width: "100%",
-        }}
-      >
-        {t("home.composerTrustLine")}
-      </TextCaption>
-    </Box>
-  )
-
   /** Match `bgSecondary` cards / Payment URL; no stroke until focus (CDS `focusedBorderWidth`). */
   const homeFormTextInputSurface = {
     bordered: false,
@@ -1198,7 +1175,7 @@ export default function Home() {
         // which leaves a visible gap before the secondary fill when embedded in TextInput `start`.
         controlInputNode: {
           ...cdsCompactSelectFieldStyles.controlInputNode,
-          width: "105px",
+          width: "112px",
           minHeight: 62,
           paddingInlineStart: 0,
           justifyContent: "flex-start",
@@ -1207,7 +1184,7 @@ export default function Home() {
         // Apply the left inset on the value label itself so the caret/text origin
         // matches the URL input's leading edge (instead of padding the outer control).
         controlValueNode: {
-          paddingInlineStart: 20,
+          paddingInlineStart: 16,
           paddingInlineEnd: 0,
           flexGrow: 0,
           flexShrink: 0,
@@ -1410,8 +1387,8 @@ export default function Home() {
               start={
                 <Box
                   className="home-postpay-direct-input__kind"
-                  width="auto"
-                  minWidth={150}
+                  width={120}
+                  minWidth={120}
                   maxWidth="42%"
                   flexShrink={0}
                   flexGrow={0}
@@ -2768,7 +2745,7 @@ export default function Home() {
     </Box>
   )
 
-  /** Wide: left column = composer context + trust line + footer; right = workflow rail. */
+  /** Wide: left column = composer context + footer; right = workflow rail. */
   const leftPaneDesktop = (
     <Box
       width="100%"
@@ -2783,9 +2760,10 @@ export default function Home() {
         width="100%"
         display="flex"
         flexDirection="column"
+        justifyContent="center"
+        alignItems="flex-start"
       >
         {homeComposerContext}
-        {homeDemoProofBand}
       </Box>
       {homeLeftPanelFooter}
     </Box>
@@ -2993,7 +2971,6 @@ export default function Home() {
         <Box width="100%" paddingTop={0} paddingBottom={padBottom}>
           <VStack gap={0} alignItems="stretch" width="100%">
             {homeComposerContext}
-            {homeDemoProofBand}
             <HomeHorizontalRule />
             <Box
               width="100%"

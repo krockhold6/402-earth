@@ -444,7 +444,6 @@
   "home.composerSellCapabilitySupport": "Charge for an API, tool, prompt, or paid outcome.",
   "home.composerSellResourceHeadline": "Sell access.",
   "home.composerSellResourceSupport": "Create a payment link for a file, page, link, or product.",
-  "home.composerTrustLine": "USDC on Base, receipts, and payment-gated access in one link.",
   "home.copyPaymentUrl": "Copy payment URL",
   "home.createErrorHttp": "리소스를 생성할 수 없습니다(HTTP {{status}}).",
   "home.createErrorNetwork": "네트워크 오류 — 연결 또는 API 구성을 확인하세요.",
